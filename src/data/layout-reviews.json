@@ -1,0 +1,350 @@
+{
+  "linkedin-square": {
+    "classic-hero": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "centered-announcement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "logo-footer-bar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "product-focus": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "copy-statement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "balanced-split": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "visual-first": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "professional-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "footer-mark": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "brand-stack": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "event-footer": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-right": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "deck-sidebar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    }
+  },
+  "linkedin-landscape": {
+    "classic-hero": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "centered-announcement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "logo-footer-bar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "product-focus": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "copy-statement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "balanced-split": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "visual-first": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "professional-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "footer-mark": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "brand-stack": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "event-footer": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-right": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "deck-sidebar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    }
+  },
+  "twitter": {
+    "classic-hero": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "centered-announcement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "logo-footer-bar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "product-focus": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "copy-statement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "balanced-split": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "visual-first": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "professional-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "footer-mark": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "brand-stack": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "event-footer": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-right": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "deck-sidebar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    }
+  },
+  "instagram-square": {
+    "classic-hero": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "centered-announcement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "logo-footer-bar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "product-focus": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "copy-statement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "balanced-split": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "visual-first": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "professional-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "footer-mark": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "brand-stack": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "event-footer": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-right": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "deck-sidebar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    }
+  },
+  "instagram-story": {
+    "classic-hero": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "centered-announcement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "logo-footer-bar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "product-focus": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "copy-statement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "balanced-split": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "visual-first": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "professional-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "footer-mark": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "brand-stack": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "event-footer": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-right": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "deck-sidebar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    }
+  },
+  "event-standee": {
+    "classic-hero": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "centered-announcement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "logo-footer-bar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "product-focus": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "copy-statement": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "balanced-split": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "visual-first": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "professional-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "footer-mark": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "brand-stack": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "event-footer": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-right": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "split-feature-left": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    },
+    "deck-sidebar": {
+      "decision": "approved",
+      "updatedAt": "2026-07-22T10:30:00.000Z"
+    }
+  }
+}

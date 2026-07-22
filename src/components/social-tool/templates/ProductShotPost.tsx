@@ -5,16 +5,19 @@ import { BrandLogoSlot } from "@/components/social-tool/BrandLogoSlot";
 import { CanvasSlot, isEmptyCopyField } from "@/components/social-tool/CanvasSlot";
 import { FeaturedImageContent } from "@/components/social-tool/FeaturedImageContent";
 import { PostPattern } from "@/components/social-tool/PostPattern";
-import { ProductPreview } from "@/components/social-tool/ProductPreview";
+import { ProductPreview, getProductPageNativeWidth } from "@/components/social-tool/ProductPreview";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
 import type { BackgroundPreset } from "@/lib/brand/types";
 import type { DesignBlockId } from "@/lib/brand/contrast";
 import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
 import {
   DEFAULT_POST_LAYOUT_ID,
+  getLayoutTextSide,
   getPostLayout,
-  layoutHasFooterStrip,
-  resolveTextZoneRatio,
+  layoutUsesSplit,
+  resolveFeaturedLayoutZones,
+  resolveFooterBlocks,
+  resolveSplitLayoutZones,
   type FeaturedFrameRadius,
   type PostContentBlock,
   type PostLayoutId,
@@ -22,6 +25,7 @@ import {
 import { SpacingHandle } from "@/components/social-tool/SpacingHandle";
 import {
   DEFAULT_POST_LAYOUT_SPACING,
+  canvasScaleFactor,
   spacingToCssVars,
   spacingTokenToPx,
   type PostLayoutSpacing,
@@ -116,8 +120,8 @@ type Props = {
   exporting?: boolean;
 };
 
-function scale(base: number, width: number) {
-  return Math.round(base * (width / 1080));
+function scale(base: number, width: number, height: number) {
+  return Math.round(base * canvasScaleFactor(width, height));
 }
 
 function alignClass(align: LogoAlign | TextAlign) {
@@ -215,18 +219,26 @@ export function ProductShotPost({
   exporting = false,
 }: Props) {
   const layout = getPostLayout(layoutId);
-  const canvasRatio = width / 1080;
+  const canvasScale = canvasScaleFactor(width, height);
   const aspect = height / width;
   const isTallPrint = aspect >= 1.8;
-  const layoutPadPx = spacingTokenToPx(spacing.layoutPad, width);
-  const textZonePadBottomPx = spacingTokenToPx(spacing.textZonePadBottom, width);
-  const logoCopyGapPx = spacingTokenToPx(spacing.logoCopyGap, width);
-  const copyBlockGapPx = spacingTokenToPx(spacing.copyBlockGap, width);
-  const footerPadPx = spacingTokenToPx(spacing.footerPad, width);
-  const footerBlockGapPx = spacingTokenToPx(spacing.footerBlockGap, width);
+  const layoutPadPx = spacingTokenToPx(spacing.layoutPad, width, height);
+  const textZonePadBottomPx = spacingTokenToPx(
+    spacing.textZonePadBottom,
+    width,
+    height,
+  );
+  const logoCopyGapPx = spacingTokenToPx(spacing.logoCopyGap, width, height);
+  const copyBlockGapPx = spacingTokenToPx(spacing.copyBlockGap, width, height);
+  const footerPadPx = spacingTokenToPx(spacing.footerPad, width, height);
+  const footerBlockGapPx = spacingTokenToPx(
+    spacing.footerBlockGap,
+    width,
+    height,
+  );
   const pad = layoutPadPx;
-  const radius = scale(12, width);
-  const logoH = Math.max(12, Math.round(34 * canvasRatio * logoScale));
+  const radius = scale(12, width, height);
+  const logoH = Math.max(12, Math.round(34 * canvasScale * logoScale));
   const showSpacingHandles =
     showSpacingControls && interactive && !!onSpacingChange;
 
@@ -234,15 +246,12 @@ export function ProductShotPost({
     onSpacingChange?.({ ...spacing, [key]: token });
   }
 
-  const showFooterLogo =
-    showLogo &&
-    logoPlacement === "footer" &&
-    layout.footerBlocks.includes("logo");
+  const showFooterLogo = showLogo && logoPlacement === "footer";
   const showFooterExtras =
     layout.extrasPlacement === "footer" &&
     layout.footerBlocks.includes("extras");
-  const hasFooterStrip =
-    layoutHasFooterStrip(layout) && (showFooterLogo || showFooterExtras);
+  const footerBlocks = resolveFooterBlocks(layout, showFooterLogo);
+  const hasFooterStrip = showFooterLogo || showFooterExtras;
 
   let footerH = 0;
   if (hasFooterStrip) {
@@ -250,22 +259,54 @@ export function ProductShotPost({
     if (showFooterLogo) footerH += logoH + footerPadPx / 2;
     if (showFooterExtras) {
       const lineCount = Math.max(copy.extraFields.length, 1);
-      footerH += scale(lineCount * 24 + 8, width);
+      footerH += scale(lineCount * 24 + 8, width, height);
       if (showFooterLogo) footerH += footerBlockGapPx;
     }
     footerH += footerPadPx;
   }
 
   // Tall standees: more room for brand + hierarchy in the upper band
-  const textZoneRatio = resolveTextZoneRatio(layout, {
-    showFeaturedImage,
+  const fi = featuredTransform;
+  const featuredReady =
+    featuredMode === "genui" ||
+    (featuredMode === "image" &&
+      (hasFeaturedImage || !!featuredImageSrc || !!featuredSvgMarkup));
+  const showFeaturedFrame =
+    showFeaturedImage && featuredReady && !emptyStatePreview;
+
+  const isSplit = layoutUsesSplit(layout);
+  const textSide = getLayoutTextSide(layout);
+
+  const { textZone, productZone } = resolveFeaturedLayoutZones({
+    width,
+    height,
+    footerH,
+    layout,
+    showFeaturedImage: showFeaturedImage && !isSplit,
     isTallPrint,
     typeScale,
+    showTopLogo: showLogo && logoPlacement === "top",
+    spacing,
+    logoScale,
   });
-  const textZone = Math.round(height * textZoneRatio);
-  const productZone = showFeaturedImage ? height - textZone - footerH : 0;
-  const frameWidth = width - pad;
-  const nativeWidth = productPage === "pipeline" ? 980 : 1100;
+
+  const splitZones = isSplit
+    ? resolveSplitLayoutZones({
+        width,
+        height,
+        footerH,
+        layout,
+        showFeaturedImage,
+        isTallPrint,
+        showTopLogo: showLogo && logoPlacement === "top",
+        spacing,
+        logoScale,
+      })
+    : null;
+
+  const frameWidth =
+    isSplit && splitZones ? splitZones.featuredColumn : width - 2 * pad;
+  const nativeWidth = getProductPageNativeWidth(productPage);
   const uiScale = frameWidth / nativeWidth;
 
   const headingParts = parseAccentMarkup(copy.heading);
@@ -273,7 +314,6 @@ export function ProductShotPost({
   const hasSubheading = !isEmptyCopyField(copy.subheading);
   const headingFamily = getSocialFont(headingFont).family;
   const subFamily = getSocialFont(subFont).family;
-  const fi = featuredTransform;
 
   const [hovered, setHovered] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -290,7 +330,11 @@ export function ProductShotPost({
   const bindDragListenersRef = useRef<() => void>(() => {});
 
   fiRef.current = featuredTransform;
-  metricsRef.current = { frameWidth, productZone, previewScale };
+  metricsRef.current = {
+    frameWidth,
+    productZone: isSplit && splitZones ? splitZones.rowHeight : productZone,
+    previewScale,
+  };
   onChangeRef.current = onFeaturedTransformChange;
 
   const canDrag =
@@ -405,18 +449,18 @@ export function ProductShotPost({
   };
 
   const headlineSlotStyle = {
-    width: scale(isTallPrint ? 480 : 560, width),
-    height: scale(isTallPrint ? 72 : 64, width),
+    width: scale(isTallPrint ? 480 : 560, width, height),
+    height: scale(isTallPrint ? 72 : 64, width, height),
     maxWidth: "100%",
   };
   const subheadingSlotStyle = {
-    width: scale(isTallPrint ? 360 : 420, width),
-    height: scale(isTallPrint ? 40 : 36, width),
+    width: scale(isTallPrint ? 360 : 420, width, height),
+    height: scale(isTallPrint ? 40 : 36, width, height),
     maxWidth: isTallPrint ? "22em" : "28em",
   };
   const extraSlotStyle = {
-    width: scale(isTallPrint ? 320 : 380, width),
-    height: scale(28, width),
+    width: scale(isTallPrint ? 320 : 380, width, height),
+    height: scale(28, width, height),
     maxWidth: isTallPrint ? "22em" : "28em",
   };
 
@@ -587,11 +631,12 @@ export function ProductShotPost({
     width,
     height,
     "--sp-pad": `${layoutPadPx}px`,
+    "--canvas-preview-scale": previewScale,
     "--sp-type-scale": typeScale,
-    "--sp-canvas-ratio": canvasRatio,
+    "--sp-canvas-ratio": canvasScale,
     "--sp-heading-font": headingFamily,
     "--sp-sub-font": subFamily,
-    ...spacingToCssVars(spacing, width),
+    ...spacingToCssVars(spacing, width, height),
     ...(backgroundPreset && showBackground
       ? {
           "--sp-bg": backgroundPreset.background,
@@ -605,19 +650,165 @@ export function ProductShotPost({
   } as React.CSSProperties;
 
   const chromeActive = hovered || featuredSelected || dragging;
-  const featuredReady =
-    featuredMode === "genui" ||
-    (featuredMode === "image" && (hasFeaturedImage || !!featuredImageSrc || !!featuredSvgMarkup));
   const featuredFrameRadius = featuredRadiusStyle(layout.featuredRadius, radius);
   const textZoneJustify =
     layout.textVerticalAlign === "center" && !isTallPrint
       ? "justify-center"
       : "justify-start";
-  const showFeaturedFrame = showFeaturedImage && featuredReady;
   const layoutStackClass =
     layout.stack === "featured-first"
       ? " social-post-product-layout--featured-first"
       : "";
+  const layoutCompositionClass = isSplit
+    ? ` social-post-product-layout--split social-post-product-layout--text-${textSide}`
+    : "";
+
+  function renderTextBand(opts: {
+    bandWidth?: number;
+    bandHeight: number;
+    split?: boolean;
+  }) {
+    const { bandWidth, bandHeight, split = false } = opts;
+    return (
+      <div
+        className={`social-post-text-zone${isTallPrint ? " social-post-text-zone--tall" : ""}${split ? " social-post-text-zone--split" : ""}`}
+        style={{
+          ...(bandWidth != null ? { width: bandWidth, flexShrink: 0 } : {}),
+          height: split ? bandHeight : showFeaturedImage ? textZone - layoutPadPx : height - layoutPadPx - footerH,
+          paddingBottom: split ? 0 : textZonePadBottomPx,
+        }}
+      >
+        {showLogo && logoPlacement === "top" ? (
+          <div className={`flex w-full shrink-0 ${justifyLogo(logoAlign)}`}>
+            {logoEl}
+          </div>
+        ) : null}
+
+        {showLogo && logoPlacement === "top"
+          ? renderGapZone(
+              "logo-copy-gap",
+              logoCopyGapPx,
+              spacing.logoCopyGap,
+              "logoCopyGap",
+              "Space between logo and copy",
+            )
+          : null}
+
+        {showContent ? (
+          <div
+            className={`social-post-copy-stack flex w-full flex-col ${selectableClass("copy")} ${
+              isTallPrint || split
+                ? "max-w-none shrink-0 justify-start"
+                : `max-w-[920px] flex-1 ${textZoneJustify} ${textColumnSelf(textAlign)}`
+            } ${split && layout.textVerticalAlign === "center" ? "justify-center flex-1" : ""} ${alignClass(textAlign)}`}
+            data-canvas-select="copy"
+            onPointerDown={(ev) => handleCanvasSelect("copy", ev)}
+          >
+            {renderCopyStack()}
+          </div>
+        ) : null}
+
+        {!split && showSpacingHandles ? (
+          <SpacingHandle
+            kind="padding"
+            variant="edge-bottom"
+            token={spacing.textZonePadBottom}
+            onTokenChange={(t) => setSpacingToken("textZonePadBottom", t)}
+            previewScale={previewScale}
+            ariaLabel="Text zone bottom padding"
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  function renderFeaturedViewport(viewportHeight: number, viewportWidth?: number) {
+    return (
+      <div
+        className={`social-post-product-viewport${canDrag && showFeaturedFrame ? " is-editable" : ""} ${selectableClass("featured")}${viewportWidth != null ? " social-post-product-viewport--split" : ""}`}
+        data-canvas-select="featured"
+        onPointerDown={(ev) => handleCanvasSelect("featured", ev)}
+        style={
+          {
+            height: viewportHeight,
+            ...(viewportWidth != null ? { width: viewportWidth, flexShrink: 0 } : {}),
+            ...(showFeaturedFrame
+              ? {
+                  "--fi-perspective": `${fi.perspective}px`,
+                  "--fi-x": `${fi.x}%`,
+                  "--fi-y": `${fi.y}%`,
+                  "--fi-z": `${fi.z}px`,
+                  "--fi-rx": `${fi.rotateX}deg`,
+                  "--fi-ry": `${fi.rotateY}deg`,
+                  "--fi-rz": `${fi.rotateZ}deg`,
+                  "--fi-scale": fi.scale,
+                }
+              : {}),
+          } as React.CSSProperties
+        }
+      >
+        {showFeaturedFrame ? (
+          <div
+            className={`social-post-product-frame${chromeActive ? " is-hot" : ""}${dragging ? " is-dragging" : ""}`}
+            style={featuredFrameRadius}
+            onPointerEnter={() => {
+              if (canDrag) setHovered(true);
+            }}
+            onPointerLeave={() => {
+              if (!dragging) setHovered(false);
+            }}
+          >
+            {featuredMode === "genui" ? (
+              <div
+                className="social-post-product-inner"
+                style={{
+                  width: nativeWidth,
+                  transform: `scale(${uiScale})`,
+                  transformOrigin: "top left",
+                }}
+              >
+                <ProductPreview page={productPage} frameWidth={nativeWidth} />
+              </div>
+            ) : (
+              <div className="social-post-product-inner social-post-product-inner--image">
+                <FeaturedImageContent
+                  imageSrc={featuredImageSrc ?? null}
+                  svgMarkup={featuredSvgMarkup ?? null}
+                />
+              </div>
+            )}
+
+            {canDrag ? (
+              <div
+                className={`social-fi-chrome${chromeActive ? " is-visible" : ""}`}
+                onPointerDown={startDrag}
+                role="presentation"
+              >
+                <div className="social-fi-bounds" />
+                {HANDLES.map((h) => (
+                  <span
+                    key={h}
+                    className={`social-fi-handle social-fi-handle--${h}`}
+                    aria-hidden
+                  />
+                ))}
+                <span className="social-fi-move-hint" aria-hidden>
+                  Drag to move
+                </span>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div
+            className="social-post-product-frame social-post-product-frame--slot"
+            style={featuredFrameRadius}
+          >
+            <CanvasSlot variant="image" className="social-post-image-slot" />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -651,7 +842,7 @@ export function ProductShotPost({
       ) : null}
 
       <div
-        className={`social-post-product-layout${layoutStackClass}${showSpacingHandles ? " has-spacing-handles" : ""}`}
+        className={`social-post-product-layout${layoutStackClass}${layoutCompositionClass}${showSpacingHandles ? " has-spacing-handles" : ""}`}
       >
         {showSpacingHandles ? (
           <SpacingHandle
@@ -664,144 +855,54 @@ export function ProductShotPost({
             className="spacing-handle--layout-pad"
           />
         ) : null}
-        <div
-          className={`social-post-text-zone${isTallPrint ? " social-post-text-zone--tall" : ""}`}
-          style={{
-            height: showFeaturedImage
-              ? textZone - layoutPadPx
-              : height - layoutPadPx - footerH,
-          }}
-        >
-          {showLogo && logoPlacement === "top" ? (
-            <div className={`flex w-full shrink-0 ${justifyLogo(logoAlign)}`}>
-              {logoEl}
-            </div>
-          ) : null}
 
-          {showLogo && logoPlacement === "top"
-            ? renderGapZone(
-                "logo-copy-gap",
-                logoCopyGapPx,
-                spacing.logoCopyGap,
-                "logoCopyGap",
-                "Space between logo and copy",
-              )
-            : null}
-
-          {showContent ? (
+        {isSplit && splitZones && showFeaturedImage ? (
           <div
-            className={`social-post-copy-stack flex w-full flex-col ${selectableClass("copy")} ${
-              isTallPrint
-                ? "max-w-none shrink-0 justify-start"
-                : `max-w-[920px] flex-1 ${textZoneJustify} ${textColumnSelf(textAlign)}`
-            } ${alignClass(textAlign)}`}
-            data-canvas-select="copy"
-            onPointerDown={(ev) => handleCanvasSelect("copy", ev)}
+            className="social-post-split-row"
+            style={{
+              height: splitZones.rowHeight,
+              gap: splitZones.columnGap,
+            }}
           >
-            {renderCopyStack()}
-          </div>
-          ) : null}
-
-          {showSpacingHandles ? (
-            <SpacingHandle
-              kind="padding"
-              variant="edge-bottom"
-              token={spacing.textZonePadBottom}
-              onTokenChange={(t) => setSpacingToken("textZonePadBottom", t)}
-              previewScale={previewScale}
-              ariaLabel="Text zone bottom padding"
-            />
-          ) : null}
-        </div>
-
-        {showFeaturedImage ? (
-          <div
-            className={`social-post-product-viewport${canDrag && showFeaturedFrame ? " is-editable" : ""} ${selectableClass("featured")}`}
-            data-canvas-select="featured"
-            onPointerDown={(ev) => handleCanvasSelect("featured", ev)}
-            style={
-              {
-                height: productZone,
-                ...(showFeaturedFrame
-                  ? {
-                      "--fi-perspective": `${fi.perspective}px`,
-                      "--fi-x": `${fi.x}%`,
-                      "--fi-y": `${fi.y}%`,
-                      "--fi-z": `${fi.z}px`,
-                      "--fi-rx": `${fi.rotateX}deg`,
-                      "--fi-ry": `${fi.rotateY}deg`,
-                      "--fi-rz": `${fi.rotateZ}deg`,
-                      "--fi-scale": fi.scale,
-                    }
-                  : {}),
-              } as React.CSSProperties
-            }
-          >
-            {showFeaturedFrame ? (
-              <div
-                className={`social-post-product-frame${chromeActive ? " is-hot" : ""}${dragging ? " is-dragging" : ""}`}
-                style={featuredFrameRadius}
-                onPointerEnter={() => {
-                  if (canDrag) setHovered(true);
-                }}
-                onPointerLeave={() => {
-                  if (!dragging) setHovered(false);
-                }}
-              >
-                {featuredMode === "genui" ? (
-                  <div
-                    className="social-post-product-inner"
-                    style={{
-                      width: nativeWidth,
-                      transform: `scale(${uiScale})`,
-                      transformOrigin: "top left",
-                    }}
-                  >
-                    <ProductPreview page={productPage} frameWidth={nativeWidth} />
-                  </div>
-                ) : (
-                  <div className="social-post-product-inner social-post-product-inner--image">
-                    <FeaturedImageContent
-                      imageSrc={featuredImageSrc ?? null}
-                      svgMarkup={featuredSvgMarkup ?? null}
-                    />
-                  </div>
+            {textSide === "left" ? (
+              <>
+                {renderTextBand({
+                  bandWidth: splitZones.textColumn,
+                  bandHeight: splitZones.rowHeight,
+                  split: true,
+                })}
+                {renderFeaturedViewport(
+                  splitZones.rowHeight,
+                  splitZones.featuredColumn,
                 )}
-
-                {canDrag ? (
-                  <div
-                    className={`social-fi-chrome${chromeActive ? " is-visible" : ""}`}
-                    onPointerDown={startDrag}
-                    role="presentation"
-                  >
-                    <div className="social-fi-bounds" />
-                    {HANDLES.map((h) => (
-                      <span
-                        key={h}
-                        className={`social-fi-handle social-fi-handle--${h}`}
-                        aria-hidden
-                      />
-                    ))}
-                    <span className="social-fi-move-hint" aria-hidden>
-                      Drag to move
-                    </span>
-                  </div>
-                ) : null}
-              </div>
+              </>
             ) : (
-              <div
-                className="social-post-product-frame social-post-product-frame--slot"
-                style={featuredFrameRadius}
-              >
-                <CanvasSlot variant="image" className="social-post-image-slot" />
-              </div>
+              <>
+                {renderFeaturedViewport(
+                  splitZones.rowHeight,
+                  splitZones.featuredColumn,
+                )}
+                {renderTextBand({
+                  bandWidth: splitZones.textColumn,
+                  bandHeight: splitZones.rowHeight,
+                  split: true,
+                })}
+              </>
             )}
           </div>
-        ) : null}
+        ) : (
+          <>
+            {renderTextBand({ bandHeight: textZone - layoutPadPx })}
+
+            {showFeaturedImage
+              ? renderFeaturedViewport(productZone)
+              : null}
+          </>
+        )}
 
         {hasFooterStrip ? (
           <div
-            className={`social-post-footer-strip flex w-full flex-col ${alignClass(textAlign)} ${justifyLogo(logoAlign)}${showSpacingHandles ? " has-spacing-handles" : ""}`}
+            className={`social-post-footer-strip flex w-full flex-col${showSpacingHandles ? " has-spacing-handles" : ""}`}
             style={{
               minHeight: footerH,
               paddingBlock: footerPadPx,
@@ -819,7 +920,7 @@ export function ProductShotPost({
                 className="spacing-handle--footer-pad"
               />
             ) : null}
-            {layout.footerBlocks.flatMap((block, index) => {
+            {footerBlocks.flatMap((block, index) => {
               const items: React.ReactNode[] = [];
               if (index > 0) {
                 items.push(
@@ -833,7 +934,14 @@ export function ProductShotPost({
                 );
               }
               items.push(
-                <div key={`footer-${block}`} className="social-post-footer-block">
+                <div
+                  key={`footer-${block}`}
+                  className={
+                    block === "logo"
+                      ? `social-post-footer-block flex w-full shrink-0 ${justifyLogo(logoAlign)}`
+                      : `social-post-footer-block flex w-full flex-col ${alignClass(textAlign)}`
+                  }
+                >
                   {renderFooterBlock(block)}
                 </div>,
               );

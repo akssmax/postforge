@@ -26,10 +26,15 @@ import { LayoutSpacingToggle } from "@/components/social-tool/LayoutSpacingToggl
 import {
   getLayoutStatePatch,
   getPostLayout,
-  getRandomPostLayout,
   seedCopyForLayout,
   type PostLayoutId,
 } from "@/lib/social-tool/postLayouts";
+import {
+  getRandomPlaygroundLayout,
+  loadLayoutReviews,
+  resolveLayoutSpacing,
+  type LayoutReviewRecord,
+} from "@/lib/social-tool/layoutReviews";
 import {
   canvasSelectionFromContrastBlock,
   isCanvasSelectableTarget,
@@ -158,7 +163,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const patchDocument = session.patchDocument;
 
   const applyPostLayout = useCallback(
-    (nextId: PostLayoutId) => {
+    (nextId: PostLayoutId, record: LayoutReviewRecord = loadLayoutReviews()) => {
       const layout = getPostLayout(nextId);
       const patch = getLayoutStatePatch(layout);
       patchDocument({
@@ -166,14 +171,16 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         logoPlacement: patch.logoPlacement,
         logoAlign: patch.logoAlign,
         textAlign: patch.textAlign,
+        layoutSpacing: resolveLayoutSpacing(record, doc.platformId, nextId),
         copy: seedCopyForLayout(doc.copy, layout),
       });
     },
-    [doc.copy, patchDocument],
+    [doc.copy, doc.platformId, patchDocument],
   );
 
   function shufflePostLayout() {
-    applyPostLayout(getRandomPostLayout(doc.layoutId).id);
+    const record = loadLayoutReviews();
+    applyPostLayout(getRandomPlaygroundLayout(doc.platformId, doc.layoutId, record).id, record);
   }
 
   useEffect(() => {
@@ -675,13 +682,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         patternScale={doc.patternScale}
                         patternAnimated={doc.patternAnimated && !exporting && isReady}
                         productPage={session.featured.productPage}
-                        featuredMode={
-                          isNeedsBrief &&
-                          !session.featured.image &&
-                          session.featured.mode === "genui"
-                            ? "image"
-                            : session.featured.mode
-                        }
+                        featuredMode={session.featured.mode}
                         featuredImageSrc={session.featuredImageSrc}
                         featuredSvgMarkup={session.featured.image?.svgMarkup ?? null}
                         hasFeaturedImage={!!session.featured.image}
@@ -690,9 +691,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         logoAlign={doc.logoAlign}
                         logoPlacement={doc.logoPlacement}
                         showLogo={doc.showBrand}
-                        showFeaturedImage={
-                          (doc.showFeaturedImage || isNeedsBrief) && showCanvasBlocks
-                        }
+                        showFeaturedImage={doc.showFeaturedImage && showCanvasBlocks}
                         featuredTransform={doc.featuredTransform}
                         onFeaturedTransformChange={handleFeaturedTransformChange}
                         previewScale={previewScale}

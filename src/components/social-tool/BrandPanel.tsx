@@ -52,6 +52,7 @@ type Props = Pick<
   onLogoPlacementChange: (value: LogoPlacement) => void;
   logoAlign: LogoAlign;
   onLogoAlignChange: (value: LogoAlign) => void;
+  defaultExpanded?: boolean;
 };
 
 const COLOR_ROLES: { key: Exclude<keyof BrandColors, "extracted">; label: string }[] = [
@@ -79,35 +80,54 @@ export function BrandPanel({
   onLogoPlacementChange,
   logoAlign,
   onLogoAlignChange,
+  defaultExpanded = false,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const hasSvgLogo = kit.logo?.mime === "image/svg+xml";
 
   return (
-    <section className="social-tool-section brand-panel space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="social-tool-section-title !mb-0">Brand</p>
-        <Switch
-          size="sm"
-          isSelected={showBrand}
-          onChange={onShowBrandChange}
-          aria-label="Show brand on canvas"
-        >
-          <Switch.Content>
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
-          </Switch.Content>
-        </Switch>
-      </div>
+    <section className="social-tool-section brand-panel">
+      <Disclosure
+        className="brand-panel-disclosure"
+        defaultExpanded={defaultExpanded}
+      >
+        <Disclosure.Heading className="brand-panel-disclosure-heading">
+          <div className="brand-panel-disclosure-header">
+            <Disclosure.Trigger className="brand-disclosure-trigger brand-panel-disclosure-trigger">
+              <span className="social-tool-section-title !mb-0">Brand</span>
+              <Disclosure.Indicator className="brand-disclosure-indicator brand-panel-disclosure-indicator">
+                <ChevronDown className="size-4" />
+              </Disclosure.Indicator>
+            </Disclosure.Trigger>
+            <div
+              className="brand-panel-disclosure-switch"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Switch
+                size="sm"
+                isSelected={showBrand}
+                onChange={onShowBrandChange}
+                aria-label="Show brand on canvas"
+              >
+                <Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch.Content>
+              </Switch>
+            </div>
+          </div>
+        </Disclosure.Heading>
+        <Disclosure.Content>
+          <Disclosure.Body className="brand-panel-disclosure-body">
+            {showBrand ? (
+              <>
+                <p className="text-[11px] leading-4 text-text-tertiary">
+                  Upload SVG or PNG. SVG unlocks live contrast checks on the canvas.
+                </p>
 
-      {showBrand ? (
-        <>
-          <p className="text-[11px] leading-4 text-text-tertiary">
-            Upload SVG or PNG. SVG unlocks live contrast checks on the canvas.
-          </p>
-
-          <div className="brand-upload-card">
+                <div className="brand-upload-card">
             <div className="brand-upload-preview">
               {kit.logo ? (
                 kit.logo.svgMarkup ? (
@@ -211,9 +231,9 @@ export function BrandPanel({
 
           <Disclosure className="brand-colors-disclosure">
             <Disclosure.Heading>
-              <Disclosure.Trigger className="brand-colors-disclosure-trigger">
+              <Disclosure.Trigger className="brand-disclosure-trigger brand-colors-disclosure-trigger">
                 <span>Brand colors</span>
-                <Disclosure.Indicator className="brand-colors-disclosure-indicator">
+                <Disclosure.Indicator className="brand-disclosure-indicator brand-colors-disclosure-indicator">
                   <ChevronDown className="size-4" />
                 </Disclosure.Indicator>
               </Disclosure.Trigger>
@@ -252,8 +272,15 @@ export function BrandPanel({
               </Disclosure.Body>
             </Disclosure.Content>
           </Disclosure>
-        </>
-      ) : null}
+              </>
+            ) : (
+              <p className="text-[11px] leading-4 text-text-tertiary">
+                Brand is hidden on the canvas. Turn it on to show your logo.
+              </p>
+            )}
+          </Disclosure.Body>
+        </Disclosure.Content>
+      </Disclosure>
     </section>
   );
 }

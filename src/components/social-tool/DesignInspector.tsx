@@ -285,10 +285,43 @@ function FixedCanvasPanels(props: Props) {
   );
 }
 
+function BrandInspectorSection(
+  props: Pick<
+    Props,
+    | "brand"
+    | "showBrand"
+    | "onShowBrandChange"
+    | "logoScale"
+    | "onLogoScaleChange"
+    | "logoPlacement"
+    | "onLogoPlacementChange"
+    | "logoAlign"
+    | "onLogoAlignChange"
+  > & {
+    defaultExpanded?: boolean;
+  },
+) {
+  return (
+    <BrandPanel
+      {...props.brand}
+      showBrand={props.showBrand}
+      onShowBrandChange={props.onShowBrandChange}
+      logoScale={props.logoScale}
+      onLogoScaleChange={props.onLogoScaleChange}
+      logoPlacement={props.logoPlacement}
+      onLogoPlacementChange={props.onLogoPlacementChange}
+      logoAlign={props.logoAlign}
+      onLogoAlignChange={props.onLogoAlignChange}
+      defaultExpanded={props.defaultExpanded}
+    />
+  );
+}
+
 function InspectorOverview(props: Props) {
   return (
     <>
       <BlockPanelsOverview {...props} />
+      <BrandInspectorSection {...props} defaultExpanded={false} />
       <FixedCanvasPanels {...props} />
     </>
   );
@@ -310,17 +343,7 @@ export function DesignInspector(props: Props) {
   if (phase === "needsBrief") {
     return (
       <>
-        <BrandPanel
-          {...brand}
-          showBrand={props.showBrand}
-          onShowBrandChange={props.onShowBrandChange}
-          logoScale={props.logoScale}
-          onLogoScaleChange={props.onLogoScaleChange}
-          logoPlacement={props.logoPlacement}
-          onLogoPlacementChange={props.onLogoPlacementChange}
-          logoAlign={props.logoAlign}
-          onLogoAlignChange={props.onLogoAlignChange}
-        />
+        <BrandInspectorSection {...props} defaultExpanded />
         <BriefChatPanel
           platformId={props.platformId}
           onGenerate={props.onBriefGenerate}
@@ -364,17 +387,7 @@ export function DesignInspector(props: Props) {
   if (inspectorSelection === "logo") {
     return (
       <>
-        <BrandPanel
-          {...brand}
-          showBrand={props.showBrand}
-          onShowBrandChange={props.onShowBrandChange}
-          logoScale={props.logoScale}
-          onLogoScaleChange={props.onLogoScaleChange}
-          logoPlacement={props.logoPlacement}
-          onLogoPlacementChange={props.onLogoPlacementChange}
-          logoAlign={props.logoAlign}
-          onLogoAlignChange={props.onLogoAlignChange}
-        />
+        <BrandInspectorSection {...props} defaultExpanded />
         <FixedCanvasPanels {...props} />
       </>
     );

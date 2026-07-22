@@ -26,7 +26,16 @@ export type PostLayoutId =
   | "professional-left"
   | "footer-mark"
   | "brand-stack"
-  | "event-footer";
+  | "event-footer"
+  | "split-feature-right"
+  | "split-feature-left"
+  | "deck-sidebar";
+
+/** Vertical bands vs side-by-side columns */
+export type PostLayoutComposition = "stack" | "split";
+
+/** Which side holds logo + copy in split layouts */
+export type PostLayoutTextSide = "left" | "right";
 
 /** Which block stack comes first in the column flex layout */
 export type PostLayoutStack = "text-first" | "featured-first";
@@ -60,6 +69,13 @@ export type PostLayout = {
   tags: string[];
   /** Platforms this layout tends to work well on */
   bestFor: PlatformId[] | "all";
+  /** Vertical stack (default) or horizontal split */
+  composition?: PostLayoutComposition;
+  /** Copy column side when composition is split */
+  textSide?: PostLayoutTextSide;
+  /** Share of inner width for copy column (split layouts) */
+  textColumnRatio?: number;
+  textColumnMax?: number;
   stack: PostLayoutStack;
   /** Share of canvas height for the copy band (when featured is visible) */
   textZoneRatio: number;
@@ -367,12 +383,109 @@ export const POST_LAYOUTS: PostLayout[] = [
       "conference post with details",
     ],
   },
+  {
+    id: "split-feature-right",
+    name: "Split — feature right",
+    summary: "Copy column left, product preview on the right",
+    description:
+      "Deck-style horizontal split: logo and headline stack in a left column while the product screenshot fills the right side. Common in B2B carousels, LinkedIn landscape posts, and pitch slides.",
+    tags: ["split", "deck", "landscape", "product-demo", "b2b"],
+    bestFor: ["linkedin-landscape", "twitter", "linkedin-square"],
+    composition: "split",
+    textSide: "left",
+    textColumnRatio: 0.38,
+    textColumnMax: 0.42,
+    stack: "text-first",
+    textZoneRatio: 1,
+    textVerticalAlign: "center",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "top-left",
+    mainBlocks: ["headline", "subheading", "extras"],
+    extrasPlacement: "main",
+    footerBlocks: [],
+    promptHints: [
+      "screenshot on the right",
+      "side by side",
+      "deck slide",
+      "copy left image right",
+      "b2b carousel",
+    ],
+  },
+  {
+    id: "split-feature-left",
+    name: "Split — feature left",
+    summary: "Product preview left, copy column on the right",
+    description:
+      "Visual-first horizontal split: lead with the product or hero image on the left, headline and logo in a right column. Works for UI demos and portfolio-style posts.",
+    tags: ["split", "visual", "product-demo", "landscape"],
+    bestFor: ["linkedin-landscape", "twitter", "instagram-square"],
+    composition: "split",
+    textSide: "right",
+    textColumnRatio: 0.36,
+    textColumnMax: 0.4,
+    stack: "text-first",
+    textZoneRatio: 1,
+    textVerticalAlign: "center",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "top-right",
+    mainBlocks: ["headline", "subheading"],
+    extrasPlacement: "hidden",
+    footerBlocks: [],
+    promptHints: [
+      "image on the left",
+      "visual first side by side",
+      "product on the left",
+      "ui demo split",
+    ],
+  },
+  {
+    id: "deck-sidebar",
+    name: "Deck sidebar",
+    summary: "Narrow copy sidebar with a large feature panel",
+    description:
+      "Presentation-style layout with a compact left sidebar for logo and headline beside an oversized feature panel. Ideal for webinars, event standees, and landscape deck exports.",
+    tags: ["deck", "webinar", "event", "sidebar", "split"],
+    bestFor: ["linkedin-landscape", "event-standee", "twitter"],
+    composition: "split",
+    textSide: "left",
+    textColumnRatio: 0.32,
+    textColumnMax: 0.36,
+    stack: "text-first",
+    textZoneRatio: 1,
+    textVerticalAlign: "start",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "top-left",
+    mainBlocks: ["headline", "subheading"],
+    extrasPlacement: "hidden",
+    footerBlocks: [],
+    promptHints: [
+      "deck sidebar",
+      "webinar slide",
+      "narrow text column",
+      "presentation layout",
+      "event standee",
+    ],
+  },
 ];
 
 const layoutById = new Map(POST_LAYOUTS.map((layout) => [layout.id, layout]));
 
 export function getPostLayout(id: PostLayoutId): PostLayout {
   return layoutById.get(id) ?? layoutById.get(DEFAULT_POST_LAYOUT_ID)!;
+}
+
+export function layoutUsesSplit(layout: PostLayout): boolean {
+  return layout.composition === "split";
+}
+
+export function getLayoutTextSide(layout: PostLayout): PostLayoutTextSide {
+  return layout.textSide ?? "left";
 }
 
 /** Layouts safe for shuffle / AI — excludes hard-to-read alignments */
@@ -404,24 +517,305 @@ export function getLayoutStatePatch(layout: PostLayout): PostLayoutStatePatch {
   };
 }
 
+import {
+  canvasScaleFactor,
+  DEFAULT_POST_LAYOUT_SPACING,
+  spacingTokenToPx,
+  type PostLayoutSpacing,
+} from "@/lib/social-tool/layoutSpacing";
+
+/** Min share of canvas height kept for the featured viewport */
+function minProductZoneShare(aspect: number): number {
+  if (aspect >= 1.8) return 0.2;
+  if (aspect < 0.65) return 0.32;
+  if (aspect < 0.85) return 0.28;
+  return 0.24;
+}
+
+/** Estimate minimum text-band height so wireframe slots fit without overlapping product zone */
+export function estimateTextBandMinHeight(opts: {
+  width: number;
+  height: number;
+  layout: PostLayout;
+  showTopLogo: boolean;
+  spacing?: PostLayoutSpacing;
+  isTallPrint: boolean;
+  logoScale?: number;
+}): number {
+  const {
+    width,
+    height,
+    layout,
+    showTopLogo,
+    isTallPrint,
+    logoScale = 1,
+  } = opts;
+  const spacing = opts.spacing ?? DEFAULT_POST_LAYOUT_SPACING;
+  const scale = canvasScaleFactor(width, height);
+
+  const layoutPad = spacingTokenToPx(spacing.layoutPad, width, height);
+  const textZonePadBottom = spacingTokenToPx(
+    spacing.textZonePadBottom,
+    width,
+    height,
+  );
+  const logoCopyGap = spacingTokenToPx(spacing.logoCopyGap, width, height);
+  const copyBlockGap = spacingTokenToPx(spacing.copyBlockGap, width, height);
+
+  let content = textZonePadBottom;
+
+  if (showTopLogo) {
+    content += Math.max(12, Math.round(34 * scale * logoScale));
+    content += logoCopyGap;
+  }
+
+  const mainBlocks = layout.mainBlocks.filter(
+    (block) => block !== "extras" || layout.extrasPlacement === "main",
+  );
+
+  mainBlocks.forEach((block, index) => {
+    if (index > 0) content += copyBlockGap;
+    if (block === "headline") {
+      content += Math.round((isTallPrint ? 72 : 64) * scale);
+    } else if (block === "subheading") {
+      content += Math.round((isTallPrint ? 40 : 36) * scale);
+    } else if (block === "extras") {
+      content += Math.round(28 * scale);
+    }
+  });
+
+  return layoutPad + content;
+}
+
 /** Resolve text-zone height ratio for the current canvas + type scale */
 export function resolveTextZoneRatio(
   layout: PostLayout,
-  opts: { showFeaturedImage: boolean; isTallPrint: boolean; typeScale: number },
+  opts: {
+    showFeaturedImage: boolean;
+    isTallPrint: boolean;
+    typeScale: number;
+    aspect?: number;
+  },
 ): number {
   if (!opts.showFeaturedImage) return 0.92;
 
   const base = layout.textZoneRatio + opts.typeScale * 0.02;
-  const max =
+  let max =
     layout.textZoneMax ??
     (opts.isTallPrint ? 0.48 : 0.58);
 
+  if (opts.aspect != null && opts.aspect < 0.85) {
+    max = Math.min(max, 0.58);
+  }
+
   return Math.min(base, max);
+}
+
+/** Split canvas height between copy and featured zones (transform is visual-only). */
+export function resolveFeaturedLayoutZones(opts: {
+  width: number;
+  height: number;
+  footerH: number;
+  layout: PostLayout;
+  showFeaturedImage: boolean;
+  isTallPrint: boolean;
+  typeScale: number;
+  showTopLogo?: boolean;
+  spacing?: PostLayoutSpacing;
+  logoScale?: number;
+}): {
+  textZone: number;
+  productZone: number;
+} {
+  const {
+    width,
+    height,
+    footerH,
+    layout,
+    showFeaturedImage,
+    isTallPrint,
+    typeScale,
+    showTopLogo = layout.logoPlacement === "top",
+    spacing,
+    logoScale = 1,
+  } = opts;
+
+  const aspect = height / width;
+
+  if (!showFeaturedImage) {
+    return {
+      textZone: Math.round(
+        height *
+          resolveTextZoneRatio(layout, {
+            showFeaturedImage: false,
+            isTallPrint,
+            typeScale,
+            aspect,
+          }),
+      ),
+      productZone: 0,
+    };
+  }
+
+  const textRatio = resolveTextZoneRatio(layout, {
+    showFeaturedImage: true,
+    isTallPrint,
+    typeScale,
+    aspect,
+  });
+
+  const minProductZone = Math.round(height * minProductZoneShare(aspect));
+  const maxTextZone = Math.max(0, height - footerH - minProductZone);
+  const minTextZone = estimateTextBandMinHeight({
+    width,
+    height,
+    layout,
+    showTopLogo,
+    spacing,
+    isTallPrint,
+    logoScale,
+  });
+
+  let textZone = Math.round(height * textRatio);
+  textZone = Math.max(textZone, minTextZone);
+  textZone = Math.min(textZone, maxTextZone);
+  const productZone = Math.max(0, height - textZone - footerH);
+
+  return { textZone, productZone };
+}
+
+/** Min share of inner width kept for the featured column in split layouts */
+function minFeaturedColumnShare(aspect: number): number {
+  if (aspect >= 1.8) return 0.5;
+  if (aspect < 0.65) return 0.55;
+  if (aspect < 0.85) return 0.52;
+  return 0.48;
+}
+
+/** Estimate minimum copy-column width so wireframe slots fit without overlapping featured column */
+export function estimateTextColumnMinWidth(opts: {
+  width: number;
+  height: number;
+  layout: PostLayout;
+  showTopLogo: boolean;
+  spacing?: PostLayoutSpacing;
+  isTallPrint: boolean;
+  logoScale?: number;
+}): number {
+  const { width, height, layout, showTopLogo, isTallPrint, logoScale = 1 } = opts;
+  const scale = canvasScaleFactor(width, height);
+  const layoutPad = spacingTokenToPx(
+    (opts.spacing ?? DEFAULT_POST_LAYOUT_SPACING).layoutPad,
+    width,
+    height,
+  );
+
+  const headlineW = Math.round((isTallPrint ? 480 : 560) * scale);
+  const subW = Math.round((isTallPrint ? 360 : 420) * scale);
+  const extraW = Math.round((isTallPrint ? 320 : 380) * scale);
+
+  const mainBlocks = layout.mainBlocks.filter(
+    (block) => block !== "extras" || layout.extrasPlacement === "main",
+  );
+
+  let minW = showTopLogo ? Math.max(80, Math.round(120 * scale * logoScale)) : 0;
+  for (const block of mainBlocks) {
+    if (block === "headline") minW = Math.max(minW, headlineW);
+    else if (block === "subheading") minW = Math.max(minW, subW);
+    else if (block === "extras") minW = Math.max(minW, extraW);
+  }
+
+  return minW + layoutPad;
+}
+
+/** Split inner width between copy column and featured column */
+export function resolveSplitLayoutZones(opts: {
+  width: number;
+  height: number;
+  footerH: number;
+  layout: PostLayout;
+  showFeaturedImage: boolean;
+  isTallPrint: boolean;
+  showTopLogo?: boolean;
+  spacing?: PostLayoutSpacing;
+  logoScale?: number;
+}): {
+  textColumn: number;
+  featuredColumn: number;
+  rowHeight: number;
+  columnGap: number;
+} {
+  const {
+    width,
+    height,
+    footerH,
+    layout,
+    showFeaturedImage,
+    isTallPrint,
+    showTopLogo = layout.logoPlacement === "top",
+    spacing,
+    logoScale = 1,
+  } = opts;
+
+  const spacingResolved = spacing ?? DEFAULT_POST_LAYOUT_SPACING;
+  const layoutPad = spacingTokenToPx(spacingResolved.layoutPad, width, height);
+  const columnGap = spacingTokenToPx(spacingResolved.copyBlockGap, width, height);
+  const innerWidth = width - 2 * layoutPad;
+  const rowHeight = Math.max(0, height - layoutPad - footerH);
+
+  if (!showFeaturedImage) {
+    return {
+      textColumn: innerWidth,
+      featuredColumn: 0,
+      rowHeight,
+      columnGap: 0,
+    };
+  }
+
+  const aspect = height / width;
+  const textRatio = layout.textColumnRatio ?? 0.38;
+  const textMax = layout.textColumnMax ?? 0.45;
+  const minFeatured = Math.round(innerWidth * minFeaturedColumnShare(aspect));
+  const maxTextColumn = Math.max(
+    0,
+    innerWidth - minFeatured - columnGap,
+  );
+  const minTextColumn = estimateTextColumnMinWidth({
+    width,
+    height,
+    layout,
+    showTopLogo,
+    spacing: spacingResolved,
+    isTallPrint,
+    logoScale,
+  });
+
+  let textColumn = Math.round(innerWidth * textRatio);
+  textColumn = Math.max(textColumn, minTextColumn);
+  textColumn = Math.min(textColumn, Math.round(innerWidth * textMax));
+  textColumn = Math.min(textColumn, maxTextColumn);
+  const featuredColumn = Math.max(0, innerWidth - textColumn - columnGap);
+
+  return { textColumn, featuredColumn, rowHeight, columnGap };
 }
 
 /** Whether this layout renders a footer strip below the featured block */
 export function layoutHasFooterStrip(layout: PostLayout): boolean {
   return layout.footerBlocks.length > 0;
+}
+
+/** Footer blocks to render — honors user logo placement over layout defaults */
+export function resolveFooterBlocks(
+  layout: PostLayout,
+  showFooterLogo: boolean,
+): ("logo" | "extras")[] {
+  const blocks = layout.footerBlocks.filter(
+    (block) => block !== "logo" || showFooterLogo,
+  );
+  if (showFooterLogo && !blocks.includes("logo")) {
+    blocks.push("logo");
+  }
+  return blocks;
 }
 
 /** Add a blank extra field when the layout expects footer/main extras */

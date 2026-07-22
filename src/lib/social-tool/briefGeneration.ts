@@ -2,12 +2,17 @@ import type { PlatformId, ProductPageId, PostCopy } from "@/lib/social-tool/pres
 import {
   getLayoutStatePatch,
   getPostLayout,
-  POST_LAYOUTS,
   seedCopyForLayout,
   type PostLayout,
   type PostLayoutId,
 } from "@/lib/social-tool/postLayouts";
 import { EMPTY_POST_COPY } from "@/lib/design/designSession";
+import {
+  getApprovedShuffleLayouts,
+  getCommittedLayoutReviews,
+  loadLayoutReviews,
+  type LayoutReviewRecord,
+} from "@/lib/social-tool/layoutReviews";
 import { libraryPatternRef } from "@/lib/social-tool/patterns/library";
 import { legacyPatternRef } from "@/lib/social-tool/patterns/resolvePattern";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
@@ -155,15 +160,36 @@ function scoreLayout(
   if (layout.textZoneRatio <= 0.36 && brief.includes("product")) score += 2;
   if (layout.textZoneRatio >= 0.5 && brief.includes("headline")) score += 2;
 
+  if (layout.composition === "split") {
+    if (
+      brief.includes("side by side") ||
+      brief.includes("side-by-side") ||
+      brief.includes("split")
+    ) {
+      score += 4;
+    }
+    if (brief.includes("deck") || brief.includes("slide") || brief.includes("presentation")) {
+      score += 3;
+    }
+    if (brief.includes("right") && layout.textSide === "left") score += 2;
+    if (brief.includes("left") && layout.textSide === "right") score += 2;
+    if (brief.includes("sidebar") && layout.id === "deck-sidebar") score += 4;
+  }
+
   return score;
 }
 
-function pickLayout(brief: string, platformId: PlatformId): PostLayout {
+function pickLayout(
+  brief: string,
+  platformId: PlatformId,
+  record: LayoutReviewRecord,
+): PostLayout {
+  const pool = getApprovedShuffleLayouts(record, platformId);
   const normalized = normalizeBrief(brief);
-  let best = POST_LAYOUTS[0]!;
+  let best = pool[0] ?? getPostLayout("classic-hero");
   let bestScore = -1;
 
-  for (const layout of POST_LAYOUTS) {
+  for (const layout of pool) {
     const s = scoreLayout(normalized, platformId, layout);
     if (s > bestScore) {
       bestScore = s;
@@ -172,11 +198,12 @@ function pickLayout(brief: string, platformId: PlatformId): PostLayout {
   }
 
   if (bestScore <= 0) {
-    return getPostLayout(
+    const fallbackId: PostLayoutId =
       platformId === "instagram-square" || platformId === "instagram-story"
         ? "visual-first"
-        : "classic-hero",
-    );
+        : "classic-hero";
+    const fallback = pool.find((layout) => layout.id === fallbackId);
+    return fallback ?? best;
   }
 
   return best;
@@ -196,20 +223,56 @@ function extractTopic(brief: string): string {
 function pickProductPage(brief: string): ProductPageId {
   const lower = normalizeBrief(brief);
   if (
+    lower.includes("schedule") ||
+    lower.includes("calendar") ||
+    lower.includes("meeting") ||
+    lower.includes("booking")
+  ) {
+    return "scheduler";
+  }
+  if (
+    lower.includes("pricing") ||
+    lower.includes("plan") ||
+    lower.includes("subscription")
+  ) {
+    return "pricing";
+  }
+  if (
+    lower.includes("stats") ||
+    lower.includes("metric") ||
+    lower.includes("kpi") ||
+    lower.includes("dashboard")
+  ) {
+    return "stats";
+  }
+  if (
+    lower.includes("profile") ||
+    lower.includes("team member") ||
+    lower.includes("account")
+  ) {
+    return "profile";
+  }
+  if (
+    lower.includes("signup") ||
+    lower.includes("waitlist") ||
+    lower.includes("form")
+  ) {
+    return "form-card";
+  }
+  if (
+    lower.includes("notification") ||
+    lower.includes("inbox") ||
+    lower.includes("activity")
+  ) {
+    return "activity";
+  }
+  if (
     lower.includes("pipeline") ||
     lower.includes("deal") ||
     lower.includes("kanban") ||
     lower.includes("stage")
   ) {
     return "pipeline";
-  }
-  if (
-    lower.includes("crm") ||
-    lower.includes("overview") ||
-    lower.includes("dashboard") ||
-    lower.includes("landing")
-  ) {
-    return "hero-ui";
   }
   return "leads";
 }
@@ -371,8 +434,12 @@ function generateCopyFromBrief(brief: string, layout: PostLayout): PostCopy {
 export function generateFromBrief(
   brief: string,
   platformId: PlatformId,
+  record?: LayoutReviewRecord,
 ): BriefGenerationResult {
-  const layout = pickLayout(brief, platformId);
+  const reviews =
+    record ??
+    (typeof window !== "undefined" ? loadLayoutReviews() : getCommittedLayoutReviews());
+  const layout = pickLayout(brief, platformId, reviews);
   const patch = getLayoutStatePatch(layout);
   const copy = generateCopyFromBrief(brief, layout);
   const featured = deriveFeaturedVisibility(layout, brief);

@@ -1,14 +1,17 @@
 "use client";
 
 import { useRef } from "react";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { ImagePlus, RotateCcw, Trash2 } from "lucide-react";
 import { Button, Switch, ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import {
   InspectorSelect,
   InspectorSlider,
   InspectorTransformRow,
 } from "@/components/social-tool/InspectorControls";
-import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
+import {
+  DEFAULT_FEATURED_TRANSFORM,
+  type FeaturedImageTransform,
+} from "@/components/social-tool/templates/ProductShotPost";
 import type { UseFeaturedBlockReturn } from "@/lib/social-tool/useFeaturedBlock";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
 import type { ProductPageId } from "@/lib/social-tool/presets";
@@ -213,6 +216,21 @@ export function FeaturedBlockPanel({
                     step: 5,
                   },
                 ]}
+                action={
+                  <button
+                    type="button"
+                    className="social-transform-reset"
+                    aria-label="Reset transform"
+                    title="Reset transform"
+                    onClick={() =>
+                      onFeaturedTransformChange({
+                        ...DEFAULT_FEATURED_TRANSFORM,
+                      })
+                    }
+                  >
+                    <RotateCcw className="size-3.5" />
+                  </button>
+                }
               />
               <InspectorSlider
                 label="Scale"

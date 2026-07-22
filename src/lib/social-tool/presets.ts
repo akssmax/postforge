@@ -19,7 +19,15 @@ export type PatternId =
   | "outline"
   | "none";
 
-export type ProductPageId = "leads" | "hero-ui" | "pipeline";
+export type ProductPageId =
+  | "leads"
+  | "pipeline"
+  | "scheduler"
+  | "stats"
+  | "pricing"
+  | "activity"
+  | "profile"
+  | "form-card";
 
 /** Type scale multipliers for social post typography */
 export type TypeScaleId = 1 | 1.5 | 2 | 3 | 4;
@@ -239,16 +247,56 @@ export const PRODUCT_PAGES: ProductPageOption[] = [
     description: "Live CRM leads workspace",
   },
   {
-    id: "hero-ui",
-    label: "CRM overview",
-    description: "Landing product screenshot",
-  },
-  {
     id: "pipeline",
     label: "Pipeline board",
     description: "Kanban-style deal stages",
   },
+  {
+    id: "scheduler",
+    label: "Scheduler card",
+    description: "Meeting booking UI block",
+  },
+  {
+    id: "stats",
+    label: "Stats cards",
+    description: "KPI dashboard card row",
+  },
+  {
+    id: "pricing",
+    label: "Pricing card",
+    description: "Single-plan pricing block",
+  },
+  {
+    id: "activity",
+    label: "Activity feed",
+    description: "Inbox-style notification list",
+  },
+  {
+    id: "profile",
+    label: "Profile card",
+    description: "User profile summary block",
+  },
+  {
+    id: "form-card",
+    label: "Form card",
+    description: "Waitlist signup UI block",
+  },
 ];
+
+const PRODUCT_PAGE_IDS = new Set<ProductPageId>(
+  PRODUCT_PAGES.map((page) => page.id),
+);
+
+/** Coerce persisted or legacy values to a valid GenUI block id. */
+export function normalizeProductPage(value: unknown): ProductPageId {
+  if (
+    typeof value === "string" &&
+    PRODUCT_PAGE_IDS.has(value as ProductPageId)
+  ) {
+    return value as ProductPageId;
+  }
+  return "leads";
+}
 
 export const TEMPLATES: TemplateMeta[] = [
   {

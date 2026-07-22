@@ -269,7 +269,6 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
               ...(enteringBrief
                 ? {
                     showContent: true,
-                    showFeaturedImage: true,
                   }
                 : {}),
               onboarding: { ...prev.document.onboarding, phase: nextPhase },

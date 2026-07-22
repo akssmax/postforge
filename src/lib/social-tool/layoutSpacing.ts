@@ -50,12 +50,25 @@ export function spacingTokenLabel(token: SpacingToken): string {
   return token === 0 ? "0" : String(token);
 }
 
+/** Scale from 1080 reference using the shorter canvas side (prevents landscape slot overflow). */
+export function canvasScaleFactor(
+  canvasWidth: number,
+  canvasHeight = canvasWidth,
+): number {
+  return Math.min(canvasWidth, canvasHeight) / 1080;
+}
+
 export function spacingTokenToPx(
   token: SpacingToken,
   canvasWidth = 1080,
+  canvasHeight?: number,
 ): number {
   const base = SPACING_PX[token];
-  return Math.round(base * (canvasWidth / 1080));
+  const scale =
+    canvasHeight != null
+      ? canvasScaleFactor(canvasWidth, canvasHeight)
+      : canvasWidth / 1080;
+  return Math.round(base * scale);
 }
 
 export function clampSpacingIndex(index: number): number {
@@ -96,13 +109,14 @@ export function applyTokenSteps(
 export function spacingToCssVars(
   spacing: PostLayoutSpacing,
   canvasWidth: number,
+  canvasHeight?: number,
 ): Record<string, string> {
   return {
-    "--sp-layout-pad": `${spacingTokenToPx(spacing.layoutPad, canvasWidth)}px`,
-    "--sp-text-zone-pb": `${spacingTokenToPx(spacing.textZonePadBottom, canvasWidth)}px`,
-    "--sp-logo-copy-gap": `${spacingTokenToPx(spacing.logoCopyGap, canvasWidth)}px`,
-    "--sp-copy-block-gap": `${spacingTokenToPx(spacing.copyBlockGap, canvasWidth)}px`,
-    "--sp-footer-pad": `${spacingTokenToPx(spacing.footerPad, canvasWidth)}px`,
-    "--sp-footer-block-gap": `${spacingTokenToPx(spacing.footerBlockGap, canvasWidth)}px`,
+    "--sp-layout-pad": `${spacingTokenToPx(spacing.layoutPad, canvasWidth, canvasHeight)}px`,
+    "--sp-text-zone-pb": `${spacingTokenToPx(spacing.textZonePadBottom, canvasWidth, canvasHeight)}px`,
+    "--sp-logo-copy-gap": `${spacingTokenToPx(spacing.logoCopyGap, canvasWidth, canvasHeight)}px`,
+    "--sp-copy-block-gap": `${spacingTokenToPx(spacing.copyBlockGap, canvasWidth, canvasHeight)}px`,
+    "--sp-footer-pad": `${spacingTokenToPx(spacing.footerPad, canvasWidth, canvasHeight)}px`,
+    "--sp-footer-block-gap": `${spacingTokenToPx(spacing.footerBlockGap, canvasWidth, canvasHeight)}px`,
   };
 }

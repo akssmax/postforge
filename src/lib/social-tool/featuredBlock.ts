@@ -4,7 +4,10 @@ import {
   loadLogoBlob,
   saveLogoBlob,
 } from "@/lib/brand/storage";
-import type { ProductPageId } from "@/lib/social-tool/presets";
+import {
+  normalizeProductPage,
+  type ProductPageId,
+} from "@/lib/social-tool/presets";
 
 export type FeaturedBlockMode = "image" | "genui";
 
@@ -119,7 +122,7 @@ export function loadFeaturedBlockPersisted(
     const parsed = JSON.parse(raw) as FeaturedBlockPersisted;
     return {
       mode: parsed.mode === "image" ? "image" : "genui",
-      productPage: parsed.productPage ?? "leads",
+      productPage: normalizeProductPage(parsed.productPage),
       image: parsed.image ?? null,
     };
   } catch {

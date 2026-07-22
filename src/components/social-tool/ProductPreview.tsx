@@ -2,11 +2,30 @@
 
 import type { ProductPageId } from "@/lib/social-tool/presets";
 import { LeadsPreviewFrame } from "@/components/designs/LeadsPreviewFrame";
+import {
+  ActivityFeedPreview,
+  FormCardPreview,
+  PricingCardPreview,
+  ProfileCardPreview,
+  SchedulerCardPreview,
+  StatsCardsPreview,
+} from "@/components/social-tool/genui/GenUiPreviews";
 
 type Props = {
   page: ProductPageId;
   frameWidth: number;
 };
+
+const PAGE_FRAME = {
+  leads: { width: 1100, height: 720 },
+  pipeline: { width: 980, height: 640 },
+  scheduler: { width: 680, height: 620 },
+  stats: { width: 960, height: 560 },
+  pricing: { width: 520, height: 620 },
+  activity: { width: 760, height: 620 },
+  profile: { width: 600, height: 620 },
+  "form-card": { width: 520, height: 560 },
+} as const satisfies Record<ProductPageId, { width: number; height: number }>;
 
 function PipelineBoard() {
   const columns = [
@@ -78,32 +97,28 @@ function PipelineBoard() {
   );
 }
 
+export function getProductPageNativeWidth(page: ProductPageId): number {
+  return PAGE_FRAME[page].width;
+}
+
 export function ProductPreview({ page, frameWidth }: Props) {
-  const shellWidth = Math.max(frameWidth, 1100);
+  const frame = PAGE_FRAME[page];
+  const width = Math.max(frameWidth, frame.width);
 
-  if (page === "hero-ui") {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src="/landing-2/hero-ui.png"
-        alt="CRM overview"
-        className="block h-auto w-full max-w-none object-cover object-top"
-        style={{ minWidth: frameWidth }}
-      />
-    );
-  }
-
-  if (page === "pipeline") {
-    return (
-      <div style={{ width: Math.max(frameWidth, 980), height: 640 }}>
-        <PipelineBoard />
-      </div>
-    );
-  }
+  const previews: Partial<Record<ProductPageId, React.ReactNode>> = {
+    pipeline: <PipelineBoard />,
+    scheduler: <SchedulerCardPreview />,
+    stats: <StatsCardsPreview />,
+    pricing: <PricingCardPreview />,
+    activity: <ActivityFeedPreview />,
+    profile: <ProfileCardPreview />,
+    "form-card": <FormCardPreview />,
+    leads: <LeadsPreviewFrame />,
+  };
 
   return (
-    <div style={{ width: shellWidth, height: 720 }}>
-      <LeadsPreviewFrame />
+    <div style={{ width, height: frame.height }}>
+      {previews[page] ?? previews.leads}
     </div>
   );
 }

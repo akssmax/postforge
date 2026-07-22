@@ -569,6 +569,44 @@
   order: 3;
 }
 
+.social-post--product .social-post-product-layout--split {
+  flex: 1;
+  min-height: 0;
+}
+
+.social-post--product .social-post-split-row {
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 0;
+  width: 100%;
+}
+
+.social-post--product .social-post-text-zone--split {
+  overflow: hidden;
+  justify-content: center;
+}
+
+.social-post--product .social-post-text-zone--split.social-post-text-zone--tall {
+  justify-content: flex-start;
+}
+
+.social-post--product .social-post-product-viewport--split {
+  flex: 1;
+  min-width: 0;
+}
+
+.social-post--product .social-post-product-viewport--split .social-post-product-frame,
+.social-post--product .social-post-product-viewport--split .social-post-product-frame--slot {
+  height: 100%;
+}
+
+.social-post--product .social-post-product-viewport--split .social-post-image-slot {
+  height: 100%;
+  min-height: 0;
+}
+
 .canvas-preview-stack {
   display: flex;
   flex-direction: column;
@@ -867,19 +905,27 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  padding: 0.1rem 0.35rem;
-  border-radius: 0.25rem;
-  font-size: 0.5625rem;
+  padding: calc(0.2rem / var(--canvas-preview-scale, 1))
+    calc(0.55rem / var(--canvas-preview-scale, 1));
+  border-radius: calc(0.35rem / var(--canvas-preview-scale, 1));
+  font-size: calc(0.75rem / var(--canvas-preview-scale, 1));
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #0f1816;
-  background: rgb(255 255 255 / 0.92);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  background: rgb(255 255 255 / 0.94);
+  box-shadow:
+    0 calc(2px / var(--canvas-preview-scale, 1))
+    calc(8px / var(--canvas-preview-scale, 1))
+    rgb(0 0 0 / 16%);
   opacity: 0;
   pointer-events: none;
   white-space: nowrap;
   transition: opacity 120ms ease;
+}
+
+.has-spacing-handles .spacing-handle-label {
+  opacity: 1;
 }
 
 .spacing-handle:hover .spacing-handle-label,
@@ -903,6 +949,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  flex-shrink: 0;
   overflow: visible;
   padding-bottom: var(--sp-text-zone-pb, 20px);
 }
@@ -923,8 +970,8 @@
 
 .social-post-product-viewport {
   position: relative;
-  width: calc(100% + var(--sp-pad));
-  margin-right: calc(var(--sp-pad) * -1);
+  width: 100%;
+  flex-shrink: 0;
   overflow: visible;
   pointer-events: none;
   perspective: var(--fi-perspective, 1400px);
@@ -1197,10 +1244,40 @@ html:has(.social-tool) body {
   color: var(--text-tertiary);
 }
 
+.social-transform-row-controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.social-transform-row-controls .social-transform-axes {
+  flex: 1;
+  min-width: 0;
+}
+
 .social-transform-axes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.35rem;
+}
+
+.social-transform-reset {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--leap-line);
+  color: var(--text-tertiary);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.social-transform-reset:hover {
+  color: var(--text-primary);
+  background: var(--overlay-hover);
 }
 
 .social-axis-field {
@@ -1810,13 +1887,8 @@ html:has(.social-tool) body {
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand-500) 25%, transparent);
 }
 
-/* Collapsible brand colors */
-.brand-colors-disclosure {
-  border-top: 1px solid var(--leap-line);
-  padding-top: 0.25rem;
-}
-
-.brand-colors-disclosure-trigger {
+/* Brand panel disclosures */
+.brand-disclosure-trigger {
   display: flex;
   width: 100%;
   align-items: center;
@@ -1830,16 +1902,69 @@ html:has(.social-tool) body {
   color: var(--text-tertiary);
 }
 
-.brand-colors-disclosure-trigger:hover {
+.brand-disclosure-trigger:hover {
   color: var(--text-secondary);
 }
 
-.brand-colors-disclosure-indicator {
+.brand-disclosure-indicator {
   transition: transform 0.2s ease;
 }
 
+.brand-panel-disclosure[data-expanded] .brand-panel-disclosure-indicator,
 .brand-colors-disclosure[data-expanded] .brand-colors-disclosure-indicator {
   transform: rotate(180deg);
+}
+
+.brand-panel-disclosure-heading {
+  margin: 0;
+}
+
+.brand-panel-disclosure-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2rem;
+}
+
+.brand-panel-disclosure-trigger {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  justify-content: flex-start;
+  padding: 0;
+  gap: 0.35rem;
+}
+
+.brand-panel-disclosure-trigger .social-tool-section-title {
+  margin: 0;
+}
+
+.brand-panel-disclosure-indicator {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.brand-panel-disclosure-switch {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.brand-panel-disclosure-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+}
+
+/* Collapsible brand colors */
+.brand-colors-disclosure {
+  border-top: 1px solid var(--leap-line);
+  padding-top: 0.25rem;
+}
+
+.brand-colors-disclosure-trigger {
+  /* inherits .brand-disclosure-trigger */
 }
 
 .brand-colors-disclosure-body {

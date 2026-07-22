@@ -139,6 +139,7 @@ type InspectorTransformRowProps = {
   label: string;
   fields: [AxisField, AxisField, AxisField];
   locked?: boolean;
+  action?: React.ReactNode;
 };
 
 function formatAxisValue(value: number, precision = 0) {
@@ -152,6 +153,7 @@ export function InspectorTransformRow({
   label,
   fields,
   locked = false,
+  action,
 }: InspectorTransformRowProps) {
   return (
     <div className="social-transform-row">
@@ -159,7 +161,8 @@ export function InspectorTransformRow({
         <span>{label}</span>
         {locked ? <Lock className="social-transform-lock" aria-hidden /> : null}
       </div>
-      <div className="social-transform-axes">
+      <div className="social-transform-row-controls">
+        <div className="social-transform-axes">
         {fields.map((field) => (
           <label
             key={field.key}
@@ -179,6 +182,8 @@ export function InspectorTransformRow({
             />
           </label>
         ))}
+        </div>
+        {action ? <div className="social-transform-row-action">{action}</div> : null}
       </div>
     </div>
   );

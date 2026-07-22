@@ -49,10 +49,13 @@ import {
   DEFAULT_POST_LAYOUT_ID,
   getLayoutStatePatch,
   getPostLayout,
-  getRandomPostLayout,
   seedCopyForLayout,
   type PostLayoutId,
 } from "@/lib/social-tool/postLayouts";
+import {
+  getRandomPlaygroundLayout,
+  loadLayoutReviews,
+} from "@/lib/social-tool/layoutReviews";
 import {
   canvasSelectionFromContrastBlock,
   isCanvasSelectableTarget,
@@ -181,7 +184,10 @@ function ToolSocialWorkspace() {
   }
 
   function shufflePostLayout() {
-    applyPostLayout(getRandomPostLayout(layoutId).id);
+    const record = loadLayoutReviews();
+    applyPostLayout(
+      getRandomPlaygroundLayout(platformId, layoutId, record).id,
+    );
   }
 
   useEffect(() => {

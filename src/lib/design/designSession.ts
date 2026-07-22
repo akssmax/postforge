@@ -10,6 +10,7 @@ import { defaultFeaturedBlock } from "@/lib/social-tool/featuredBlock";
 import { DEFAULT_PATTERN_REF } from "@/lib/social-tool/patterns/types";
 import { migratePatternRef } from "@/lib/social-tool/patterns/migratePatternRef";
 import type { PostCopy } from "@/lib/social-tool/presets";
+import { normalizeProductPage } from "@/lib/social-tool/presets";
 import type {
   DesignDocument,
   DesignSessionPersisted,
@@ -127,7 +128,7 @@ export function loadDesignSession(designId: string): DesignSessionPersisted {
       },
       featured: {
         mode: parsed.featured?.mode === "image" ? "image" : "genui",
-        productPage: parsed.featured?.productPage ?? "leads",
+        productPage: normalizeProductPage(parsed.featured?.productPage),
         image: parsed.featured?.image ?? null,
       },
       document: normalizeDocument(parsed.document),
