@@ -1,0 +1,140 @@
+import { defaultKit } from "@/lib/brand/storage";
+import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
+import {
+  DEFAULT_POST_LAYOUT_SPACING,
+} from "@/lib/social-tool/layoutSpacing";
+import {
+  DEFAULT_POST_LAYOUT_ID,
+} from "@/lib/social-tool/postLayouts";
+import { defaultFeaturedBlock } from "@/lib/social-tool/featuredBlock";
+import type { PostCopy } from "@/lib/social-tool/presets";
+import type {
+  DesignDocument,
+  DesignSessionPersisted,
+} from "@/lib/design/types";
+
+export const EMPTY_POST_COPY: PostCopy = {
+  heading: "",
+  subheading: "",
+  extraFields: [],
+};
+
+export function designSessionStorageKey(designId: string): string {
+  return `postforge:design:${designId}`;
+}
+
+export function scopedBlobKey(
+  designId: string,
+  kind: "logo" | "featured",
+  recordId: string,
+): string {
+  return `${designId}:${kind}:${recordId}`;
+}
+
+export function createBlankDocument(): DesignDocument {
+  return {
+    version: 1,
+    templateId: "product-shot",
+    platformId: "linkedin-square",
+    theme: "dark",
+    layoutId: DEFAULT_POST_LAYOUT_ID,
+    layoutSpacing: { ...DEFAULT_POST_LAYOUT_SPACING },
+    copy: { ...EMPTY_POST_COPY, extraFields: [] },
+    pattern: "monogram",
+    patternOpacity: 0.28,
+    patternScale: 1,
+    patternAnimated: false,
+    showPattern: false,
+    typeScale: 1,
+    logoScale: 1,
+    logoAlign: "left",
+    logoPlacement: "top",
+    showBrand: true,
+    showContent: false,
+    showFeaturedImage: false,
+    textAlign: "center",
+    headingFont: "sans",
+    subFont: "sans",
+    featuredTransform: { ...DEFAULT_FEATURED_TRANSFORM },
+    logoBackdrop: false,
+    logoInvert: false,
+    textContrastBoost: false,
+    onboarding: {
+      phase: "needsLogo",
+      briefSkipped: false,
+    },
+  };
+}
+
+export function createBlankSession(designId: string): DesignSessionPersisted {
+  return {
+    designId,
+    updatedAt: Date.now(),
+    brand: defaultKit(),
+    featured: defaultFeaturedBlock(),
+    document: createBlankDocument(),
+  };
+}
+
+function normalizeDocument(raw: Partial<DesignDocument> | undefined): DesignDocument {
+  const blank = createBlankDocument();
+  if (!raw) return blank;
+  return {
+    ...blank,
+    ...raw,
+    version: 1,
+    copy: {
+      ...EMPTY_POST_COPY,
+      ...raw.copy,
+      extraFields: raw.copy?.extraFields ?? [],
+    },
+    layoutSpacing: {
+      ...DEFAULT_POST_LAYOUT_SPACING,
+      ...raw.layoutSpacing,
+    },
+    featuredTransform: {
+      ...DEFAULT_FEATURED_TRANSFORM,
+      ...raw.featuredTransform,
+    },
+    onboarding: {
+      phase: raw.onboarding?.phase ?? blank.onboarding.phase,
+      briefSkipped: raw.onboarding?.briefSkipped ?? false,
+    },
+  };
+}
+
+export function loadDesignSession(designId: string): DesignSessionPersisted {
+  if (typeof window === "undefined") {
+    return createBlankSession(designId);
+  }
+  try {
+    const raw = localStorage.getItem(designSessionStorageKey(designId));
+    if (!raw) return createBlankSession(designId);
+    const parsed = JSON.parse(raw) as DesignSessionPersisted;
+    return {
+      designId,
+      updatedAt: parsed.updatedAt ?? Date.now(),
+      brand: {
+        logo: parsed.brand?.logo ?? null,
+        colors: { ...defaultKit().colors, ...parsed.brand?.colors },
+        activeBackgroundPresetId: parsed.brand?.activeBackgroundPresetId ?? null,
+      },
+      featured: {
+        mode: parsed.featured?.mode === "image" ? "image" : "genui",
+        productPage: parsed.featured?.productPage ?? "leads",
+        image: parsed.featured?.image ?? null,
+      },
+      document: normalizeDocument(parsed.document),
+    };
+  } catch {
+    return createBlankSession(designId);
+  }
+}
+
+export function saveDesignSession(session: DesignSessionPersisted): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(
+    designSessionStorageKey(session.designId),
+    JSON.stringify({ ...session, updatedAt: Date.now() }),
+  );
+}

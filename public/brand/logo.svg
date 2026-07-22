@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 32" fill="none">
+  <g class="pf-mark">
+    <path d="M6 6h20v5H6z" fill="#4BB793"/>
+    <path d="M10 13h16v5H10z" fill="#4BB793"/>
+    <path d="M14 20h12v5H14z" fill="#4BB793"/>
+  </g>
+  <text x="36" y="22" fill="currentColor" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="600" letter-spacing="-0.04em">Postforge</text>
+</svg>

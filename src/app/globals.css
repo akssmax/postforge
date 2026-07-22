@@ -1,0 +1,608 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
+/* ─────────────────────────────────────────────
+   Primitives — Figma Neutrals / Brand (hex → Tailwind)
+   Grays + Brand scales from Design-Task tokens
+   ───────────────────────────────────────────── */
+
+:root {
+  /* Grays (Figma Neutrals) */
+  --gray-25: #f8faf9;
+  --gray-50: #f4f4f4;
+  --gray-100: #e6eaea;
+  --gray-200: #d7d9d8;
+  --gray-300: #b7bdbd;
+  --gray-400: #999e9e;
+  --gray-500: #6f7575;
+  --gray-600: #525151;
+  --gray-700: #3b4140;
+  --gray-800: #232726;
+  --gray-900: #0f1816;
+  --gray-950: #040c0b;
+
+  /* Brand scale (Figma Brand + logo anchors) */
+  --brand-25: #f6fdee;
+  --brand-50: #f2fce2;
+  --brand-100: #e3ffcc;
+  --brand-200: #c5efb0;
+  --brand-300: #9dd98a;
+  --brand-400: #73c4a2;
+  --brand-500: #4bb793;
+  --brand-600: #275144;
+  --brand-700: #1b3d36;
+  --brand-800: #122e29;
+  --brand-900: #0a1b25;
+  --brand-950: #040c0b;
+
+  /* Aliases used across existing UI */
+  --neutral-25: var(--gray-25);
+  --neutral-50: var(--gray-50);
+  --neutral-100: var(--gray-100);
+  --neutral-200: var(--gray-200);
+  --neutral-300: var(--gray-300);
+  --neutral-400: var(--gray-400);
+  --neutral-500: var(--gray-500);
+  --neutral-600: var(--gray-600);
+  --neutral-700: var(--gray-700);
+  --neutral-800: var(--gray-800);
+  --neutral-900: var(--gray-900);
+  --neutral-950: var(--gray-950);
+
+  --white: #ffffff;
+  --black: #000000;
+
+  /* Dashboard accents (product UI) */
+  --accent-sky: #2b7bbf;
+  --accent-sky-soft: #e8f4fc;
+  --accent-blue: #3b6fd9;
+  --accent-blue-soft: #e6f0ff;
+  --accent-amber: #c47a1a;
+  --accent-amber-soft: #fff4e0;
+  --accent-violet: #7b3fa8;
+  --accent-violet-soft: #f3e8ff;
+  --accent-rose: #c23b55;
+  --accent-rose-soft: #ffe8ec;
+  --accent-sand: #8b6b4a;
+  --accent-sand-soft: #f5ede3;
+  --dash-sidebar: #eef2f5;
+  --dash-active: var(--accent-sky-soft);
+  --dash-active-bar: var(--accent-sky);
+  --dash-email: var(--accent-sky);
+  --dash-line: color-mix(in oklab, var(--gray-950) 8%, transparent);
+  --dash-surface: var(--white);
+  --dash-hover: color-mix(in oklab, var(--gray-950) 4%, transparent);
+
+  /* Fixed brand accents (same in both themes) */
+  --brand-accent-2: #ff6140;
+  --brand-accent-3: #e9d3ee;
+  --color-error: #e2280d;
+}
+
+/* ─────────────────────────────────────────────
+   Semantic layer — Mode 1 (light) from Refined tokens
+   Surface · Brand · Text
+   ───────────────────────────────────────────── */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --surface-primary: var(--gray-25);
+  --surface-secondary: var(--brand-25);
+  --surface-tertiary: var(--brand-50);
+  --surface-invert: var(--gray-950);
+  --surface-border: var(--gray-400);
+  --surface-border-hover: var(--gray-500);
+  --surface-border-error: var(--color-error);
+  --surface-border-disabled: var(--gray-300);
+
+  --brand-primary: var(--brand-900);
+  --brand-secondary: var(--brand-600);
+  /* Logo green — pale mint (#E3FFCC) fails contrast on light surfaces */
+  --brand-accent: var(--brand-500);
+  --brand-gradient-start: #064d4c;
+  --brand-gradient-end: #091a24;
+
+  --text-primary: var(--brand-primary);
+  --text-secondary: var(--gray-800);
+  --text-tertiary: var(--gray-600);
+  /* Pairs with surface-invert (flips per theme) */
+  --text-invert: #f4f4f4;
+  /* Always light — brand gradient / dark nav / metric tiles (Mode 1 Text Invert) */
+  --text-on-brand: #f4f4f4;
+  --text-placeholder: var(--gray-500);
+  --text-link: var(--brand-accent);
+  --text-link-hover: color-mix(in oklab, var(--brand-accent) 80%, transparent);
+  --text-link-focus: var(--white);
+  --text-info: var(--gray-400);
+
+  --gradient-hero-from: var(--brand-gradient-start);
+  --gradient-hero-to: var(--brand-gradient-end);
+  --gradient-hero: linear-gradient(
+    180deg,
+    var(--gradient-hero-from) 0%,
+    var(--gradient-hero-to) 70%,
+    var(--gradient-hero-to) 100%
+  );
+
+  /* Compat aliases → semantic */
+  --leap-bg: var(--surface-primary);
+  --leap-fg: var(--text-primary);
+  --leap-surface: var(--white);
+  --leap-elevated: var(--gray-100);
+  --leap-soft: color-mix(in oklab, var(--gray-950) 4%, transparent);
+  --leap-mist: var(--text-placeholder);
+  --leap-line: color-mix(in oklab, var(--gray-950) 10%, transparent);
+  --leap-mint: var(--brand-100);
+  --leap-mint-deep: var(--brand-500);
+  --leap-glow: color-mix(in oklab, var(--brand-500) 22%, transparent);
+  --leap-glow-strong: color-mix(in oklab, var(--brand-600) 12%, transparent);
+  --leap-grid: color-mix(in oklab, var(--gray-950) 6%, transparent);
+
+  --background: var(--surface-primary);
+  --foreground: var(--text-primary);
+  /* Logo green (#4BB793) for primary actions in light mode */
+  --accent: var(--brand-500);
+  --accent-foreground: var(--brand-950);
+  --muted: var(--text-placeholder);
+  --surface: var(--leap-surface);
+  --surface-foreground: var(--text-primary);
+  --border: var(--leap-line);
+
+  /* Inset controls on primary surfaces (sidebar cards, header pills) */
+  --overlay-subtle: color-mix(in oklab, var(--gray-950) 3%, var(--surface-primary));
+  --overlay-muted: color-mix(in oklab, var(--gray-950) 5%, var(--surface-primary));
+  --overlay-hover: color-mix(in oklab, var(--gray-950) 7%, var(--surface-primary));
+  --overlay-active: var(--white);
+  --overlay-border: var(--leap-line);
+
+  /* Dashboard CRM — light (also resets when themeLock=light under dark html) */
+  --dash-sidebar: #eef2f5;
+  --dash-active: var(--accent-sky-soft);
+  --dash-active-bar: var(--accent-sky);
+  --dash-email: var(--accent-sky);
+  --dash-line: color-mix(in oklab, var(--gray-950) 8%, transparent);
+  --dash-surface: var(--white);
+  --dash-hover: color-mix(in oklab, var(--gray-950) 4%, transparent);
+  --accent-sky-soft: #e8f4fc;
+  --accent-blue-soft: #e6f0ff;
+  --accent-amber-soft: #fff4e0;
+  --accent-violet-soft: #f3e8ff;
+  --accent-rose-soft: #ffe8ec;
+  --accent-sand-soft: #f5ede3;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface-primary: var(--gray-950);
+  --surface-secondary: var(--brand-900);
+  --surface-tertiary: #091a24;
+  --surface-invert: var(--gray-25);
+  --surface-border: var(--gray-700);
+  --surface-border-hover: var(--gray-500);
+  --surface-border-error: var(--color-error);
+  --surface-border-disabled: var(--gray-700);
+
+  --brand-primary: var(--brand-100);
+  --brand-secondary: var(--brand-500);
+  --brand-accent: var(--brand-100);
+  --brand-gradient-start: #064d4c;
+  --brand-gradient-end: #091a24;
+
+  --text-primary: var(--gray-50);
+  --text-secondary: var(--gray-200);
+  --text-tertiary: var(--gray-400);
+  /* On light invert surfaces in dark theme */
+  --text-invert: var(--gray-950);
+  /* Brand washes stay dark in both themes */
+  --text-on-brand: #f4f4f4;
+  --text-placeholder: var(--gray-400);
+  --text-link: var(--brand-accent);
+  --text-link-hover: color-mix(in oklab, var(--brand-accent) 80%, transparent);
+  --text-link-focus: var(--white);
+  --text-info: var(--gray-500);
+
+  --gradient-hero-from: var(--brand-gradient-start);
+  --gradient-hero-to: var(--brand-gradient-end);
+  --gradient-hero: linear-gradient(
+    180deg,
+    var(--gradient-hero-from) 0%,
+    var(--gradient-hero-to) 70%,
+    var(--gradient-hero-to) 100%
+  );
+
+  --leap-bg: var(--surface-primary);
+  --leap-fg: var(--text-primary);
+  --leap-surface: var(--surface-secondary);
+  --leap-elevated: var(--brand-800);
+  --leap-soft: color-mix(in oklab, var(--white) 3%, transparent);
+  --leap-mist: var(--text-tertiary);
+  --leap-line: color-mix(in oklab, var(--gray-100) 12%, transparent);
+  --leap-mint: var(--brand-accent);
+  --leap-mint-deep: var(--brand-400);
+  --leap-glow: color-mix(in oklab, var(--brand-100) 16%, transparent);
+  --leap-glow-strong: color-mix(in oklab, var(--brand-600) 28%, transparent);
+  --leap-grid: color-mix(in oklab, var(--gray-100) 5%, transparent);
+
+  --background: var(--surface-primary);
+  --foreground: var(--text-primary);
+  --accent: var(--brand-accent);
+  --accent-foreground: var(--gray-950);
+  --muted: var(--text-placeholder);
+  --surface: var(--leap-surface);
+  --surface-foreground: var(--text-primary);
+  --border: var(--leap-line);
+
+  /* Inset controls on primary surfaces — neutral lift, not brand-tinted secondary */
+  --overlay-subtle: color-mix(in oklab, var(--white) 4%, var(--surface-primary));
+  --overlay-muted: color-mix(in oklab, var(--white) 6%, var(--surface-primary));
+  --overlay-hover: color-mix(in oklab, var(--white) 9%, var(--surface-primary));
+  --overlay-active: color-mix(in oklab, var(--white) 14%, var(--surface-primary));
+  --overlay-border: var(--leap-line);
+
+  /* Align HeroUI popover / select surfaces with app dark palette */
+  --overlay: color-mix(in oklab, var(--white) 6%, var(--gray-900));
+  --overlay-foreground: var(--text-primary);
+
+  /* Dashboard CRM shell — dark surfaces + soft chip fills */
+  --dash-sidebar: color-mix(in oklab, var(--brand-900) 72%, var(--gray-950));
+  --dash-active: color-mix(in oklab, var(--accent-sky) 22%, transparent);
+  --dash-active-bar: var(--accent-sky);
+  --dash-email: #7ec8f0;
+  --dash-line: color-mix(in oklab, var(--white) 10%, transparent);
+  --dash-surface: var(--surface-secondary);
+  --dash-hover: color-mix(in oklab, var(--white) 5%, transparent);
+
+  --accent-sky-soft: color-mix(in oklab, var(--accent-sky) 22%, transparent);
+  --accent-blue-soft: color-mix(in oklab, var(--accent-blue) 22%, transparent);
+  --accent-amber-soft: color-mix(in oklab, var(--accent-amber) 22%, transparent);
+  --accent-violet-soft: color-mix(in oklab, var(--accent-violet) 22%, transparent);
+  --accent-rose-soft: color-mix(in oklab, var(--accent-rose) 22%, transparent);
+  --accent-sand-soft: color-mix(in oklab, var(--accent-sand) 22%, transparent);
+}
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Primitive scales */
+  --color-brand-25: var(--brand-25);
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+
+  --color-gray-25: var(--gray-25);
+  --color-gray-50: var(--gray-50);
+  --color-gray-100: var(--gray-100);
+  --color-gray-200: var(--gray-200);
+  --color-gray-300: var(--gray-300);
+  --color-gray-400: var(--gray-400);
+  --color-gray-500: var(--gray-500);
+  --color-gray-600: var(--gray-600);
+  --color-gray-700: var(--gray-700);
+  --color-gray-800: var(--gray-800);
+  --color-gray-900: var(--gray-900);
+  --color-gray-950: var(--gray-950);
+
+  --color-neutral-25: var(--neutral-25);
+  --color-neutral-50: var(--neutral-50);
+  --color-neutral-100: var(--neutral-100);
+  --color-neutral-200: var(--neutral-200);
+  --color-neutral-300: var(--neutral-300);
+  --color-neutral-400: var(--neutral-400);
+  --color-neutral-500: var(--neutral-500);
+  --color-neutral-600: var(--neutral-600);
+  --color-neutral-700: var(--neutral-700);
+  --color-neutral-800: var(--neutral-800);
+  --color-neutral-900: var(--neutral-900);
+  --color-neutral-950: var(--neutral-950);
+
+  /* Semantic → Tailwind: bg-surface-primary, text-text-secondary, etc. */
+  --color-surface-primary: var(--surface-primary);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-tertiary: var(--surface-tertiary);
+  --color-surface-invert: var(--surface-invert);
+  --color-surface-border: var(--surface-border);
+  --color-surface-border-hover: var(--surface-border-hover);
+  --color-surface-border-error: var(--surface-border-error);
+  --color-surface-border-disabled: var(--surface-border-disabled);
+
+  --color-overlay-subtle: var(--overlay-subtle);
+  --color-overlay-muted: var(--overlay-muted);
+  --color-overlay-hover: var(--overlay-hover);
+  --color-overlay-active: var(--overlay-active);
+  --color-overlay-border: var(--overlay-border);
+
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-2: var(--brand-accent-2);
+  --color-brand-accent-3: var(--brand-accent-3);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-invert: var(--text-invert);
+  --color-text-on-brand: var(--text-on-brand);
+  --color-text-placeholder: var(--text-placeholder);
+  --color-text-link: var(--text-link);
+  --color-text-info: var(--text-info);
+
+  --color-accent-sky: var(--accent-sky);
+  --color-accent-sky-soft: var(--accent-sky-soft);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-blue-soft: var(--accent-blue-soft);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-amber-soft: var(--accent-amber-soft);
+  --color-accent-violet: var(--accent-violet);
+  --color-accent-violet-soft: var(--accent-violet-soft);
+  --color-accent-rose: var(--accent-rose);
+  --color-accent-rose-soft: var(--accent-rose-soft);
+  --color-accent-sand: var(--accent-sand);
+  --color-accent-sand-soft: var(--accent-sand-soft);
+  --color-dash-sidebar: var(--dash-sidebar);
+  --color-dash-active: var(--dash-active);
+  --color-dash-active-bar: var(--dash-active-bar);
+  --color-dash-email: var(--dash-email);
+  --color-dash-line: var(--dash-line);
+  --color-dash-surface: var(--dash-surface);
+  --color-dash-hover: var(--dash-hover);
+
+  --color-leap-bg: var(--leap-bg);
+  --color-leap-fg: var(--leap-fg);
+  --color-leap-surface: var(--leap-surface);
+  --color-leap-elevated: var(--leap-elevated);
+  --color-leap-ink: var(--brand-950);
+  --color-leap-forest: var(--leap-surface);
+  --color-leap-pine: var(--leap-elevated);
+  --color-leap-mint: var(--leap-mint);
+  --color-leap-mint-deep: var(--leap-mint-deep);
+  --color-leap-fog: var(--leap-fg);
+  --color-leap-mist: var(--leap-mist);
+  --color-leap-line: var(--leap-line);
+  --color-leap-soft: var(--leap-soft);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  overflow-x: clip;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--brand-500) 40%, transparent);
+  color: var(--brand-950);
+}
+
+.font-display {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+.atmosphere {
+  background:
+    radial-gradient(ellipse 80% 55% at 50% -10%, var(--leap-glow), transparent 55%),
+    radial-gradient(ellipse 45% 40% at 90% 20%, var(--leap-glow-strong), transparent 50%),
+    radial-gradient(ellipse 40% 35% at 8% 35%, color-mix(in oklab, var(--leap-elevated) 80%, transparent), transparent 55%),
+    linear-gradient(180deg, var(--leap-bg) 0%, var(--leap-surface) 45%, var(--leap-bg) 100%);
+}
+
+/** Brand hero wash — always dark brand gradient */
+.hero-gradient {
+  background: var(--gradient-hero);
+  color: var(--text-on-brand);
+  color-scheme: dark;
+}
+
+/** Theme-aware footer band (light Mode 1 cream · dark ink) */
+.footer-band {
+  background: var(--gray-950);
+  color: #f4f4f4;
+}
+
+[data-theme="light"] .footer-band {
+  background: var(--surface-secondary);
+  color: var(--text-primary);
+}
+
+.hero-gradient .grid-fade {
+  opacity: 0.45;
+}
+
+/* ─── Section surfaces (homepage rhythm) ─── */
+
+.section-light {
+  background: var(--gray-25);
+  color: var(--text-primary);
+  color-scheme: light;
+  --leap-bg: var(--gray-25);
+  --leap-fg: var(--text-primary);
+  --leap-surface: var(--white);
+  --leap-elevated: var(--gray-100);
+  --leap-soft: color-mix(in oklab, var(--gray-950) 4%, transparent);
+  --leap-mist: var(--text-placeholder);
+  --leap-line: color-mix(in oklab, var(--gray-950) 10%, transparent);
+  --leap-mint: var(--brand-accent);
+  --leap-mint-deep: var(--brand-600);
+  --leap-ink: var(--brand-950);
+  --leap-fog: var(--gray-700);
+  --leap-grid: color-mix(in oklab, var(--gray-950) 6%, transparent);
+}
+
+.section-muted {
+  background: var(--gray-50);
+  color: var(--text-primary);
+  color-scheme: light;
+  --leap-bg: var(--gray-50);
+  --leap-fg: var(--text-primary);
+  --leap-surface: var(--white);
+  --leap-elevated: var(--gray-100);
+  --leap-soft: color-mix(in oklab, var(--gray-950) 4%, transparent);
+  --leap-mist: var(--text-placeholder);
+  --leap-line: color-mix(in oklab, var(--gray-950) 10%, transparent);
+  --leap-mint: var(--brand-accent);
+  --leap-mint-deep: var(--brand-600);
+  --leap-ink: var(--brand-950);
+  --leap-fog: var(--gray-700);
+  --leap-grid: color-mix(in oklab, var(--gray-950) 6%, transparent);
+}
+
+.section-brand-soft {
+  background: color-mix(in oklab, var(--brand-200) 18%, var(--gray-25));
+  color: var(--text-primary);
+  color-scheme: light;
+  --leap-bg: color-mix(in oklab, var(--brand-200) 18%, var(--gray-25));
+  --leap-fg: var(--text-primary);
+  --leap-surface: var(--white);
+  --leap-elevated: color-mix(in oklab, var(--brand-200) 12%, var(--gray-50));
+  --leap-soft: color-mix(in oklab, var(--brand-800) 5%, transparent);
+  --leap-mist: var(--text-placeholder);
+  --leap-line: color-mix(in oklab, var(--brand-800) 11%, transparent);
+  --leap-mint: var(--brand-accent);
+  --leap-mint-deep: var(--brand-600);
+  --leap-ink: var(--brand-950);
+  --leap-fog: var(--gray-700);
+  --leap-grid: color-mix(in oklab, var(--brand-800) 6%, transparent);
+}
+
+.section-dark {
+  background: var(--brand-900);
+  color: var(--gray-50);
+  color-scheme: dark;
+  --leap-bg: var(--brand-900);
+  --leap-fg: var(--gray-50);
+  --leap-surface: var(--brand-800);
+  --leap-elevated: var(--brand-700);
+  --leap-soft: color-mix(in oklab, var(--white) 5%, transparent);
+  --leap-mist: var(--gray-400);
+  --leap-line: color-mix(in oklab, var(--white) 12%, transparent);
+  --leap-mint: var(--brand-accent);
+  --leap-mint-deep: var(--brand-400);
+  --leap-ink: var(--brand-950);
+  --leap-fog: var(--gray-300);
+  --leap-grid: color-mix(in oklab, var(--white) 6%, transparent);
+}
+
+.section-ink {
+  background: var(--gradient-hero-to);
+  color: var(--gray-50);
+  color-scheme: dark;
+  --leap-bg: var(--gradient-hero-to);
+  --leap-fg: var(--gray-50);
+  --leap-surface: color-mix(in oklab, var(--gradient-hero-to) 80%, var(--brand-800));
+  --leap-elevated: var(--brand-800);
+  --leap-soft: color-mix(in oklab, var(--white) 5%, transparent);
+  --leap-mist: var(--gray-400);
+  --leap-line: color-mix(in oklab, var(--white) 12%, transparent);
+  --leap-mint: var(--brand-accent);
+  --leap-mint-deep: var(--brand-400);
+  --leap-ink: var(--brand-950);
+  --leap-fog: var(--gray-300);
+  --leap-grid: color-mix(in oklab, var(--white) 6%, transparent);
+}
+
+.section-white {
+  background: var(--white);
+  color: var(--text-primary);
+  color-scheme: light;
+  --leap-bg: var(--white);
+  --leap-fg: var(--text-primary);
+  --leap-surface: var(--gray-25);
+  --leap-elevated: var(--gray-100);
+  --leap-soft: color-mix(in oklab, var(--gray-950) 4%, transparent);
+  --leap-mist: var(--text-placeholder);
+  --leap-line: color-mix(in oklab, var(--gray-950) 10%, transparent);
+  --leap-mint: var(--brand-accent);
+  --leap-mint-deep: var(--brand-600);
+  --leap-ink: var(--brand-950);
+  --leap-fog: var(--gray-700);
+  --leap-grid: color-mix(in oklab, var(--gray-950) 6%, transparent);
+}
+
+.grid-fade {
+  background-image:
+    linear-gradient(var(--leap-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--leap-grid) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 35%, black, transparent 75%);
+}
+
+.marquee-track {
+  animation: marquee 32s linear infinite;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2.4s ease-out infinite;
+}
+
+.animate-float-y {
+  animation: float-y 4s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 18s linear infinite;
+}
+
+@media (max-width: 768px) {
+  .monogram-cutout--responsive {
+    clip-path: none !important;
+  }
+}
