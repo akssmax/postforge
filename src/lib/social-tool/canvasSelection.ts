@@ -24,6 +24,7 @@ export function isCanvasSelectableTarget(target: EventTarget | null): boolean {
   return Boolean(
     target.closest("[data-canvas-select]") ||
       target.closest(".canvas-preview-toolbar") ||
+      target.closest(".social-featured-drag-handle") ||
       target.closest(".social-fi-chrome") ||
       target.closest(".spacing-handle"),
   );

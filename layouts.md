@@ -91,6 +91,8 @@ Zone math: `resolveSplitLayoutZones()` + `estimateTextColumnMinWidth()` in `post
 2. Product zone must keep a minimum share of canvas height (see below).
 3. Footer height is subtracted before the text/product split.
 4. Featured transform (scale / rotate / translate) is **visual only** — it must not change zone heights.
+5. Copy blocks must stay inside the text band; only the featured image / GenUI block may bleed slightly via transform.
+6. When scaled copy needs more vertical space, expand the text band (using spacing tokens) and push the featured slot down — never overlap.
 
 ---
 
@@ -153,10 +155,18 @@ maxTextZone    = height - footerH - minProductZone
 ```
 minTextZone = estimateTextBandMinHeight(...)
   = layoutPad
-  + textZonePadBottom
+  + textZonePadBottom          ← buffer before featured slot
   + [top logo + logoCopyGap if logoPlacement === "top"]
-  + sum(main block slot heights + copyBlockGaps)
+  + sum(main block heights × typeScale + copyBlockGaps)
 ```
+
+Block heights use **live copy** when available:
+
+- **Headline** — `max(wireframe, lineCount × 52 × canvasScale × typeScale × 1.08)`; line count from char width (0.40 default, 0.34 LinkedIn) and effective copy width (max 920px on stacked layouts).
+- **Subheading** — `max(wireframe, lineCount × 22 × canvasScale × typeScale × 1.4)`; respects `22em` / `28em` max width.
+- **Extras** — per-field line wrap at `18 × canvasScale × typeScale`.
+
+If `minTextZone > maxTextZone`, `resolveLayoutHierarchy()` reduces `typeScale` in 8% steps until copy fits or `typeScale` hits 0.75×.
 
 ### 4. Final split
 
@@ -197,6 +207,96 @@ Tailwind spacing scale. Values below are at **1080 reference**; actual px = toke
 Allowed token values: `0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24`.
 
 Per-platform spacing overrides are stored in `layout-reviews.json` under each layout entry's `spacing` field.
+
+---
+
+## Hierarchy & scaling rules
+
+Implemented in `resolveLayoutHierarchy()` (`layoutHierarchy.ts`). Applied automatically on **brief generate**, **shuffle**, **layout change**, and **featured product page change**. Manual slider values are **always recomputed** on those actions (by design), except **featured transform** is preserved on shuffle when the **Featured block** toggle is off.
+
+### Visual hierarchy (top → bottom)
+
+1. **Headline** — largest type; should fill most of the text slot width.
+2. **Subheading** — secondary; smaller scale and opacity.
+3. **Featured block** — GenUI or image; scaled to align with slot width.
+4. **Logo** — smallest persistent mark (~5–6.5% of canvas height).
+
+### Text alignment
+
+Each layout defines `textAlign` in `POST_LAYOUTS`. Generation and shuffle **must not override** alignment — left layouts stay left, center layouts stay center. When a featured block is shown, brief layout scoring prefers left-aligned layouts (`+3`) and product-forward layouts (`+2`).
+
+### typeScale (0.75–4×)
+
+Fill the copy slot width so the headline uses most of the available band (capped at **920px** on stacked layouts, matching `.social-post-copy-stack`):
+
+```
+effectiveWidth = min(textWidth, 920 × canvasScale)   // stacked only
+estimatedW@1   = charCount × charWidthFactor × 52 × canvasScale
+typeScale      = clamp(0.75, max, (effectiveWidth × fillRatio) / estimatedW@1)
+charWidthFactor = 0.40 default, 0.34 on LinkedIn
+fillRatio       = 0.90 default, 0.98 on LinkedIn
+```
+
+Caps:
+
+- `copy-statement` or `textZoneRatio ≥ 0.5` → max **2.2×**
+- Headline > 20 chars → max **2.8×**
+- Tall print (`aspect ≥ 1.8`) → max reduced **10%**
+- Short headline + subheading → **+5%** bump
+
+Also feeds zone math: `textZoneRatio + typeScale × 0.02`.
+
+### logoScale (0.5–3×)
+
+Target logo height as a share of canvas height:
+
+```
+targetLogoH = height × (logoAlign === "center" ? 0.055 : 0.06)
+if logoPlacement === "footer": targetLogoH × 0.85
+logoScale   = clamp(0.5, 3, targetLogoH / (34 × canvasScale))
+```
+
+Rendered height: `max(12, round(34 × canvasScale × logoScale))`.
+
+### featuredTransform.scale (0.6–4×)
+
+**GenUI mode** (when featured is shown): scale native product frame to fit the layout slot.
+
+```
+slotW, slotH  = from resolveFeaturedLayoutZones / resolveSplitLayoutZones
+nativeW, nativeH = PRODUCT_PAGE_FRAMES[productPage]
+scale         = (slotW × 0.92) / nativeW
+if split layout: scale = min(scale, (slotH × 0.95) / nativeH)
+scale         = clamp(0.6, 4, scale)
+```
+
+Stacked layouts width-align the GenUI block (vertical overflow is allowed). Split layouts also cap by column height.
+
+Offsets and rotation reset to defaults; `perspective` stays **1400**.
+
+**Image mode:** scale stays **1×** (image fills slot via `object-fit`).
+
+**Example:** Pricing card (520×620 native) on LinkedIn square with ~950px slot width → scale ≈ **1.7–2.0×**.
+
+Native frame sizes live in `productFrames.ts`.
+
+### LinkedIn ad modifiers
+
+Applies to **`linkedin-square`** and **`linkedin-landscape`** only. These are paid-social ad defaults — headline leads, logo supports.
+
+| Control | Default platforms | LinkedIn ads |
+|---------|-------------------|--------------|
+| **Logo height share** | 5.5–6% of canvas | **3.8–4.2%** (footer logos × 0.8) |
+| **Copy width target** | 90% of slot (max 920px) | **98%** of slot (max 920px) |
+| **Char width estimate** | 0.40 × charCount × 52px | **0.34** ( bolder fill ) |
+| **typeScale caps** | 2.4–3.0× on long copy | up to **3.8×** |
+| **Headline vs logo** | — | headline ≥ **2.1×** rendered logo height when logo is top-placed |
+
+Copy should read larger than the mark; the logo stays visible but subordinate. Shuffle and brief generate pick these up automatically via `platformId`.
+
+### Accent highlights
+
+Brief generation **does not** auto-wrap copy in `[[...]]`. Users may add accent markup manually in the Content panel; brackets are not rendered — only the accent color applies.
 
 ---
 
@@ -267,9 +367,23 @@ Keyboard: ← / → navigate, **A** approve, **R** reject.
 
 Shuffle and brief generation both read the same review record via `loadLayoutReviews()` (merged seed JSON + `localStorage` key `postforge:layout-reviews`).
 
+The shuffle combobutton (**Shuffle** + chevron menu) persists options in `localStorage` (`postforge:shuffle-preferences`):
+
+| Toggle | When on | When off |
+|--------|---------|----------|
+| **Shuffle all** | Master on/off for all rows below | — |
+| **Background** | Random background preset | Keep current preset |
+| **Pattern** | Random pattern, visibility, opacity, scale | Keep current pattern settings |
+| **Content** | Random headline/subheading pool | Re-seed copy for layout only |
+| **Featured block** | Recompute `featuredTransform` (scale + default offsets) | Keep current transform (x, y, z, rotate, scale, perspective) |
+
+Layout **always** changes on shuffle. Hierarchy scales (`typeScale`, `logoScale`) are **always** recomputed so copy fits its slot.
+
 1. **Only approved layouts** enter the shuffle pool (`getApprovedShuffleLayouts`).
 2. **Rejected layouts are never shuffled** — playground rejections apply immediately in `/tool` and `/design/[id]` on the same browser.
-3. Export JSON and commit to `src/data/layout-reviews.json` to share defaults across machines; per-browser rejections stay in `localStorage` until exported.
+3. **Anti-overlap** — `estimateTextBandMinHeight()` accounts for `typeScale` and wrapped line counts; text band expands and pushes the featured slot down before allowing overlap.
+4. **Background + pattern** are randomized via `pickRandomShuffleSurface()` when their toggles are on (opacity ≤ 30%, scale up to 4×).
+5. Export JSON and commit to `src/data/layout-reviews.json` to share defaults across machines; per-browser rejections stay in `localStorage` until exported.
 
 ### Committed status
 

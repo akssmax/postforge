@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
 import {
   buildBackgroundPresets,
   buildGradientBackgroundPresets,
@@ -12,6 +13,14 @@ import {
   extractColorsFromImageBlob,
   extractColorsFromSvgMarkup,
 } from "@/lib/brand/extractColors";
+import {
+  fixLogoSvgContrast as applyLogoSvgContrastFix,
+  restoreLogoSvgOriginal,
+  withLogoSvgOriginal,
+} from "@/lib/brand/logoContrastFix";
+import { resolveLayoutHierarchy } from "@/lib/social-tool/layoutHierarchy";
+import { getPostLayout } from "@/lib/social-tool/postLayouts";
+import { getPlatform } from "@/lib/social-tool/presets";
 import { parseLogoFile } from "@/lib/brand/parseLogoFile";
 import {
   createLogoRecord,
@@ -46,6 +55,7 @@ import {
 } from "@/lib/social-tool/featuredBlock";
 import type { PlatformId } from "@/lib/social-tool/presets";
 import type { ProductPageId } from "@/lib/social-tool/presets";
+import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
 
 const PERSIST_DEBOUNCE_MS = 300;
@@ -71,12 +81,15 @@ export type UseDesignSessionResult = {
   setPlatformId: (platformId: PlatformId) => void;
   uploadLogo: (file: File) => Promise<void>;
   removeLogo: () => Promise<void>;
+  fixLogoSvgContrast: (backgroundCss: string, logoBackdrop: boolean) => void;
+  restoreLogoSvg: () => void;
   setColor: (role: keyof BrandColors, hex: string) => void;
   resetColor: (role: keyof BrandColors) => void;
   applySwatch: (hex: string, role: keyof BrandColors) => void;
   setBackgroundPreset: (id: string | null) => void;
   setFeaturedMode: (mode: FeaturedBlockMode) => void;
   setFeaturedProductPage: (productPage: ProductPageId) => void;
+  applyBriefGeneration: (result: BriefGenerationResult) => void;
   uploadFeaturedImage: (file: File) => Promise<void>;
   removeFeaturedImage: () => Promise<void>;
   advanceOnboarding: (phase: DesignOnboardingPhase) => void;
@@ -301,6 +314,63 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
     }));
   }, [revokeLogoBlob, session?.brand.logo, updateSession]);
 
+  const fixLogoSvgContrast = useCallback(
+    (backgroundCss: string, logoBackdrop: boolean) => {
+      const logo = session?.brand.logo;
+      if (!logo?.svgMarkup) return;
+      const base = withLogoSvgOriginal(logo);
+      const source = base.svgMarkupOriginal ?? base.svgMarkup;
+      if (!source) return;
+      const { markup, fixes, usesExplicitColors } = applyLogoSvgContrastFix(
+        source,
+        backgroundCss,
+        { logoBackdrop },
+      );
+      if (fixes.length === 0) return;
+      const colors = extractColorsFromSvgMarkup(markup);
+      updateSession((prev) => ({
+        ...prev,
+        brand: {
+          ...prev.brand,
+          logo: {
+            ...base,
+            svgMarkup: markup,
+            usesExplicitColors,
+          },
+          colors,
+        },
+        document: {
+          ...prev.document,
+          logoInvert: false,
+        },
+        updatedAt: Date.now(),
+      }));
+    },
+    [session?.brand.logo, updateSession],
+  );
+
+  const restoreLogoSvg = useCallback(() => {
+    const logo = session?.brand.logo;
+    if (!logo?.svgMarkupOriginal) return;
+    const restored = restoreLogoSvgOriginal(logo);
+    const colors = restored.svgMarkup
+      ? extractColorsFromSvgMarkup(restored.svgMarkup)
+      : (session?.brand.colors ?? defaultKit().colors);
+    updateSession((prev) => ({
+      ...prev,
+      brand: {
+        ...prev.brand,
+        logo: restored,
+        colors,
+      },
+      document: {
+        ...prev.document,
+        logoInvert: false,
+      },
+      updatedAt: Date.now(),
+    }));
+  }, [session?.brand.colors, session?.brand.logo, updateSession]);
+
   const setColor = useCallback(
     (role: keyof BrandColors, hex: string) => {
       if (role === "extracted") return;
@@ -373,9 +443,67 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
 
   const setFeaturedProductPage = useCallback(
     (productPage: ProductPageId) => {
+      updateSession((prev) => {
+        const platform = getPlatform(prev.document.platformId);
+        const layout = getPostLayout(prev.document.layoutId);
+        const featuredMode =
+          prev.featured.mode === "image" && prev.featured.image ? "image" : "genui";
+        const featuredTransform = resolveLayoutHierarchy({
+          width: platform.width,
+          height: platform.height,
+          platformId: prev.document.platformId,
+          layout,
+          copy: prev.document.copy,
+          spacing: prev.document.layoutSpacing,
+          showLogo: prev.document.showBrand,
+          showFeaturedImage: prev.document.showFeaturedImage,
+          featuredMode,
+          productPage,
+        }).featuredTransform;
+
+        return {
+          ...prev,
+          featured: { ...prev.featured, productPage },
+          document: {
+            ...prev.document,
+            featuredTransform,
+          },
+          updatedAt: Date.now(),
+        };
+      });
+    },
+    [updateSession],
+  );
+
+  const applyBriefGeneration = useCallback(
+    (result: BriefGenerationResult) => {
       updateSession((prev) => ({
         ...prev,
-        featured: { ...prev.featured, productPage },
+        featured: {
+          ...prev.featured,
+          mode: "genui",
+          productPage: result.productPage,
+        },
+        document: {
+          ...prev.document,
+          copy: result.copy,
+          layoutId: result.layoutId,
+          logoPlacement: result.logoPlacement,
+          logoAlign: result.logoAlign,
+          textAlign: result.textAlign,
+          showContent: result.showContent,
+          showFeaturedImage: result.showFeaturedImage,
+          showPattern: result.showPattern,
+          showBackground: result.showBackground,
+          pattern: result.pattern,
+          patternOpacity: result.patternOpacity,
+          patternScale: result.patternScale,
+          patternAnimated: result.patternAnimated,
+          typeScale: result.typeScale,
+          logoScale: result.logoScale,
+          featuredTransform: result.featuredTransform,
+          onboarding: { phase: "ready", briefSkipped: false },
+        },
         updatedAt: Date.now(),
       }));
     },
@@ -491,12 +619,15 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       setPlatformId,
       uploadLogo,
       removeLogo,
+      fixLogoSvgContrast,
+      restoreLogoSvg,
       setColor,
       resetColor,
       applySwatch,
       setBackgroundPreset,
       setFeaturedMode,
       setFeaturedProductPage,
+      applyBriefGeneration,
       uploadFeaturedImage,
       removeFeaturedImage,
       advanceOnboarding,
@@ -522,12 +653,15 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       setPlatformId,
       uploadLogo,
       removeLogo,
+      fixLogoSvgContrast,
+      restoreLogoSvg,
       setColor,
       resetColor,
       applySwatch,
       setBackgroundPreset,
       setFeaturedMode,
       setFeaturedProductPage,
+      applyBriefGeneration,
       uploadFeaturedImage,
       removeFeaturedImage,
       advanceOnboarding,

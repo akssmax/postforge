@@ -26,6 +26,7 @@ import {
   type PlatformId,
   type PostCopy,
   type PostTheme,
+  type ProductPageId,
   type SocialFontId,
   type TemplateId,
   type TextAlign,
@@ -56,6 +57,10 @@ import {
   getRandomPlaygroundLayout,
   loadLayoutReviews,
 } from "@/lib/social-tool/layoutReviews";
+import { pickRandomShuffleSurface } from "@/lib/social-tool/shuffleSurface";
+import { pickRandomShuffleCopy } from "@/lib/social-tool/shuffleCopy";
+import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
+import { resolveLayoutHierarchyFromIds } from "@/lib/social-tool/layoutHierarchy";
 import {
   canvasSelectionFromContrastBlock,
   isCanvasSelectableTarget,
@@ -69,6 +74,10 @@ import {
   suggestHighContrastBackgroundId,
   type DesignBlockId,
 } from "@/lib/brand/contrast";
+import {
+  canFixLogoSvgContrast,
+  hasLogoSvgContrastFix,
+} from "@/lib/brand/logoContrastFix";
 import "./social-tool.css";
 
 type Props = {
@@ -173,21 +182,98 @@ function ToolSocialWorkspace() {
   const platform = getPlatform(platformId);
   const activeLayout = getPostLayout(layoutId);
 
+  function applyHierarchyScales(
+    nextLayoutId: PostLayoutId,
+    nextCopy: PostCopy,
+    opts?: { preserveFeaturedTransform?: boolean },
+  ) {
+    const hierarchy = resolveLayoutHierarchyFromIds({
+      platformId,
+      layoutId: nextLayoutId,
+      copy: nextCopy,
+      spacing: layoutSpacing,
+      showLogo: showBrand,
+      showFeaturedImage,
+      featuredMode: featured.mode,
+      productPage: featured.productPage,
+      hasUploadedFeaturedImage: !!featured.image,
+    });
+    setTypeScale(hierarchy.typeScale);
+    setLogoScale(hierarchy.logoScale);
+    if (!opts?.preserveFeaturedTransform) {
+      setFeaturedTransform(hierarchy.featuredTransform);
+    }
+  }
+
+  function handleFeaturedProductPage(page: ProductPageId) {
+    featured.setProductPage(page);
+    const hierarchy = resolveLayoutHierarchyFromIds({
+      platformId,
+      layoutId,
+      copy,
+      spacing: layoutSpacing,
+      showLogo: showBrand,
+      showFeaturedImage,
+      featuredMode: featured.mode,
+      productPage: page,
+      hasUploadedFeaturedImage: !!featured.image,
+    });
+    setFeaturedTransform(hierarchy.featuredTransform);
+  }
+
   function applyPostLayout(nextId: PostLayoutId) {
     const layout = getPostLayout(nextId);
     const patch = getLayoutStatePatch(layout);
+    const nextCopy = seedCopyForLayout(copy, layout);
     setLayoutId(nextId);
     setLogoPlacement(patch.logoPlacement);
     setLogoAlign(patch.logoAlign);
     setTextAlign(patch.textAlign);
-    setCopy((prev) => seedCopyForLayout(prev, layout));
+    setCopy(nextCopy);
+    applyHierarchyScales(nextId, nextCopy);
   }
 
-  function shufflePostLayout() {
+  function shufflePostLayout(prefs: ShufflePreferences) {
     const record = loadLayoutReviews();
-    applyPostLayout(
-      getRandomPlaygroundLayout(platformId, layoutId, record).id,
-    );
+    const nextLayout = getRandomPlaygroundLayout(platformId, layoutId, record);
+    const layout = getPostLayout(nextLayout.id);
+    const patch = getLayoutStatePatch(layout);
+    let nextCopy = seedCopyForLayout(copy, layout);
+    if (prefs.content) {
+      nextCopy = pickRandomShuffleCopy(copy, layout);
+    }
+
+    setLayoutId(nextLayout.id);
+    setLogoPlacement(patch.logoPlacement);
+    setLogoAlign(patch.logoAlign);
+    setTextAlign(patch.textAlign);
+    setCopy(nextCopy);
+    applyHierarchyScales(nextLayout.id, nextCopy, {
+      preserveFeaturedTransform: !prefs.featuredPosition,
+    });
+
+    const surface = pickRandomShuffleSurface({
+      backgrounds: brand.backgroundPresets,
+      currentBackgroundId: brand.kit.activeBackgroundPresetId,
+      currentPattern: pattern,
+      currentShowPattern: showPattern,
+      currentPatternOpacity: patternOpacity,
+      currentPatternScale: patternScale,
+      layoutId: nextLayout.id,
+      shuffleBackground: prefs.background,
+      shufflePattern: prefs.pattern,
+    });
+
+    if (prefs.background) {
+      brand.setBackgroundPreset(surface.backgroundPresetId);
+      setShowBackground(true);
+    }
+    if (prefs.pattern) {
+      setPattern(surface.pattern);
+      setShowPattern(surface.showPattern);
+      setPatternOpacity(surface.patternOpacity);
+      setPatternScale(surface.patternScale);
+    }
   }
 
   useEffect(() => {
@@ -298,6 +384,16 @@ function ToolSocialWorkspace() {
   );
 
   const contrastFailingCount = contrastResults.filter((r) => !r.passes).length;
+  const canFixLogoSvg = useMemo(
+    () =>
+      brand.kit.logo?.svgMarkup
+        ? canFixLogoSvgContrast(brand.kit.logo.svgMarkup, activeBgCss, {
+            logoBackdrop,
+          })
+        : false,
+    [brand.kit.logo?.svgMarkup, activeBgCss, logoBackdrop],
+  );
+  const hasLogoSvgFix = hasLogoSvgContrastFix(brand.kit.logo);
   const showContrastOverlay =
     contrastEnabled && contrastPanelOpen && contrastFailingCount > 0;
 
@@ -574,7 +670,7 @@ function ToolSocialWorkspace() {
               mode: featured.mode,
               setMode: featured.setMode,
               productPage: featured.productPage,
-              setProductPage: featured.setProductPage,
+              setProductPage: handleFeaturedProductPage,
               image: featured.image,
               imageSrc: featured.imageSrc,
               uploading: featured.uploading,
@@ -623,8 +719,18 @@ function ToolSocialWorkspace() {
                       logoBackdrop={logoBackdrop}
                       logoInvert={logoInvert}
                       hasSvgLogo={brand.kit.logo?.mime === "image/svg+xml"}
+                      canFixLogoSvg={canFixLogoSvg}
+                      hasLogoSvgFix={hasLogoSvgFix}
                       onFixLogoBackdrop={() => setLogoBackdrop(true)}
                       onFixLogoInvert={() => setLogoInvert((v) => !v)}
+                      onFixLogoSvgContrast={() => {
+                        brand.fixLogoSvgContrast(activeBgCss, logoBackdrop);
+                        setLogoInvert(false);
+                      }}
+                      onRestoreLogoSvg={() => {
+                        brand.restoreLogoSvg();
+                        setLogoInvert(false);
+                      }}
                       onFixBackground={() => {
                         brand.setBackgroundPreset(suggestHighContrastBackgroundId());
                         setLogoBackdrop(false);
@@ -701,6 +807,7 @@ function ToolSocialWorkspace() {
                   onSelectBlock={setSelectedBlock}
                   logoBackdrop={logoBackdrop}
                   logoInvert={logoInvert}
+                  logoUsesExplicitColors={brand.kit.logo?.usesExplicitColors ?? false}
                   textColorOverride={textColor}
                   subTextColorOverride={subTextColor}
                   layoutId={layoutId}

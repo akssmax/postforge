@@ -25,12 +25,7 @@ export function SchedulerCardPreview() {
   return (
     <div
       data-theme="light"
-      className="flex h-full w-full items-center justify-center bg-[#ef7242] p-8"
-      style={{
-        backgroundImage:
-          "linear-gradient(to right, rgba(255,255,255,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.12) 1px, transparent 1px)",
-        backgroundSize: "28px 28px",
-      }}
+      className="flex h-full w-full items-start justify-start bg-transparent p-8"
     >
       <div className="w-full max-w-[560px] rounded-2xl bg-white p-5 shadow-xl ring-1 ring-black/5">
         <p className="text-sm font-semibold text-brand-950">Schedule your meeting</p>
@@ -98,7 +93,7 @@ export function StatsCardsPreview() {
   return (
     <div
       data-theme="light"
-      className="flex h-full w-full flex-col bg-neutral-50 p-6 text-brand-950"
+      className="flex h-full w-full flex-col bg-transparent p-6 text-brand-950"
     >
       <div className="mb-4">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
@@ -130,7 +125,7 @@ export function PricingCardPreview() {
   return (
     <div
       data-theme="light"
-      className="flex h-full w-full items-center justify-center bg-neutral-100 p-8"
+      className="flex h-full w-full items-start justify-start bg-transparent p-8"
     >
       <div className="w-full max-w-[420px] rounded-2xl border border-dash-line bg-white p-6 shadow-lg">
         <span className="rounded-full bg-brand-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand-800">
@@ -173,7 +168,7 @@ export function ActivityFeedPreview() {
   return (
     <div
       data-theme="light"
-      className="flex h-full w-full flex-col bg-white text-brand-950"
+      className="flex h-full w-full flex-col bg-transparent text-brand-950"
     >
       <div className="border-b border-dash-line px-5 py-4">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
@@ -205,7 +200,7 @@ export function ProfileCardPreview() {
   return (
     <div
       data-theme="light"
-      className="flex h-full w-full items-center justify-center bg-dash-surface p-8"
+      className="flex h-full w-full items-start justify-start bg-transparent p-8"
     >
       <div className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-dash-line bg-white shadow-lg">
         <div className="h-20 bg-gradient-to-r from-brand-700 to-brand-500" />
@@ -245,7 +240,7 @@ export function FormCardPreview() {
   return (
     <div
       data-theme="light"
-      className="flex h-full w-full items-center justify-center bg-neutral-50 p-8"
+      className="flex h-full w-full items-start justify-start bg-transparent p-8"
     >
       <div className="w-full max-w-[440px] rounded-2xl border border-dash-line bg-white p-5 shadow-sm">
         <p className="text-sm font-semibold text-brand-950">Join the waitlist</p>

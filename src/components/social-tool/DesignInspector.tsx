@@ -183,7 +183,7 @@ function PatternSection({
                 value={patternScale}
                 onChange={onPatternScaleChange}
                 min={0.5}
-                max={2}
+                max={4}
                 step={0.05}
                 format={(v) =>
                   `${v.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1")}×`

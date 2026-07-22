@@ -35,6 +35,10 @@ import {
   resolveLayoutSpacing,
   type LayoutReviewRecord,
 } from "@/lib/social-tool/layoutReviews";
+import { pickRandomShuffleSurface } from "@/lib/social-tool/shuffleSurface";
+import { pickRandomShuffleCopy } from "@/lib/social-tool/shuffleCopy";
+import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
+import { resolveLayoutHierarchyFromIds } from "@/lib/social-tool/layoutHierarchy";
 import {
   canvasSelectionFromContrastBlock,
   isCanvasSelectableTarget,
@@ -48,6 +52,10 @@ import {
   suggestHighContrastBackgroundId,
   type DesignBlockId,
 } from "@/lib/brand/contrast";
+import {
+  canFixLogoSvgContrast,
+  hasLogoSvgContrastFix,
+} from "@/lib/brand/logoContrastFix";
 import { useDesignSession } from "@/lib/design/useDesignSession";
 import { designRepository } from "@/lib/design/repository";
 import type { DesignDocument } from "@/lib/design/types";
@@ -166,21 +174,105 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     (nextId: PostLayoutId, record: LayoutReviewRecord = loadLayoutReviews()) => {
       const layout = getPostLayout(nextId);
       const patch = getLayoutStatePatch(layout);
+      const nextSpacing = resolveLayoutSpacing(record, doc.platformId, nextId);
+      const nextCopy = seedCopyForLayout(doc.copy, layout);
+      const hierarchy = resolveLayoutHierarchyFromIds({
+        platformId: doc.platformId,
+        layoutId: nextId,
+        copy: nextCopy,
+        spacing: nextSpacing,
+        showLogo: doc.showBrand,
+        showFeaturedImage: doc.showFeaturedImage,
+        featuredMode: session.featured.mode,
+        productPage: session.featured.productPage,
+        hasUploadedFeaturedImage: !!session.featured.image,
+      });
       patchDocument({
         layoutId: nextId,
         logoPlacement: patch.logoPlacement,
         logoAlign: patch.logoAlign,
         textAlign: patch.textAlign,
-        layoutSpacing: resolveLayoutSpacing(record, doc.platformId, nextId),
-        copy: seedCopyForLayout(doc.copy, layout),
+        layoutSpacing: nextSpacing,
+        copy: nextCopy,
+        typeScale: hierarchy.typeScale,
+        logoScale: hierarchy.logoScale,
+        featuredTransform: hierarchy.featuredTransform,
       });
     },
-    [doc.copy, doc.platformId, patchDocument],
+    [
+      doc.copy,
+      doc.platformId,
+      doc.showBrand,
+      doc.showFeaturedImage,
+      patchDocument,
+      session.featured.mode,
+      session.featured.productPage,
+    ],
   );
 
-  function shufflePostLayout() {
+  function shufflePostLayout(prefs: ShufflePreferences) {
     const record = loadLayoutReviews();
-    applyPostLayout(getRandomPlaygroundLayout(doc.platformId, doc.layoutId, record).id, record);
+    const nextLayout = getRandomPlaygroundLayout(
+      doc.platformId,
+      doc.layoutId,
+      record,
+    );
+    const layout = getPostLayout(nextLayout.id);
+    const patch = getLayoutStatePatch(layout);
+    const nextSpacing = resolveLayoutSpacing(record, doc.platformId, nextLayout.id);
+    let nextCopy = seedCopyForLayout(doc.copy, layout);
+    if (prefs.content) {
+      nextCopy = pickRandomShuffleCopy(doc.copy, layout);
+    }
+    const hierarchy = resolveLayoutHierarchyFromIds({
+      platformId: doc.platformId,
+      layoutId: nextLayout.id,
+      copy: nextCopy,
+      spacing: nextSpacing,
+      showLogo: doc.showBrand,
+      showFeaturedImage: doc.showFeaturedImage,
+      featuredMode: session.featured.mode,
+      productPage: session.featured.productPage,
+      hasUploadedFeaturedImage: !!session.featured.image,
+    });
+    const surface = pickRandomShuffleSurface({
+      backgrounds: session.backgroundPresets,
+      currentBackgroundId: session.kit.activeBackgroundPresetId,
+      currentPattern: doc.pattern,
+      currentShowPattern: doc.showPattern,
+      currentPatternOpacity: doc.patternOpacity,
+      currentPatternScale: doc.patternScale,
+      layoutId: nextLayout.id,
+      shuffleBackground: prefs.background,
+      shufflePattern: prefs.pattern,
+    });
+
+    if (prefs.background) {
+      session.setBackgroundPreset(surface.backgroundPresetId);
+    }
+
+    patchDocument({
+      layoutId: nextLayout.id,
+      logoPlacement: patch.logoPlacement,
+      logoAlign: patch.logoAlign,
+      textAlign: patch.textAlign,
+      layoutSpacing: nextSpacing,
+      copy: nextCopy,
+      typeScale: hierarchy.typeScale,
+      logoScale: hierarchy.logoScale,
+      ...(prefs.featuredPosition
+        ? { featuredTransform: hierarchy.featuredTransform }
+        : {}),
+      ...(prefs.pattern
+        ? {
+            pattern: surface.pattern,
+            showPattern: surface.showPattern,
+            patternOpacity: surface.patternOpacity,
+            patternScale: surface.patternScale,
+          }
+        : {}),
+      ...(prefs.background ? { showBackground: true } : {}),
+    });
   }
 
   useEffect(() => {
@@ -285,6 +377,16 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   );
 
   const contrastFailingCount = contrastResults.filter((r) => !r.passes).length;
+  const canFixLogoSvg = useMemo(
+    () =>
+      session.kit.logo?.svgMarkup
+        ? canFixLogoSvgContrast(session.kit.logo.svgMarkup, activeBgCss, {
+            logoBackdrop: doc.logoBackdrop,
+          })
+        : false,
+    [session.kit.logo?.svgMarkup, activeBgCss, doc.logoBackdrop],
+  );
+  const hasLogoSvgFix = hasLogoSvgContrastFix(session.kit.logo);
   const showContrastOverlay =
     contrastEnabled && contrastPanelOpen && contrastFailingCount > 0;
 
@@ -393,23 +495,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   }
 
   function handleBriefGenerate(result: BriefGenerationResult) {
-    session.setFeaturedProductPage(result.productPage);
-    patchDocument({
-      copy: result.copy,
-      layoutId: result.layoutId,
-      logoPlacement: result.logoPlacement,
-      logoAlign: result.logoAlign,
-      textAlign: result.textAlign,
-      showContent: result.showContent,
-      showFeaturedImage: result.showFeaturedImage,
-      showPattern: result.showPattern,
-      showBackground: result.showBackground,
-      pattern: result.pattern,
-      patternOpacity: result.patternOpacity,
-      patternScale: result.patternScale,
-      patternAnimated: result.patternAnimated,
-      onboarding: { phase: "ready", briefSkipped: false },
-    });
+    session.applyBriefGeneration(result);
   }
 
   function handlePlatformChange(next: PlatformId) {
@@ -623,10 +709,16 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         logoBackdrop={doc.logoBackdrop}
                         logoInvert={doc.logoInvert}
                         hasSvgLogo={session.kit.logo?.mime === "image/svg+xml"}
+                        canFixLogoSvg={canFixLogoSvg}
+                        hasLogoSvgFix={hasLogoSvgFix}
                         onFixLogoBackdrop={() => patchDocument({ logoBackdrop: true })}
                         onFixLogoInvert={() =>
                           patchDocument({ logoInvert: !doc.logoInvert })
                         }
+                        onFixLogoSvgContrast={() =>
+                          session.fixLogoSvgContrast(activeBgCss, doc.logoBackdrop)
+                        }
+                        onRestoreLogoSvg={() => session.restoreLogoSvg()}
                         onFixBackground={() => {
                           session.setBackgroundPreset(suggestHighContrastBackgroundId());
                           patchDocument({ logoBackdrop: false });
@@ -712,6 +804,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         onSelectBlock={setSelectedBlock}
                         logoBackdrop={doc.logoBackdrop}
                         logoInvert={doc.logoInvert}
+                        logoUsesExplicitColors={
+                          session.kit.logo?.usesExplicitColors ?? false
+                        }
                         textColorOverride={textColor}
                         subTextColorOverride={subTextColor}
                         layoutId={doc.layoutId}

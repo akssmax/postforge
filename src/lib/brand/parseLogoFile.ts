@@ -8,7 +8,10 @@ const ALLOWED_TAGS = new Set([
   "line",
   "polyline",
   "polygon",
+  "text",
+  "tspan",
   "defs",
+  "style",
   "lineargradient",
   "radialgradient",
   "stop",
@@ -19,6 +22,54 @@ const ALLOWED_TAGS = new Set([
 ]);
 
 const BLOCKED = /(<script|javascript:|on[a-z]+=)/i;
+const BLOCKED_STYLE =
+  /@import|javascript:|expression\s*\(|behavior\s*:|(?:^|[^-\w])url\s*\(\s*['"]?\s*data:/i;
+
+function sanitizeSvgStyleContent(css: string): string {
+  if (BLOCKED_STYLE.test(css)) return "";
+  return css;
+}
+
+function inlineSvgClassStyles(root: Element): void {
+  const rules = new Map<string, { fill?: string; stroke?: string }>();
+
+  for (const styleEl of root.querySelectorAll("style")) {
+    const css = styleEl.textContent ?? "";
+    const ruleRe = /\.([a-zA-Z0-9_-]+)\s*\{([^}]+)\}/g;
+    let match: RegExpExecArray | null;
+    while ((match = ruleRe.exec(css))) {
+      const className = match[1];
+      const body = match[2];
+      const entry = rules.get(className) ?? {};
+      const fillMatch = body.match(/(?:^|;)\s*fill\s*:\s*([^;]+)/i);
+      const strokeMatch = body.match(/(?:^|;)\s*stroke\s*:\s*([^;]+)/i);
+      if (fillMatch) entry.fill = fillMatch[1].trim();
+      if (strokeMatch) entry.stroke = strokeMatch[1].trim();
+      rules.set(className, entry);
+    }
+  }
+
+  if (rules.size === 0) return;
+
+  const walk = (el: Element) => {
+    const classAttr = el.getAttribute("class");
+    if (classAttr) {
+      for (const className of classAttr.split(/\s+/)) {
+        const rule = rules.get(className);
+        if (!rule) continue;
+        if (rule.fill && !el.getAttribute("fill")) {
+          el.setAttribute("fill", rule.fill);
+        }
+        if (rule.stroke && !el.getAttribute("stroke")) {
+          el.setAttribute("stroke", rule.stroke);
+        }
+      }
+    }
+    for (const child of [...el.children]) walk(child);
+  };
+
+  walk(root);
+}
 
 export function sanitizeSvgMarkup(raw: string): string | null {
   if (BLOCKED.test(raw)) return null;
@@ -39,6 +90,9 @@ export function sanitizeSvgMarkup(raw: string): string | null {
         el.removeAttribute(attr.name);
       }
     }
+    if (tag === "style") {
+      el.textContent = sanitizeSvgStyleContent(el.textContent ?? "");
+    }
     for (const child of [...el.children]) {
       walk(child);
     }
@@ -46,6 +100,7 @@ export function sanitizeSvgMarkup(raw: string): string | null {
   };
 
   walk(root);
+  inlineSvgClassStyles(root);
 
   if (!root.getAttribute("xmlns")) {
     root.setAttribute("xmlns", "http://www.w3.org/2000/svg");

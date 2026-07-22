@@ -14,11 +14,15 @@ type Props = {
   onSelectBlock: (id: DesignBlockId | null) => void;
   onFixLogoBackdrop: () => void;
   onFixLogoInvert: () => void;
+  onFixLogoSvgContrast: () => void;
+  onRestoreLogoSvg: () => void;
   onFixBackground: () => void;
   onFixTextContrast: () => void;
   logoBackdrop: boolean;
   logoInvert: boolean;
   hasSvgLogo: boolean;
+  canFixLogoSvg: boolean;
+  hasLogoSvgFix: boolean;
 };
 
 export function ContrastIssuesPanel({
@@ -27,11 +31,15 @@ export function ContrastIssuesPanel({
   onSelectBlock,
   onFixLogoBackdrop,
   onFixLogoInvert,
+  onFixLogoSvgContrast,
+  onRestoreLogoSvg,
   onFixBackground,
   onFixTextContrast,
   logoBackdrop,
   logoInvert,
   hasSvgLogo,
+  canFixLogoSvg,
+  hasLogoSvgFix,
 }: Props) {
   const failing = results.filter((r) => !r.passes);
   if (failing.length === 0) return null;
@@ -83,9 +91,19 @@ export function ContrastIssuesPanel({
           <div className="contrast-issues-detail-actions">
             {selected.blockId === "logo" ? (
               <>
+                {hasSvgLogo && canFixLogoSvg ? (
+                  <Button size="sm" variant="primary" onPress={onFixLogoSvgContrast}>
+                    Fix low-contrast fills
+                  </Button>
+                ) : null}
+                {hasSvgLogo && hasLogoSvgFix ? (
+                  <Button size="sm" variant="outline" onPress={onRestoreLogoSvg}>
+                    Restore original logo
+                  </Button>
+                ) : null}
                 {hasSvgLogo ? (
                   <Button size="sm" variant="outline" onPress={onFixLogoInvert}>
-                    {logoInvert ? "Revert logo colors" : "Invert logo"}
+                    {logoInvert ? "Revert logo colors" : "Invert all colors"}
                   </Button>
                 ) : null}
                 {!logoBackdrop ? (

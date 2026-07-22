@@ -85,7 +85,7 @@ export function ContentPanel({
             <TextArea rows={3} className="min-h-[4.5rem] resize-y" />
           </TextField>
           <p className="text-[11px] leading-4 text-text-tertiary">
-            Wrap accent in [[like this]].
+            Optional: wrap accent phrases in [[double brackets]] in the headline.
           </p>
           <TextField
             fullWidth

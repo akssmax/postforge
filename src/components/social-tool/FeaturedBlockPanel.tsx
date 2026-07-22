@@ -84,6 +84,9 @@ export function FeaturedBlockPanel({
             onSelectionChange={(keys) => {
               const next = [...keys][0];
               if (next === "image" || next === "genui") {
+                if (next === "genui") {
+                  onFeaturedTransformChange({ ...DEFAULT_FEATURED_TRANSFORM });
+                }
                 setMode(next as FeaturedBlockMode);
               }
             }}
@@ -168,7 +171,10 @@ export function FeaturedBlockPanel({
               <InspectorSelect
                 label="UI block"
                 value={productPage}
-                onChange={(v) => setProductPage(v as ProductPageId)}
+                onChange={(v) => {
+                  setProductPage(v as ProductPageId);
+                  onFeaturedTransformChange({ ...DEFAULT_FEATURED_TRANSFORM });
+                }}
                 options={PRODUCT_PAGES.map((p) => ({
                   id: p.id,
                   label: p.label,
@@ -239,7 +245,7 @@ export function FeaturedBlockPanel({
                   onFeaturedTransformChange({ ...featuredTransform, scale })
                 }
                 min={0.6}
-                max={1.6}
+                max={4}
                 step={0.01}
                 format={(v) => `${v.toFixed(2)}×`}
               />

@@ -43,7 +43,7 @@ export function PostPattern({
   const color = patternTint ?? (isDark ? "#4BB793" : "#275144");
   const footerColor =
     footerPatternTint ?? (isDark ? "#E3FFCC" : "#275144");
-  const patternScale = Math.min(2.5, Math.max(0.4, scale));
+  const patternScale = Math.min(4, Math.max(0.4, scale));
   const resolved = resolvePattern(pattern, designId);
 
   useEffect(() => {

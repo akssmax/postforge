@@ -16,11 +16,15 @@ type Props = {
   onSelectBlock: (id: DesignBlockId | null) => void;
   onFixLogoBackdrop: () => void;
   onFixLogoInvert: () => void;
+  onFixLogoSvgContrast: () => void;
+  onRestoreLogoSvg: () => void;
   onFixBackground: () => void;
   onFixTextContrast: () => void;
   logoBackdrop: boolean;
   logoInvert: boolean;
   hasSvgLogo: boolean;
+  canFixLogoSvg: boolean;
+  hasLogoSvgFix: boolean;
 };
 
 export function ContrastIssuesToggle({
@@ -31,11 +35,15 @@ export function ContrastIssuesToggle({
   onSelectBlock,
   onFixLogoBackdrop,
   onFixLogoInvert,
+  onFixLogoSvgContrast,
+  onRestoreLogoSvg,
   onFixBackground,
   onFixTextContrast,
   logoBackdrop,
   logoInvert,
   hasSvgLogo,
+  canFixLogoSvg,
+  hasLogoSvgFix,
 }: Props) {
   const failing = results.filter((r) => !r.passes);
   if (failing.length === 0) return null;
@@ -69,11 +77,15 @@ export function ContrastIssuesToggle({
               onSelectBlock={onSelectBlock}
               onFixLogoBackdrop={onFixLogoBackdrop}
               onFixLogoInvert={onFixLogoInvert}
+              onFixLogoSvgContrast={onFixLogoSvgContrast}
+              onRestoreLogoSvg={onRestoreLogoSvg}
               onFixBackground={onFixBackground}
               onFixTextContrast={onFixTextContrast}
               logoBackdrop={logoBackdrop}
               logoInvert={logoInvert}
               hasSvgLogo={hasSvgLogo}
+              canFixLogoSvg={canFixLogoSvg}
+              hasLogoSvgFix={hasLogoSvgFix}
             />
           </Popover.Dialog>
         </Popover.Content>

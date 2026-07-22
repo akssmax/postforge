@@ -106,6 +106,8 @@ export function createLogoRecord(
       fileName,
       uploadedAt: Date.now(),
       svgMarkup: parsed.svgMarkup,
+      svgMarkupOriginal: parsed.svgMarkup,
+      usesExplicitColors: false,
     };
   }
   return {

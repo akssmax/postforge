@@ -11,7 +11,7 @@ function LeadsPreviewFrame() {
   return (
     <div
       data-theme="light"
-      className="flex h-full w-full overflow-hidden bg-dash-surface text-brand-950"
+      className="flex h-full w-full overflow-hidden bg-transparent text-brand-950"
     >
       <aside className="hidden w-44 shrink-0 flex-col border-r border-dash-line bg-dash-sidebar p-3 sm:flex">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">

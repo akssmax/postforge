@@ -7,6 +7,10 @@ export type BrandLogoRecord = {
   uploadedAt: number;
   /** Sanitized inline SVG for DOM injection */
   svgMarkup?: string;
+  /** Pristine upload copy for restoring contrast fixes */
+  svgMarkupOriginal?: string;
+  /** When true, skip CSS currentColor tint on the logo wrapper */
+  usesExplicitColors?: boolean;
   /** IndexedDB key for PNG blob */
   blobKey?: string;
 };

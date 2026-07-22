@@ -1,4 +1,6 @@
 import type { PlatformId, ProductPageId, PostCopy } from "@/lib/social-tool/presets";
+import { getPlatform } from "@/lib/social-tool/presets";
+import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
 import {
   getLayoutStatePatch,
   getPostLayout,
@@ -13,6 +15,8 @@ import {
   loadLayoutReviews,
   type LayoutReviewRecord,
 } from "@/lib/social-tool/layoutReviews";
+import { DEFAULT_POST_LAYOUT_SPACING } from "@/lib/social-tool/layoutSpacing";
+import { resolveLayoutHierarchy } from "@/lib/social-tool/layoutHierarchy";
 import { libraryPatternRef } from "@/lib/social-tool/patterns/library";
 import { legacyPatternRef } from "@/lib/social-tool/patterns/resolvePattern";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
@@ -33,6 +37,9 @@ export type BriefGenerationResult = {
   patternAnimated: boolean;
   showContent: boolean;
   productPage: ProductPageId;
+  typeScale: number;
+  logoScale: number;
+  featuredTransform: FeaturedImageTransform;
   /** Short line for UI feedback after generate */
   rationale: string;
 };
@@ -99,6 +106,14 @@ const LAYOUTS_WITH_STRONG_FEATURED = new Set<PostLayoutId>([
   "professional-left",
   "brand-stack",
   "centered-announcement",
+]);
+
+const LAYOUTS_PREFERRED_WITH_FEATURED = new Set<PostLayoutId>([
+  "product-focus",
+  "professional-left",
+  "split-feature-right",
+  "split-feature-left",
+  "deck-sidebar",
 ]);
 
 const LAYOUTS_MINIMAL_PATTERN = new Set<PostLayoutId>([
@@ -190,7 +205,12 @@ function pickLayout(
   let bestScore = -1;
 
   for (const layout of pool) {
-    const s = scoreLayout(normalized, platformId, layout);
+    let s = scoreLayout(normalized, platformId, layout);
+    const featured = deriveFeaturedVisibility(layout, brief);
+    if (featured.show) {
+      if (layout.textAlign === "left") s += 3;
+      if (LAYOUTS_PREFERRED_WITH_FEATURED.has(layout.id)) s += 2;
+    }
     if (s > bestScore) {
       bestScore = s;
       best = layout;
@@ -276,6 +296,9 @@ function pickProductPage(brief: string): ProductPageId {
   }
   return "leads";
 }
+
+/** Temporary testing default when brief generation enables the featured slot. */
+const BRIEF_FEATURED_PRODUCT_PAGE: ProductPageId = "pricing";
 
 function pickPattern(
   layout: PostLayout,
@@ -392,17 +415,9 @@ function generateCopyFromBrief(brief: string, layout: PostLayout): PostCopy {
   } else if (layout.id === "visual-first") {
     heading = topic;
     subheading = "Lead with the visual — add your hero image in Featured.";
-  } else if (trimmed.length > 0 && trimmed.length <= 80) {
+  } else   if (trimmed.length > 0 && trimmed.length <= 80) {
     heading = capitalize(trimmed);
     subheading = "Crafted from your brief — refine the copy in the Content panel.";
-  }
-
-  if (layout.textAlign === "center" && !heading.includes("[[")) {
-    const words = heading.split(/\s+/);
-    if (words.length >= 3) {
-      const accent = words.slice(-2).join(" ");
-      heading = `${words.slice(0, -2).join(" ")} [[${accent}]]`.trim();
-    }
   }
 
   const seeded = seedCopyForLayout(
@@ -446,6 +461,20 @@ export function generateFromBrief(
   const patternVis = derivePatternVisibility(layout, brief);
   const showPattern = patternVis.show;
   const pattern = pickPattern(layout, brief, showPattern);
+  const productPage = featured.show ? BRIEF_FEATURED_PRODUCT_PAGE : pickProductPage(brief);
+  const platform = getPlatform(platformId);
+  const hierarchy = resolveLayoutHierarchy({
+    width: platform.width,
+    height: platform.height,
+    platformId,
+    layout,
+    copy,
+    spacing: DEFAULT_POST_LAYOUT_SPACING,
+    showLogo: true,
+    showFeaturedImage: featured.show,
+    featuredMode: "genui",
+    productPage,
+  });
 
   const rationale = [
     layout.name,
@@ -468,7 +497,10 @@ export function generateFromBrief(
     patternScale: 1,
     patternAnimated: false,
     showContent: true,
-    productPage: pickProductPage(brief),
+    productPage,
+    typeScale: hierarchy.typeScale,
+    logoScale: hierarchy.logoScale,
+    featuredTransform: hierarchy.featuredTransform,
     rationale,
   };
 }

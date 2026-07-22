@@ -1,6 +1,11 @@
 "use client";
 
 import type { ProductPageId } from "@/lib/social-tool/presets";
+import {
+  getProductPageFrame,
+  getProductPageNativeWidth,
+  PRODUCT_PAGE_FRAMES,
+} from "@/lib/social-tool/productFrames";
 import { LeadsPreviewFrame } from "@/components/designs/LeadsPreviewFrame";
 import {
   ActivityFeedPreview,
@@ -15,17 +20,6 @@ type Props = {
   page: ProductPageId;
   frameWidth: number;
 };
-
-const PAGE_FRAME = {
-  leads: { width: 1100, height: 720 },
-  pipeline: { width: 980, height: 640 },
-  scheduler: { width: 680, height: 620 },
-  stats: { width: 960, height: 560 },
-  pricing: { width: 520, height: 620 },
-  activity: { width: 760, height: 620 },
-  profile: { width: 600, height: 620 },
-  "form-card": { width: 520, height: 560 },
-} as const satisfies Record<ProductPageId, { width: number; height: number }>;
 
 function PipelineBoard() {
   const columns = [
@@ -56,7 +50,7 @@ function PipelineBoard() {
   return (
     <div
       data-theme="light"
-      className="flex h-full w-full flex-col bg-neutral-50 text-brand-950"
+      className="flex h-full w-full flex-col bg-transparent text-brand-950"
     >
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-dash-line bg-white px-5">
         <div>
@@ -97,12 +91,10 @@ function PipelineBoard() {
   );
 }
 
-export function getProductPageNativeWidth(page: ProductPageId): number {
-  return PAGE_FRAME[page].width;
-}
+export { getProductPageFrame, getProductPageNativeWidth, PRODUCT_PAGE_FRAMES };
 
 export function ProductPreview({ page, frameWidth }: Props) {
-  const frame = PAGE_FRAME[page];
+  const frame = getProductPageFrame(page);
   const width = Math.max(frameWidth, frame.width);
 
   const previews: Partial<Record<ProductPageId, React.ReactNode>> = {

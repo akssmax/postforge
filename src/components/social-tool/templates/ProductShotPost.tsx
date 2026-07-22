@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
+import { Move } from "lucide-react";
 import { BrandLogoSlot } from "@/components/social-tool/BrandLogoSlot";
 import { CanvasSlot, isEmptyCopyField } from "@/components/social-tool/CanvasSlot";
 import { FeaturedImageContent } from "@/components/social-tool/FeaturedImageContent";
@@ -108,6 +109,7 @@ type Props = {
   onCanvasSelect?: (id: CanvasSelectionId | null) => void;
   logoBackdrop?: boolean;
   logoInvert?: boolean;
+  logoUsesExplicitColors?: boolean;
   textColorOverride?: string;
   subTextColorOverride?: string;
   layoutId?: PostLayoutId;
@@ -166,8 +168,6 @@ function featuredRadiusStyle(
   }
 }
 
-const HANDLES = ["nw", "ne", "sw", "se", "n", "e", "s", "w"] as const;
-
 export function ProductShotPost({
   width,
   height,
@@ -209,6 +209,7 @@ export function ProductShotPost({
   onCanvasSelect,
   logoBackdrop = false,
   logoInvert = false,
+  logoUsesExplicitColors = false,
   textColorOverride,
   subTextColorOverride,
   layoutId = DEFAULT_POST_LAYOUT_ID,
@@ -288,6 +289,7 @@ export function ProductShotPost({
     showTopLogo: showLogo && logoPlacement === "top",
     spacing,
     logoScale,
+    copy,
   });
 
   const splitZones = isSplit
@@ -307,7 +309,6 @@ export function ProductShotPost({
   const frameWidth =
     isSplit && splitZones ? splitZones.featuredColumn : width - 2 * pad;
   const nativeWidth = getProductPageNativeWidth(productPage);
-  const uiScale = frameWidth / nativeWidth;
 
   const headingParts = parseAccentMarkup(copy.heading);
   const hasHeading = !isEmptyCopyField(copy.heading);
@@ -327,12 +328,21 @@ export function ProductShotPost({
   const fiRef = useRef(featuredTransform);
   const metricsRef = useRef({ frameWidth, productZone, previewScale });
   const onChangeRef = useRef(onFeaturedTransformChange);
-  const bindDragListenersRef = useRef<() => void>(() => {});
 
   fiRef.current = featuredTransform;
+  const featuredDragZoneWidth =
+    isSplit && splitZones ? splitZones.featuredColumn : width - 2 * pad;
+  const featuredDragZoneHeight =
+    isSplit && splitZones ? splitZones.rowHeight : productZone;
   metricsRef.current = {
-    frameWidth,
-    productZone: isSplit && splitZones ? splitZones.rowHeight : productZone,
+    frameWidth:
+      featuredMode === "genui" ? featuredDragZoneWidth : frameWidth,
+    productZone:
+      featuredMode === "genui"
+        ? featuredDragZoneHeight
+        : isSplit && splitZones
+          ? splitZones.rowHeight
+          : productZone,
     previewScale,
   };
   onChangeRef.current = onFeaturedTransformChange;
@@ -361,67 +371,83 @@ export function ProductShotPost({
     onCanvasSelect(id);
   }
 
-  useEffect(() => {
-    const onPointerMove = (ev: PointerEvent) => {
-      const drag = dragRef.current;
-      const onChange = onChangeRef.current;
-      if (!drag || !onChange) return;
+  function applyFeaturedDragDelta(clientX: number, clientY: number) {
+    const drag = dragRef.current;
+    const onChange = onChangeRef.current;
+    if (!drag || !onChange) return;
 
-      const { frameWidth: fw, productZone: pz, previewScale: ps } =
-        metricsRef.current;
-      const scaleFactor = ps > 0 ? ps : 1;
-      const dxPx = (ev.clientX - drag.startX) / scaleFactor;
-      const dyPx = (ev.clientY - drag.startY) / scaleFactor;
-      const nextX = clamp(drag.originX + (dxPx / Math.max(fw, 1)) * 100, -50, 50);
-      const nextY = clamp(
-        drag.originY + (dyPx / Math.max(pz, 1)) * 100,
-        -50,
-        50,
-      );
+    const { frameWidth: fw, productZone: pz, previewScale: ps } =
+      metricsRef.current;
+    const scaleFactor = ps > 0 ? ps : 1;
+    const dxPx = (clientX - drag.startX) / scaleFactor;
+    const dyPx = (clientY - drag.startY) / scaleFactor;
+    const nextX = clamp(
+      drag.originX + (dxPx / Math.max(fw, 1)) * 100,
+      -100,
+      100,
+    );
+    const nextY = clamp(
+      drag.originY + (dyPx / Math.max(pz, 1)) * 100,
+      -100,
+      100,
+    );
 
-      onChange({
-        ...fiRef.current,
-        x: Math.round(nextX * 10) / 10,
-        y: Math.round(nextY * 10) / 10,
-      });
-    };
+    onChange({
+      ...fiRef.current,
+      x: Math.round(nextX * 10) / 10,
+      y: Math.round(nextY * 10) / 10,
+    });
+  }
 
-    const endDrag = () => {
-      dragRef.current = null;
-      setDragging(false);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", endDrag);
-      window.removeEventListener("pointercancel", endDrag);
-    };
+  function renderFeaturedDragHandle(visible: boolean) {
+    if (!canDrag || !visible) return null;
 
-    bindDragListenersRef.current = () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", endDrag);
-      window.removeEventListener("pointercancel", endDrag);
-      window.addEventListener("pointermove", onPointerMove);
-      window.addEventListener("pointerup", endDrag);
-      window.addEventListener("pointercancel", endDrag);
-    };
-
-    return () => {
-      endDrag();
-    };
-  }, []);
-
-  const startDrag = (ev: React.PointerEvent) => {
-    if (!canDrag) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    onCanvasSelect?.("featured");
-    setDragging(true);
-    dragRef.current = {
-      startX: ev.clientX,
-      startY: ev.clientY,
-      originX: fiRef.current.x,
-      originY: fiRef.current.y,
-    };
-    bindDragListenersRef.current();
-  };
+    return (
+      <button
+        type="button"
+        className={`social-featured-drag-handle${dragging ? " is-dragging" : ""}`}
+        aria-label="Drag to move"
+        onPointerDown={(ev) => {
+          if (!canDrag) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          onCanvasSelect?.("featured");
+          setDragging(true);
+          dragRef.current = {
+            startX: ev.clientX,
+            startY: ev.clientY,
+            originX: fiRef.current.x,
+            originY: fiRef.current.y,
+          };
+          ev.currentTarget.setPointerCapture(ev.pointerId);
+        }}
+        onPointerMove={(ev) => {
+          if (!dragRef.current || !ev.currentTarget.hasPointerCapture(ev.pointerId)) {
+            return;
+          }
+          ev.preventDefault();
+          ev.stopPropagation();
+          applyFeaturedDragDelta(ev.clientX, ev.clientY);
+        }}
+        onPointerUp={(ev) => {
+          if (ev.currentTarget.hasPointerCapture(ev.pointerId)) {
+            ev.currentTarget.releasePointerCapture(ev.pointerId);
+          }
+          dragRef.current = null;
+          setDragging(false);
+        }}
+        onPointerCancel={(ev) => {
+          if (ev.currentTarget.hasPointerCapture(ev.pointerId)) {
+            ev.currentTarget.releasePointerCapture(ev.pointerId);
+          }
+          dragRef.current = null;
+          setDragging(false);
+        }}
+      >
+        <Move className="size-3.5" strokeWidth={2.25} aria-hidden />
+      </button>
+    );
+  }
 
   const logoEl = showLogo ? (
     <div
@@ -436,6 +462,7 @@ export function ProductShotPost({
         hasLogo={hasUploadedLogo}
         height={logoH}
         invert={logoInvert}
+        usesExplicitColors={logoUsesExplicitColors}
       />
     </div>
   ) : null;
@@ -723,9 +750,12 @@ export function ProductShotPost({
   }
 
   function renderFeaturedViewport(viewportHeight: number, viewportWidth?: number) {
+    const isGenuiFeatured = featuredMode === "genui" && showFeaturedFrame;
+    const viewportEditable = showFeaturedFrame && (interactive || canDrag);
+
     return (
       <div
-        className={`social-post-product-viewport${canDrag && showFeaturedFrame ? " is-editable" : ""} ${selectableClass("featured")}${viewportWidth != null ? " social-post-product-viewport--split" : ""}`}
+        className={`social-post-product-viewport${viewportEditable ? " is-editable" : ""}${isGenuiFeatured ? " social-post-product-viewport--genui" : ""} ${selectableClass("featured")}${viewportWidth != null ? " social-post-product-viewport--split" : ""}`}
         data-canvas-select="featured"
         onPointerDown={(ev) => handleCanvasSelect("featured", ev)}
         style={
@@ -748,56 +778,41 @@ export function ProductShotPost({
         }
       >
         {showFeaturedFrame ? (
-          <div
-            className={`social-post-product-frame${chromeActive ? " is-hot" : ""}${dragging ? " is-dragging" : ""}`}
-            style={featuredFrameRadius}
-            onPointerEnter={() => {
-              if (canDrag) setHovered(true);
-            }}
-            onPointerLeave={() => {
-              if (!dragging) setHovered(false);
-            }}
-          >
-            {featuredMode === "genui" ? (
-              <div
-                className="social-post-product-inner"
-                style={{
-                  width: nativeWidth,
-                  transform: `scale(${uiScale})`,
-                  transformOrigin: "top left",
-                }}
-              >
-                <ProductPreview page={productPage} frameWidth={nativeWidth} />
-              </div>
-            ) : (
+          isGenuiFeatured ? (
+            <div
+              className={`social-post-product-inner social-post-product-inner--genui${dragging ? " is-dragging" : ""}`}
+              style={featuredFrameRadius}
+              onPointerEnter={() => {
+                if (canDrag) setHovered(true);
+              }}
+              onPointerLeave={() => {
+                if (!dragging) setHovered(false);
+              }}
+            >
+              <ProductPreview page={productPage} frameWidth={nativeWidth} />
+              {renderFeaturedDragHandle(chromeActive)}
+            </div>
+          ) : (
+            <div
+              className={`social-post-product-frame${dragging ? " is-dragging" : ""}`}
+              style={featuredFrameRadius}
+              onPointerEnter={() => {
+                if (canDrag) setHovered(true);
+              }}
+              onPointerLeave={() => {
+                if (!dragging) setHovered(false);
+              }}
+            >
               <div className="social-post-product-inner social-post-product-inner--image">
                 <FeaturedImageContent
                   imageSrc={featuredImageSrc ?? null}
                   svgMarkup={featuredSvgMarkup ?? null}
                 />
               </div>
-            )}
 
-            {canDrag ? (
-              <div
-                className={`social-fi-chrome${chromeActive ? " is-visible" : ""}`}
-                onPointerDown={startDrag}
-                role="presentation"
-              >
-                <div className="social-fi-bounds" />
-                {HANDLES.map((h) => (
-                  <span
-                    key={h}
-                    className={`social-fi-handle social-fi-handle--${h}`}
-                    aria-hidden
-                  />
-                ))}
-                <span className="social-fi-move-hint" aria-hidden>
-                  Drag to move
-                </span>
-              </div>
-            ) : null}
-          </div>
+              {renderFeaturedDragHandle(chromeActive)}
+            </div>
+          )
         ) : (
           <div
             className="social-post-product-frame social-post-product-frame--slot"

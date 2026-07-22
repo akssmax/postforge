@@ -532,6 +532,43 @@ function minProductZoneShare(aspect: number): number {
   return 0.24;
 }
 
+const LINKEDIN_PLATFORMS = new Set<PlatformId>([
+  "linkedin-square",
+  "linkedin-landscape",
+]);
+
+function plainHeadingText(heading: string): string {
+  return heading.replace(/\[\[(.+?)\]\]/g, "$1").trim();
+}
+
+function estimateWrappedLineCount(
+  text: string,
+  lineWidthPx: number,
+  charWidthPx: number,
+): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  const charsPerLine = Math.max(
+    1,
+    Math.floor(lineWidthPx / Math.max(charWidthPx, 1)),
+  );
+  return trimmed.split(/\n/).reduce((total, paragraph) => {
+    const len = Math.max(paragraph.length, 1);
+    return total + Math.max(1, Math.ceil(len / charsPerLine));
+  }, 0);
+}
+
+/** Max stacked text band height before the featured zone must shrink */
+export function resolveMaxStackedTextZone(opts: {
+  width: number;
+  height: number;
+  footerH: number;
+}): number {
+  const aspect = opts.height / opts.width;
+  const minProductZone = Math.round(opts.height * minProductZoneShare(aspect));
+  return Math.max(0, opts.height - opts.footerH - minProductZone);
+}
+
 /** Estimate minimum text-band height so wireframe slots fit without overlapping product zone */
 export function estimateTextBandMinHeight(opts: {
   width: number;
@@ -541,6 +578,9 @@ export function estimateTextBandMinHeight(opts: {
   spacing?: PostLayoutSpacing;
   isTallPrint: boolean;
   logoScale?: number;
+  typeScale?: number;
+  copy?: Pick<PostCopy, "heading" | "subheading" | "extraFields">;
+  platformId?: PlatformId;
 }): number {
   const {
     width,
@@ -549,9 +589,13 @@ export function estimateTextBandMinHeight(opts: {
     showTopLogo,
     isTallPrint,
     logoScale = 1,
+    typeScale = 1,
+    copy,
+    platformId,
   } = opts;
   const spacing = opts.spacing ?? DEFAULT_POST_LAYOUT_SPACING;
   const scale = canvasScaleFactor(width, height);
+  const linkedInAd = platformId != null && LINKEDIN_PLATFORMS.has(platformId);
 
   const layoutPad = spacingTokenToPx(spacing.layoutPad, width, height);
   const textZonePadBottom = spacingTokenToPx(
@@ -561,6 +605,21 @@ export function estimateTextBandMinHeight(opts: {
   );
   const logoCopyGap = spacingTokenToPx(spacing.logoCopyGap, width, height);
   const copyBlockGap = spacingTokenToPx(spacing.copyBlockGap, width, height);
+
+  const copyLineWidth = Math.min(
+    width - 2 * layoutPad,
+    Math.round(920 * scale),
+  );
+  const charWidthFactor = linkedInAd ? 0.34 : 0.4;
+  const headlineFontSize = 52 * scale * typeScale;
+  const headlineCharWidth = charWidthFactor * headlineFontSize;
+  const subFontSize = 22 * scale * typeScale;
+  const subEmWidth = isTallPrint ? 22 : 28;
+  const subLineWidth = Math.min(copyLineWidth, subEmWidth * subFontSize);
+  const subCharWidth = 0.52 * subFontSize;
+  const extraFontSize = 18 * scale * typeScale;
+  const extraLineWidth = Math.min(copyLineWidth, subEmWidth * extraFontSize);
+  const extraCharWidth = 0.5 * extraFontSize;
 
   let content = textZonePadBottom;
 
@@ -576,11 +635,47 @@ export function estimateTextBandMinHeight(opts: {
   mainBlocks.forEach((block, index) => {
     if (index > 0) content += copyBlockGap;
     if (block === "headline") {
-      content += Math.round((isTallPrint ? 72 : 64) * scale);
+      const wireframeH = Math.round((isTallPrint ? 72 : 64) * scale * typeScale);
+      const lines = copy?.heading
+        ? Math.max(
+            1,
+            estimateWrappedLineCount(
+              plainHeadingText(copy.heading),
+              copyLineWidth,
+              headlineCharWidth,
+            ),
+          )
+        : 1;
+      content += Math.max(
+        wireframeH,
+        Math.ceil(lines * headlineFontSize * 1.08),
+      );
     } else if (block === "subheading") {
-      content += Math.round((isTallPrint ? 40 : 36) * scale);
+      const wireframeH = Math.round((isTallPrint ? 40 : 36) * scale * typeScale);
+      const lines = copy?.subheading?.trim()
+        ? Math.max(
+            1,
+            estimateWrappedLineCount(
+              copy.subheading,
+              subLineWidth,
+              subCharWidth,
+            ),
+          )
+        : 1;
+      content += Math.max(wireframeH, Math.ceil(lines * subFontSize * 1.4));
     } else if (block === "extras") {
-      content += Math.round(28 * scale);
+      const fields = copy?.extraFields?.filter((field) => field.value.trim()) ?? [];
+      if (fields.length === 0) {
+        content += Math.round(28 * scale * typeScale);
+      } else {
+        for (const field of fields) {
+          const lines = Math.max(
+            1,
+            estimateWrappedLineCount(field.value, extraLineWidth, extraCharWidth),
+          );
+          content += Math.ceil(lines * extraFontSize * 1.45);
+        }
+      }
     }
   });
 
@@ -623,6 +718,8 @@ export function resolveFeaturedLayoutZones(opts: {
   showTopLogo?: boolean;
   spacing?: PostLayoutSpacing;
   logoScale?: number;
+  copy?: Pick<PostCopy, "heading" | "subheading" | "extraFields">;
+  platformId?: PlatformId;
 }): {
   textZone: number;
   productZone: number;
@@ -638,6 +735,8 @@ export function resolveFeaturedLayoutZones(opts: {
     showTopLogo = layout.logoPlacement === "top",
     spacing,
     logoScale = 1,
+    copy,
+    platformId,
   } = opts;
 
   const aspect = height / width;
@@ -674,6 +773,9 @@ export function resolveFeaturedLayoutZones(opts: {
     spacing,
     isTallPrint,
     logoScale,
+    typeScale,
+    copy,
+    platformId,
   });
 
   let textZone = Math.round(height * textRatio);

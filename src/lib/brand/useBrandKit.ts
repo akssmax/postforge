@@ -12,6 +12,11 @@ import {
   extractColorsFromImageBlob,
   extractColorsFromSvgMarkup,
 } from "@/lib/brand/extractColors";
+import {
+  fixLogoSvgContrast as applyLogoSvgContrastFix,
+  restoreLogoSvgOriginal,
+  withLogoSvgOriginal,
+} from "@/lib/brand/logoContrastFix";
 import { parseLogoFile } from "@/lib/brand/parseLogoFile";
 import {
   createLogoRecord,
@@ -149,6 +154,47 @@ export function useBrandKit(options: UseBrandKitOptions = {}) {
     persist({ ...kit, logo: null });
   }, [kit, persist, revokeBlob]);
 
+  const fixLogoSvgContrast = useCallback(
+    (backgroundCss: string, logoBackdrop: boolean) => {
+      const logo = kit.logo;
+      if (!logo?.svgMarkup) return;
+      const base = withLogoSvgOriginal(logo);
+      const source = base.svgMarkupOriginal ?? base.svgMarkup;
+      if (!source) return;
+      const { markup, fixes, usesExplicitColors } = applyLogoSvgContrastFix(
+        source,
+        backgroundCss,
+        { logoBackdrop },
+      );
+      if (fixes.length === 0) return;
+      const colors = extractColorsFromSvgMarkup(markup);
+      persist({
+        ...kit,
+        logo: {
+          ...base,
+          svgMarkup: markup,
+          usesExplicitColors,
+        },
+        colors,
+      });
+    },
+    [kit, persist],
+  );
+
+  const restoreLogoSvg = useCallback(() => {
+    const logo = kit.logo;
+    if (!logo?.svgMarkupOriginal) return;
+    const restored = restoreLogoSvgOriginal(logo);
+    const colors = restored.svgMarkup
+      ? extractColorsFromSvgMarkup(restored.svgMarkup)
+      : kit.colors;
+    persist({
+      ...kit,
+      logo: restored,
+      colors,
+    });
+  }, [kit, persist]);
+
   const setColor = useCallback(
     (role: keyof BrandColors, hex: string) => {
       if (role === "extracted") return;
@@ -207,6 +253,8 @@ export function useBrandKit(options: UseBrandKitOptions = {}) {
     harmonySwatches,
     uploadLogo,
     removeLogo,
+    fixLogoSvgContrast,
+    restoreLogoSvg,
     setColor,
     resetColor,
     applySwatch,
