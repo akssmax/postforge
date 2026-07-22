@@ -28,6 +28,7 @@ import {
   saveDesignSession,
   scopedBlobKey,
 } from "@/lib/design/designSession";
+import { designRepository, isMeaningfulSession } from "@/lib/design/repository";
 import type {
   DesignDocument,
   DesignOnboardingPhase,
@@ -150,6 +151,11 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
     if (persistTimer.current) clearTimeout(persistTimer.current);
     persistTimer.current = setTimeout(() => {
       saveDesignSession(next);
+      if (isMeaningfulSession(next)) {
+        void designRepository.upsert(next).catch((err) => {
+          console.warn("[postforge] design index upsert failed", err);
+        });
+      }
     }, PERSIST_DEBOUNCE_MS);
   }, []);
 
@@ -205,6 +211,8 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
     patchDocument({
       onboarding: { phase: "ready", briefSkipped: true },
       showContent: true,
+      showFeaturedImage: true,
+      showPattern: false,
     });
   }, [patchDocument]);
 
@@ -241,10 +249,11 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
         setLogoSrc(src);
 
         updateSession((prev) => {
-          const nextPhase: DesignOnboardingPhase =
-            prev.document.onboarding.phase === "needsLogo"
-              ? "needsBrief"
-              : prev.document.onboarding.phase;
+          const enteringBrief =
+            prev.document.onboarding.phase === "needsLogo";
+          const nextPhase: DesignOnboardingPhase = enteringBrief
+            ? "needsBrief"
+            : prev.document.onboarding.phase;
 
           return {
             ...prev,
@@ -257,6 +266,12 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
             document: {
               ...prev.document,
               showBrand: true,
+              ...(enteringBrief
+                ? {
+                    showContent: true,
+                    showFeaturedImage: true,
+                  }
+                : {}),
               onboarding: { ...prev.document.onboarding, phase: nextPhase },
             },
             updatedAt: Date.now(),

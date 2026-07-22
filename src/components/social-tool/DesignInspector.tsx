@@ -1,45 +1,32 @@
 "use client";
 
-import {
-  Ban,
-  CircleDashed,
-  Hexagon,
-  PanelsTopLeft,
-  Shapes,
-} from "lucide-react";
 import { Switch } from "@heroui/react";
 import { BrandPanel } from "@/components/social-tool/BrandPanel";
+import { BrandBackgroundPicker } from "@/components/social-tool/BrandBackgroundPicker";
 import { BriefChatPanel } from "@/components/social-tool/BriefChatPanel";
 import { ContentPanel } from "@/components/social-tool/ContentPanel";
 import { DesignEmptyState } from "@/components/social-tool/DesignEmptyState";
 import { FeaturedBlockPanel } from "@/components/social-tool/FeaturedBlockPanel";
 import {
-  InspectorSegment,
-  InspectorSlider,
-} from "@/components/social-tool/InspectorControls";
+  isPatternNone,
+  PatternLibraryPicker,
+} from "@/components/social-tool/PatternLibraryPicker";
+import { InspectorSlider } from "@/components/social-tool/InspectorControls";
 import type { UseBrandKitReturn } from "@/lib/brand/useBrandKit";
 import type { UseFeaturedBlockReturn } from "@/lib/social-tool/useFeaturedBlock";
-import type { DesignDocument, DesignOnboardingPhase } from "@/lib/design/types";
+import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
+import type { DesignOnboardingPhase } from "@/lib/design/types";
 import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
+import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import {
-  PATTERN_OPTIONS,
   type LogoAlign,
   type LogoPlacement,
-  type PatternId,
   type PlatformId,
   type PostCopy,
   type SocialFontId,
   type TextAlign,
 } from "@/lib/social-tool/presets";
-
-const PATTERN_ICONS = {
-  monogram: Hexagon,
-  "monogram-soft": CircleDashed,
-  footer: PanelsTopLeft,
-  outline: Shapes,
-  none: Ban,
-} as const;
 
 type BrandPanelProps = Pick<
   UseBrandKitReturn,
@@ -103,10 +90,14 @@ type Props = {
   onShowFeaturedImageChange: (value: boolean) => void;
   featuredTransform: FeaturedImageTransform;
   onFeaturedTransformChange: (value: FeaturedImageTransform) => void;
-  pattern: PatternId;
-  onPatternChange: (value: PatternId) => void;
+  pattern: PatternRef;
+  onPatternChange: (value: PatternRef) => void;
+  patternTint?: string;
+  designId?: string;
   showPattern: boolean;
   onShowPatternChange: (value: boolean) => void;
+  showBackground: boolean;
+  onShowBackgroundChange: (value: boolean) => void;
   patternOpacity: number;
   onPatternOpacityChange: (value: number) => void;
   patternScale: number;
@@ -115,13 +106,15 @@ type Props = {
   onPatternAnimatedChange: (value: boolean) => void;
   brand: BrandPanelProps;
   featured: FeaturedPanelProps;
-  onBriefGenerate: (patch: Partial<DesignDocument>) => void;
+  onBriefGenerate: (result: BriefGenerationResult) => void;
   onBriefSkip: () => void;
 };
 
 function PatternSection({
   pattern,
   onPatternChange,
+  patternTint,
+  designId,
   showPattern,
   onShowPatternChange,
   patternOpacity,
@@ -130,10 +123,13 @@ function PatternSection({
   onPatternScaleChange,
   patternAnimated,
   onPatternAnimatedChange,
+  brand,
 }: Pick<
   Props,
   | "pattern"
   | "onPatternChange"
+  | "patternTint"
+  | "designId"
   | "showPattern"
   | "onShowPatternChange"
   | "patternOpacity"
@@ -142,6 +138,7 @@ function PatternSection({
   | "onPatternScaleChange"
   | "patternAnimated"
   | "onPatternAnimatedChange"
+  | "brand"
 >) {
   return (
     <section className="social-tool-section space-y-3">
@@ -162,17 +159,15 @@ function PatternSection({
       </div>
       {showPattern ? (
         <>
-          <InspectorSegment
-            aria-label="Background pattern"
-            value={pattern}
-            onChange={(v) => onPatternChange(v as PatternId)}
-            options={PATTERN_OPTIONS.map((p) => ({
-              id: p.id,
-              label: p.label,
-              icon: PATTERN_ICONS[p.id],
-            }))}
+          <PatternLibraryPicker
+            pattern={pattern}
+            onPatternChange={onPatternChange}
+            patternTint={patternTint}
+            designId={designId}
+            logoSvgMarkup={brand.kit.logo?.svgMarkup ?? null}
+            logoMime={brand.kit.logo?.mime ?? null}
           />
-          {pattern !== "none" ? (
+          {!isPatternNone(pattern) ? (
             <>
               <InspectorSlider
                 label="Opacity"
@@ -217,14 +212,85 @@ function PatternSection({
   );
 }
 
-function InspectorEmptyState() {
+function BlockPanelsOverview(props: Props) {
   return (
-    <section className="social-tool-section flex flex-col items-center justify-center px-6 py-12 text-center">
-      <p className="text-sm font-medium text-text-primary">Select an element</p>
-      <p className="mt-2 max-w-[240px] text-xs leading-5 text-text-tertiary">
-        Click copy, logo, featured image, or pattern on the canvas to edit its properties.
-      </p>
+    <FeaturedBlockPanel
+      showFeaturedBlock={props.showFeaturedImage}
+      onShowFeaturedBlockChange={props.onShowFeaturedImageChange}
+      mode={props.featured.mode}
+      setMode={props.featured.setMode}
+      productPage={props.featured.productPage}
+      setProductPage={props.featured.setProductPage}
+      image={props.featured.image}
+      imageSrc={props.featured.imageSrc}
+      uploading={props.featured.uploading}
+      error={props.featured.error}
+      uploadImage={props.featured.uploadImage}
+      removeImage={props.featured.removeImage}
+      featuredTransform={props.featuredTransform}
+      onFeaturedTransformChange={props.onFeaturedTransformChange}
+    />
+  );
+}
+
+function BackgroundSection({
+  brand,
+  showBackground,
+  onShowBackgroundChange,
+}: {
+  brand: BrandPanelProps;
+  showBackground: boolean;
+  onShowBackgroundChange: (value: boolean) => void;
+}) {
+  return (
+    <section className="social-tool-section space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="social-tool-section-title !mb-0">Background</p>
+        <Switch
+          size="sm"
+          isSelected={showBackground}
+          onChange={onShowBackgroundChange}
+          aria-label="Show background"
+        >
+          <Switch.Content>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch.Content>
+        </Switch>
+      </div>
+      {showBackground ? (
+        <BrandBackgroundPicker
+          activeBackground={brand.activeBackground}
+          solidPresets={brand.solidBackgroundPresets}
+          gradientPresets={brand.gradientBackgroundPresets}
+          onSelect={brand.setBackgroundPreset}
+        />
+      ) : null}
     </section>
+  );
+}
+
+/** Canvas-level controls — always visible once logo onboarding is done */
+function FixedCanvasPanels(props: Props) {
+  return (
+    <>
+      <BackgroundSection
+        brand={props.brand}
+        showBackground={props.showBackground}
+        onShowBackgroundChange={props.onShowBackgroundChange}
+      />
+      <PatternSection {...props} />
+    </>
+  );
+}
+
+function InspectorOverview(props: Props) {
+  return (
+    <>
+      <BlockPanelsOverview {...props} />
+      <FixedCanvasPanels {...props} />
+    </>
   );
 }
 
@@ -260,75 +326,82 @@ export function DesignInspector(props: Props) {
           onGenerate={props.onBriefGenerate}
           onSkip={props.onBriefSkip}
         />
+        <BlockPanelsOverview {...props} />
+        <FixedCanvasPanels {...props} />
       </>
     );
   }
 
-  if (inspectorSelection === null) {
-    return <InspectorEmptyState />;
+  if (inspectorSelection === null || inspectorSelection === "pattern") {
+    return <InspectorOverview {...props} />;
   }
 
   if (inspectorSelection === "copy") {
     return (
-      <ContentPanel
-        showContent={props.showContent}
-        onShowContentChange={props.onShowContentChange}
-        copy={props.copy}
-        onUpdateField={props.onUpdateField}
-        onAddExtraField={props.onAddExtraField}
-        onRemoveExtraField={props.onRemoveExtraField}
-        onUpdateExtraField={props.onUpdateExtraField}
-        textAlign={props.textAlign}
-        onTextAlignChange={props.onTextAlignChange}
-        headingFont={props.headingFont}
-        onHeadingFontChange={props.onHeadingFontChange}
-        subFont={props.subFont}
-        onSubFontChange={props.onSubFontChange}
-        typeScale={props.typeScale}
-        onTypeScaleChange={props.onTypeScaleChange}
-      />
+      <>
+        <ContentPanel
+          showContent={props.showContent}
+          onShowContentChange={props.onShowContentChange}
+          copy={props.copy}
+          onUpdateField={props.onUpdateField}
+          onAddExtraField={props.onAddExtraField}
+          onRemoveExtraField={props.onRemoveExtraField}
+          onUpdateExtraField={props.onUpdateExtraField}
+          textAlign={props.textAlign}
+          onTextAlignChange={props.onTextAlignChange}
+          headingFont={props.headingFont}
+          onHeadingFontChange={props.onHeadingFontChange}
+          subFont={props.subFont}
+          onSubFontChange={props.onSubFontChange}
+          typeScale={props.typeScale}
+          onTypeScaleChange={props.onTypeScaleChange}
+        />
+        <FixedCanvasPanels {...props} />
+      </>
     );
   }
 
   if (inspectorSelection === "logo") {
     return (
-      <BrandPanel
-        {...brand}
-        showBrand={props.showBrand}
-        onShowBrandChange={props.onShowBrandChange}
-        logoScale={props.logoScale}
-        onLogoScaleChange={props.onLogoScaleChange}
-        logoPlacement={props.logoPlacement}
-        onLogoPlacementChange={props.onLogoPlacementChange}
-        logoAlign={props.logoAlign}
-        onLogoAlignChange={props.onLogoAlignChange}
-      />
+      <>
+        <BrandPanel
+          {...brand}
+          showBrand={props.showBrand}
+          onShowBrandChange={props.onShowBrandChange}
+          logoScale={props.logoScale}
+          onLogoScaleChange={props.onLogoScaleChange}
+          logoPlacement={props.logoPlacement}
+          onLogoPlacementChange={props.onLogoPlacementChange}
+          logoAlign={props.logoAlign}
+          onLogoAlignChange={props.onLogoAlignChange}
+        />
+        <FixedCanvasPanels {...props} />
+      </>
     );
   }
 
   if (inspectorSelection === "featured") {
     return (
-      <FeaturedBlockPanel
-        showFeaturedBlock={props.showFeaturedImage}
-        onShowFeaturedBlockChange={props.onShowFeaturedImageChange}
-        mode={featured.mode}
-        setMode={featured.setMode}
-        productPage={featured.productPage}
-        setProductPage={featured.setProductPage}
-        image={featured.image}
-        imageSrc={featured.imageSrc}
-        uploading={featured.uploading}
-        error={featured.error}
-        uploadImage={featured.uploadImage}
-        removeImage={featured.removeImage}
-        featuredTransform={props.featuredTransform}
-        onFeaturedTransformChange={props.onFeaturedTransformChange}
-      />
+      <>
+        <FeaturedBlockPanel
+          showFeaturedBlock={props.showFeaturedImage}
+          onShowFeaturedBlockChange={props.onShowFeaturedImageChange}
+          mode={featured.mode}
+          setMode={featured.setMode}
+          productPage={featured.productPage}
+          setProductPage={featured.setProductPage}
+          image={featured.image}
+          imageSrc={featured.imageSrc}
+          uploading={featured.uploading}
+          error={featured.error}
+          uploadImage={featured.uploadImage}
+          removeImage={featured.removeImage}
+          featuredTransform={props.featuredTransform}
+          onFeaturedTransformChange={props.onFeaturedTransformChange}
+        />
+        <FixedCanvasPanels {...props} />
+      </>
     );
-  }
-
-  if (inspectorSelection === "pattern") {
-    return <PatternSection {...props} />;
   }
 
   return null;

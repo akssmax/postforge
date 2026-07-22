@@ -12,7 +12,7 @@ const companyLinks = [
 const platformLinks = [
   { label: "Social posts", href: "/tool" },
   { label: "Slide decks", href: "/slides" },
-  { label: "Dashboard preview", href: "/dashboard" },
+  { label: "Designs", href: "/designs" },
 ];
 
 const socialLinks = [

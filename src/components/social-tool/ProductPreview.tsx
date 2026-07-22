@@ -1,7 +1,7 @@
 "use client";
 
-import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import type { ProductPageId } from "@/lib/social-tool/presets";
+import { LeadsPreviewFrame } from "@/components/designs/LeadsPreviewFrame";
 
 type Props = {
   page: ProductPageId;
@@ -103,11 +103,7 @@ export function ProductPreview({ page, frameWidth }: Props) {
 
   return (
     <div style={{ width: shellWidth, height: 720 }}>
-      <DashboardShell
-        className="h-full w-full"
-        themeLock="light"
-        showThemeControls={false}
-      />
+      <LeadsPreviewFrame />
     </div>
   );
 }

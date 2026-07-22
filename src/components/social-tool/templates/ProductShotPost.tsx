@@ -27,12 +27,12 @@ import {
   type PostLayoutSpacing,
   type SpacingToken,
 } from "@/lib/social-tool/layoutSpacing";
+import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import {
   getSocialFont,
   parseAccentMarkup,
   type LogoAlign,
   type LogoPlacement,
-  type PatternId,
   type PostCopy,
   type ProductPageId,
   type SocialFontId,
@@ -65,8 +65,10 @@ type Props = {
   width: number;
   height: number;
   copy: PostCopy;
-  pattern: PatternId;
+  pattern: PatternRef;
+  designId?: string;
   showPattern?: boolean;
+  showBackground?: boolean;
   productPage: ProductPageId;
   featuredMode?: FeaturedBlockMode;
   featuredImageSrc?: string | null;
@@ -108,6 +110,10 @@ type Props = {
   spacing?: PostLayoutSpacing;
   onSpacingChange?: (spacing: PostLayoutSpacing) => void;
   showSpacingControls?: boolean;
+  /** White wireframe carousel before logo upload */
+  emptyStatePreview?: boolean;
+  /** True while capturing export — transparent no-bg for PNG */
+  exporting?: boolean;
 };
 
 function scale(base: number, width: number) {
@@ -163,7 +169,9 @@ export function ProductShotPost({
   height,
   copy,
   pattern,
+  designId,
   showPattern = true,
+  showBackground = true,
   productPage,
   featuredMode = "genui",
   featuredImageSrc = null,
@@ -203,6 +211,8 @@ export function ProductShotPost({
   spacing = DEFAULT_POST_LAYOUT_SPACING,
   onSpacingChange,
   showSpacingControls = false,
+  emptyStatePreview = false,
+  exporting = false,
 }: Props) {
   const layout = getPostLayout(layoutId);
   const canvasRatio = width / 1080;
@@ -582,7 +592,7 @@ export function ProductShotPost({
     "--sp-heading-font": headingFamily,
     "--sp-sub-font": subFamily,
     ...spacingToCssVars(spacing, width),
-    ...(backgroundPreset
+    ...(backgroundPreset && showBackground
       ? {
           "--sp-bg": backgroundPreset.background,
           "--sp-pattern-tint": backgroundPreset.patternTint,
@@ -611,7 +621,13 @@ export function ProductShotPost({
 
   return (
     <div
-      className="social-post social-post--dark social-post--product"
+      className={`social-post ${
+        emptyStatePreview
+          ? "social-post--preview-empty"
+          : showBackground
+            ? "social-post--dark"
+            : `social-post--dark social-post--no-bg${exporting ? " social-post--exporting" : ""}`
+      } social-post--product`}
       style={surfaceStyle}
       onPointerDown={() => {
         if (interactive) {
@@ -623,6 +639,8 @@ export function ProductShotPost({
       {showPattern ? (
         <PostPattern
           pattern={pattern}
+          designId={designId}
+          logoSvgMarkup={logoSvgMarkup}
           theme="dark"
           opacity={patternOpacity}
           scale={patternScale}

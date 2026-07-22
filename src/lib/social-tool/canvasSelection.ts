@@ -17,3 +17,14 @@ export function canvasSelectionFromContrastBlock(
   if (block === "logo") return "logo";
   return "copy";
 }
+
+/** True when the click target is an interactive canvas element (not stage background). */
+export function isCanvasSelectableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(
+    target.closest("[data-canvas-select]") ||
+      target.closest(".canvas-preview-toolbar") ||
+      target.closest(".social-fi-chrome") ||
+      target.closest(".spacing-handle"),
+  );
+}

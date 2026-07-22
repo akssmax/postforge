@@ -43,6 +43,23 @@ function baseCaptureOptions(
   } as const;
 }
 
+type CapturePostPngOptions = {
+  node: HTMLElement;
+  width: number;
+  height: number;
+  scale?: number;
+};
+
+export async function capturePostPng({
+  node,
+  width,
+  height,
+  scale = 2,
+}: CapturePostPngOptions): Promise<string> {
+  const opts = baseCaptureOptions(node, width, height, scale);
+  return toPng(node, opts);
+}
+
 export async function exportPost({
   node,
   format,
@@ -72,7 +89,7 @@ export async function exportPost({
   }
 
   // PDF — wrap a PNG; use physical inches when this is a print asset
-  const png = await toPng(node, opts);
+  const png = await capturePostPng({ node, width, height, scale });
   if (printInches) {
     const pdf = new jsPDF({
       orientation:

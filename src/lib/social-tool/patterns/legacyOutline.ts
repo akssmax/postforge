@@ -1,0 +1,2 @@
+/** Inline SVG replacement for legacy outline PNG mark */
+export const LEGACY_OUTLINE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none"><path d="M256 48 448 160v192L256 464 64 352V160L256 48Z" stroke="currentColor" stroke-width="18" stroke-linejoin="round"/><path d="M256 120 384 200v112L256 392 128 312V200L256 120Z" stroke="currentColor" stroke-width="10" stroke-linejoin="round" opacity="0.55"/></svg>`;

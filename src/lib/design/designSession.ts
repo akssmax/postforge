@@ -7,6 +7,8 @@ import {
   DEFAULT_POST_LAYOUT_ID,
 } from "@/lib/social-tool/postLayouts";
 import { defaultFeaturedBlock } from "@/lib/social-tool/featuredBlock";
+import { DEFAULT_PATTERN_REF } from "@/lib/social-tool/patterns/types";
+import { migratePatternRef } from "@/lib/social-tool/patterns/migratePatternRef";
 import type { PostCopy } from "@/lib/social-tool/presets";
 import type {
   DesignDocument,
@@ -40,11 +42,12 @@ export function createBlankDocument(): DesignDocument {
     layoutId: DEFAULT_POST_LAYOUT_ID,
     layoutSpacing: { ...DEFAULT_POST_LAYOUT_SPACING },
     copy: { ...EMPTY_POST_COPY, extraFields: [] },
-    pattern: "monogram",
+    pattern: DEFAULT_PATTERN_REF,
     patternOpacity: 0.28,
     patternScale: 1,
     patternAnimated: false,
     showPattern: false,
+    showBackground: true,
     typeScale: 1,
     logoScale: 1,
     logoAlign: "left",
@@ -100,6 +103,9 @@ function normalizeDocument(raw: Partial<DesignDocument> | undefined): DesignDocu
       phase: raw.onboarding?.phase ?? blank.onboarding.phase,
       briefSkipped: raw.onboarding?.briefSkipped ?? false,
     },
+    pattern: migratePatternRef(
+      typeof raw.pattern === "string" ? raw.pattern : undefined,
+    ),
   };
 }
 

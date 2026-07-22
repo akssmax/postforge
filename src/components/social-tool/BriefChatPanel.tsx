@@ -3,19 +3,22 @@
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { Button, Label, TextArea, TextField } from "@heroui/react";
-import { generateFromBrief } from "@/lib/social-tool/briefGeneration";
+import {
+  generateFromBrief,
+  type BriefGenerationResult,
+} from "@/lib/social-tool/briefGeneration";
 import type { PlatformId } from "@/lib/social-tool/presets";
-import type { DesignDocument } from "@/lib/design/types";
 
 type Props = {
   platformId: PlatformId;
-  onGenerate: (patch: Partial<DesignDocument>) => void;
+  onGenerate: (result: BriefGenerationResult) => void;
   onSkip: () => void;
 };
 
 export function BriefChatPanel({ platformId, onGenerate, onSkip }: Props) {
   const [brief, setBrief] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [lastRationale, setLastRationale] = useState<string | null>(null);
 
   function handleGenerate() {
     const trimmed = brief.trim();
@@ -23,15 +26,8 @@ export function BriefChatPanel({ platformId, onGenerate, onSkip }: Props) {
     setGenerating(true);
     try {
       const result = generateFromBrief(trimmed, platformId);
-      onGenerate({
-        copy: result.copy,
-        layoutId: result.layoutId,
-        logoPlacement: result.logoPlacement,
-        logoAlign: result.logoAlign,
-        textAlign: result.textAlign,
-        showContent: true,
-        onboarding: { phase: "ready", briefSkipped: false },
-      });
+      setLastRationale(result.rationale);
+      onGenerate(result);
     } finally {
       setGenerating(false);
     }
@@ -42,7 +38,8 @@ export function BriefChatPanel({ platformId, onGenerate, onSkip }: Props) {
       <div>
         <p className="social-tool-section-title">Creative brief</p>
         <p className="mt-1 text-xs leading-5 text-text-tertiary">
-          Optional — describe your post and we&apos;ll pick a layout and draft copy.
+          Optional — describe your post and we&apos;ll pick a layout, draft copy,
+          and enable pattern or featured blocks when they fit.
         </p>
       </div>
       <TextField fullWidth value={brief} onChange={setBrief}>
@@ -53,6 +50,11 @@ export function BriefChatPanel({ platformId, onGenerate, onSkip }: Props) {
           placeholder="e.g. Launching our new CRM for sales teams next Tuesday…"
         />
       </TextField>
+      {lastRationale ? (
+        <p className="rounded-lg border border-leap-line bg-overlay-subtle px-3 py-2 text-[11px] leading-4 text-text-secondary">
+          {lastRationale}
+        </p>
+      ) : null}
       <div className="flex flex-col gap-2">
         <Button
           variant="primary"

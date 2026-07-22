@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Leads · Postforge",
-  description: "Postforge demo CRM — Leads workspace",
+  title: "Designs · Postforge",
+  description: "Your saved social post design threads",
 };
 
-export default function DashboardLayout({
+export default function DesignsLayout({
   children,
 }: {
   children: React.ReactNode;

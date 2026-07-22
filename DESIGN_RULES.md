@@ -23,12 +23,13 @@ Reference for agents and contributors building UI in this repo. Prefer these con
 
 | Route | Purpose |
 |-------|---------|
+| `/designs` | Saved design library — list, open, delete local design threads |
 | `/tool` | Social post designer (default entry; global brand/featured storage) |
 | `/design/[id]` | Per-design session — blank on new id, scoped persistence, onboarding flow |
 | `/slides` | Slide deck editor |
 | `/design-system` | Token and component gallery |
 
-- **Header:** `DesignToolHeader` — back, logo, new-design icon, center slot (e.g. platform picker), theme toggle, export actions.
+- **Header:** `DesignToolHeader` — back to `/designs`, logo, app nav (`AppNav`: Designs, Design system, Home), new-design icon, center slot (e.g. platform picker), theme toggle, export actions.
 - **Sidebar:** `.social-tool-aside` — collapsible blocks with **toggle row + content** pattern (Content, Brand, Featured block, Pattern). Match `BrandPanel` / `ContentPanel` structure.
 - **Onboarding phases** (`/design/[id]` only):
   - `needsLogo` — sidebar shows `DesignEmptyState` only (upload CTA). Canvas is a blank shell (logo slot only).
@@ -36,11 +37,23 @@ Reference for agents and contributors building UI in this repo. Prefer these con
   - `ready` — full editor; selection-driven inspector (below).
 - **Selection-driven inspector** (ready phase, and `/tool`):
   - Canvas clicks set `canvasSelection` → `inspectorSelection`.
-  - `null` selection → compact empty state (“Select an element on the canvas…”).
-  - `"copy"` → `ContentPanel`; `"logo"` → `BrandPanel`; `"featured"` → `FeaturedBlockPanel`; `"pattern"` → Pattern section.
+  - `null` or `"pattern"` selection → featured block overview + pinned canvas panels.
+  - `"copy"` → `ContentPanel`; `"logo"` → `BrandPanel`; `"featured"` → `FeaturedBlockPanel`.
+  - **Background** and **Pattern** are canvas-level settings — always pinned at the bottom of the sidebar (`FixedCanvasPanels` in `DesignInspector.tsx`), not swapped by selection.
   - Implemented in `DesignInspector.tsx`. Escape clears selection.
 - **Canvas toolbar:** `.canvas-preview-toolbar` — shuffle left, spacing + contrast badge right; pills use `.canvas-tool-pill-btn`. Hidden until onboarding `ready`.
-- **Design session storage:** `localStorage` key `postforge:design:{id}`; logo/featured blobs in IndexedDB as `{designId}:logo:{id}` / `{designId}:featured:{id}`.
+- **Design session storage:** `localStorage` key `postforge:design:{id}`; logo/featured blobs in IndexedDB as `{designId}:logo:{id}` / `{designId}:featured:{id}`; thumbnails as `{designId}:thumbnail` in the same IDB store.
+- **Design index:** `postforge:design-index` — array of `DesignSummary` metadata for `/designs`. Updated via `designRepository.upsert()` on meaningful save (logo uploaded or onboarding past `needsLogo`). Lazy migration scans existing session keys when index is empty.
+
+## Pattern library
+
+- **Pattern refs:** namespaced strings on `DesignDocument.pattern` — `legacy:*`, `library:*`, `brand:*`, `custom:*`. Migration from old `PatternId` values runs in `designSession.ts` via `migratePatternRef`.
+- **SVG-only:** tile patterns and uploads must be SVG. Legacy outline uses inline SVG (`legacyOutline.ts`), not PNG.
+- **Picker:** `PatternLibraryPicker` — popover with Brand (SVG logo required), Library (~24 tiles), Custom upload, and Postforge legacy sections. Mirrors `BrandBackgroundPicker` structure.
+- **Custom storage:** global `postforge:patterns:global`; per-design `postforge:patterns:design:{id}`. Max 500 KB; sanitized via `sanitizeSvgMarkup`.
+- **Rendering:** `PostPattern` dispatches to legacy components, `SvgTilePattern` (inline SVG `<pattern>` for export), or `BrandLogoPattern`. Respects `patternTint` / `footerPatternTint` from the active background preset.
+- **Controls unchanged:** show toggle, opacity, scale, animation in `PatternSection` (`DesignInspector.tsx`).
+- **Background toggle:** `showBackground` on the design document — hides the canvas fill and exports PNG with transparency when off. Preview still shows a white canvas with a subtle border so bounds stay visible.
 
 ## Components
 
@@ -88,21 +101,21 @@ Reference for agents and contributors building UI in this repo. Prefer these con
 - **Global tokens:** `src/app/globals.css`
 - **Design tool chrome:** `src/components/social-tool/social-tool.css`
 - **Slides:** `src/components/slides/slides.css`
-- **Landing / dashboard:** co-located CSS modules or `landing-2.css`, `dashboard/*.css`
+- **Landing / marketing:** co-located CSS modules or `landing-2.css`
 - Prefer CSS variables over duplicated hex. Use `color-mix(in oklab, …)` for borders and hovers consistent with `--leap-line`.
 
 ## Motion and feedback
 
 - **Shuffle toast:** `.layout-shuffle-toast` — brief layout name flash after shuffle.
 - **Canvas selection:** `.canvas-selectable.is-canvas-selected` — mint ring, do not block pointer events on `::after`.
-- **Export:** disable interactive canvas chrome (`interactive={false}`) before capture.
+- **Export:** disable interactive canvas chrome (`interactive={false}`) before capture. Thumbnails on `/designs` reuse the same capture path at low scale (~0.12) after debounced save when logo exists or phase is `ready`.
 
 ## Files to read before UI work
 
 | Task | Read first |
 |------|------------|
 | New sidebar block | `DesignInspector.tsx`, `ContentPanel.tsx`, `BrandPanel.tsx`, `FeaturedBlockPanel.tsx` |
-| Design session / onboarding | `useDesignSession.ts`, `designSession.ts`, `BriefChatPanel.tsx`, `DesignEmptyState.tsx` |
+| Design session / onboarding | `useDesignSession.ts`, `designSession.ts`, `lib/design/repository/`, `BriefChatPanel.tsx`, `DesignEmptyState.tsx` |
 | Header actions | `DesignToolHeader.tsx` |
 | Tokens | `globals.css`, `/design-system` page |
 | Canvas layout | `ProductShotPost.tsx`, `postLayouts.ts` |

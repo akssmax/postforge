@@ -12,7 +12,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button, Disclosure, Switch } from "@heroui/react";
-import { BrandBackgroundPicker } from "@/components/social-tool/BrandBackgroundPicker";
 import { BrandColorPicker } from "@/components/social-tool/BrandColorPicker";
 import {
   InspectorSegment,
@@ -43,11 +42,7 @@ type Props = Pick<
   | "setColor"
   | "resetColor"
   | "applySwatch"
-  | "solidBackgroundPresets"
-  | "gradientBackgroundPresets"
-  | "activeBackground"
   | "harmonySwatches"
-  | "setBackgroundPreset"
 > & {
   showBrand: boolean;
   onShowBrandChange: (value: boolean) => void;
@@ -75,11 +70,7 @@ export function BrandPanel({
   setColor,
   resetColor,
   applySwatch,
-  solidBackgroundPresets,
-  gradientBackgroundPresets,
-  activeBackground,
   harmonySwatches,
-  setBackgroundPreset,
   showBrand,
   onShowBrandChange,
   logoScale,
@@ -216,15 +207,6 @@ export function BrandPanel({
                 />
               </div>
             </div>
-          </div>
-
-          <div className="brand-panel-block">
-            <BrandBackgroundPicker
-              activeBackground={activeBackground}
-              solidPresets={solidBackgroundPresets}
-              gradientPresets={gradientBackgroundPresets}
-              onSelect={setBackgroundPreset}
-            />
           </div>
 
           <Disclosure className="brand-colors-disclosure">

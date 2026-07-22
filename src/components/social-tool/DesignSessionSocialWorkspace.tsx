@@ -20,6 +20,7 @@ import {
 } from "@/lib/social-tool/presets";
 import { exportPost, type ExportFormat } from "@/lib/social-tool/exportPost";
 import { useBrandToolTheme } from "@/lib/brand/useBrandToolTheme";
+import { LayoutPreviewEmptyState } from "@/components/social-tool/LayoutPreviewEmptyState";
 import { LayoutShuffleButton } from "@/components/social-tool/LayoutShuffleButton";
 import { LayoutSpacingToggle } from "@/components/social-tool/LayoutSpacingToggle";
 import {
@@ -31,6 +32,7 @@ import {
 } from "@/lib/social-tool/postLayouts";
 import {
   canvasSelectionFromContrastBlock,
+  isCanvasSelectableTarget,
   type CanvasSelectionId,
 } from "@/lib/social-tool/canvasSelection";
 import {
@@ -42,7 +44,9 @@ import {
   type DesignBlockId,
 } from "@/lib/brand/contrast";
 import { useDesignSession } from "@/lib/design/useDesignSession";
+import { designRepository } from "@/lib/design/repository";
 import type { DesignDocument } from "@/lib/design/types";
+import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
 
 type Props = {
   designId: string;
@@ -70,6 +74,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   const logoRevision = session.kit.logo?.id ?? "none";
   const isReady = doc.onboarding.phase === "ready";
+  const isNeedsLogo = doc.onboarding.phase === "needsLogo";
+  const isNeedsBrief = doc.onboarding.phase === "needsBrief";
+  const showCanvasBlocks = !isNeedsLogo;
   const template = getTemplate(doc.templateId);
   const platform = getPlatform(doc.platformId);
   const activeLayout = getPostLayout(doc.layoutId);
@@ -87,13 +94,59 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setCanvasSelection(null);
+      if (e.key === "Escape") clearInspectorSelection();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (exporting || !session.ready) return;
+
+    const node = canvasRef.current;
+    if (!node) return;
+
+    const shouldCapture = isReady || !!session.kit.logo;
+    if (!shouldCapture) return;
+
+    if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
+    thumbnailTimerRef.current = setTimeout(() => {
+      void designRepository.captureThumbnail(designId, node).catch((err) => {
+        console.warn("[postforge] thumbnail capture failed", err);
+      });
+    }, 450);
+
+    return () => {
+      if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
+    };
+  }, [
+    designId,
+    doc.copy.heading,
+    doc.layoutId,
+    doc.platformId,
+    doc.theme,
+    doc.showBackground,
+    exporting,
+    isReady,
+    session.kit.logo,
+    session.ready,
+    session.session?.updatedAt,
+  ]);
+
+  function clearInspectorSelection() {
+    setCanvasSelection(null);
+    setSelectedBlock(null);
+    setContrastPanelOpen(false);
+  }
+
+  function handleStagePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!isReady) return;
+    if (isCanvasSelectableTarget(e.target)) return;
+    clearInspectorSelection();
+  }
+
   const canvasRef = useRef<HTMLDivElement>(null);
+  const thumbnailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -244,6 +297,10 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   function handleCanvasSelect(id: CanvasSelectionId | null) {
     if (!isReady) return;
+    if (id === null) {
+      clearInspectorSelection();
+      return;
+    }
     setCanvasSelection(id);
     if (id === "copy") patchDocument({ showContent: true });
     if (id === "logo") patchDocument({ showBrand: true });
@@ -272,7 +329,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         height: platform.height,
         scale: exportScale,
         filename,
-        backgroundColor: doc.theme === "light" ? "#f8faf9" : "#040c0b",
+        backgroundColor: doc.showBackground
+          ? doc.theme === "light"
+            ? "#f8faf9"
+            : "#040c0b"
+          : undefined,
         printInches: platform.printInches,
       });
     } catch (err) {
@@ -321,6 +382,26 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         ...doc.copy,
         extraFields: doc.copy.extraFields.filter((f) => f.id !== id),
       },
+    });
+  }
+
+  function handleBriefGenerate(result: BriefGenerationResult) {
+    session.setFeaturedProductPage(result.productPage);
+    patchDocument({
+      copy: result.copy,
+      layoutId: result.layoutId,
+      logoPlacement: result.logoPlacement,
+      logoAlign: result.logoAlign,
+      textAlign: result.textAlign,
+      showContent: result.showContent,
+      showFeaturedImage: result.showFeaturedImage,
+      showPattern: result.showPattern,
+      showBackground: result.showBackground,
+      pattern: result.pattern,
+      patternOpacity: result.patternOpacity,
+      patternScale: result.patternScale,
+      patternAnimated: result.patternAnimated,
+      onboarding: { phase: "ready", briefSkipped: false },
     });
   }
 
@@ -455,8 +536,12 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             onFeaturedTransformChange={handleFeaturedTransformChange}
             pattern={doc.pattern}
             onPatternChange={(v) => patchDocument({ pattern: v })}
+            patternTint={session.activeBackground.css.patternTint}
+            designId={designId}
             showPattern={doc.showPattern}
             onShowPatternChange={(v) => patchDocument({ showPattern: v })}
+            showBackground={doc.showBackground}
+            onShowBackgroundChange={(v) => patchDocument({ showBackground: v })}
             patternOpacity={doc.patternOpacity}
             onPatternOpacityChange={(v) => patchDocument({ patternOpacity: v })}
             patternScale={doc.patternScale}
@@ -490,7 +575,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               uploadImage: session.uploadFeaturedImage,
               removeImage: session.removeFeaturedImage,
             }}
-            onBriefGenerate={(patch) => patchDocument(patch)}
+            onBriefGenerate={handleBriefGenerate}
             onBriefSkip={session.skipBrief}
           />
         </aside>
@@ -498,9 +583,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         <div
           ref={stageRef}
           className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto overscroll-contain bg-[color-mix(in_oklab,var(--gray-950)_6%,var(--surface-primary))] p-6 dark:bg-[color-mix(in_oklab,var(--white)_4%,var(--surface-primary))]"
-          onPointerDown={(e) => {
-            if (e.target === stageRef.current) handleCanvasSelect(null);
-          }}
+          onPointerDown={handleStagePointerDown}
         >
           <div className="flex w-full max-w-full flex-col items-center gap-3">
             <div
@@ -572,17 +655,33 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                     style={{ width: platform.width, height: platform.height }}
                   >
                     <div ref={canvasRef}>
+                      {isNeedsLogo ? (
+                        <LayoutPreviewEmptyState
+                          width={platform.width}
+                          height={platform.height}
+                          previewScale={previewScale}
+                        />
+                      ) : (
                       <ProductShotPost
                         width={platform.width}
                         height={platform.height}
                         copy={doc.copy}
                         pattern={doc.pattern}
-                        showPattern={doc.showPattern && isReady}
+                        designId={designId}
+                        showPattern={doc.showPattern && showCanvasBlocks}
+                        showBackground={doc.showBackground && showCanvasBlocks}
+                        exporting={!!exporting}
                         patternOpacity={doc.patternOpacity}
                         patternScale={doc.patternScale}
                         patternAnimated={doc.patternAnimated && !exporting && isReady}
                         productPage={session.featured.productPage}
-                        featuredMode={session.featured.mode}
+                        featuredMode={
+                          isNeedsBrief &&
+                          !session.featured.image &&
+                          session.featured.mode === "genui"
+                            ? "image"
+                            : session.featured.mode
+                        }
                         featuredImageSrc={session.featuredImageSrc}
                         featuredSvgMarkup={session.featured.image?.svgMarkup ?? null}
                         hasFeaturedImage={!!session.featured.image}
@@ -591,7 +690,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         logoAlign={doc.logoAlign}
                         logoPlacement={doc.logoPlacement}
                         showLogo={doc.showBrand}
-                        showFeaturedImage={doc.showFeaturedImage && isReady}
+                        showFeaturedImage={
+                          (doc.showFeaturedImage || isNeedsBrief) && showCanvasBlocks
+                        }
                         featuredTransform={doc.featuredTransform}
                         onFeaturedTransformChange={handleFeaturedTransformChange}
                         previewScale={previewScale}
@@ -604,7 +705,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         logoSvgMarkup={session.kit.logo?.svgMarkup ?? null}
                         hasUploadedLogo={!!session.kit.logo}
                         backgroundPreset={
-                          doc.showBrand && session.kit.activeBackgroundPresetId
+                          doc.showBackground && session.kit.activeBackgroundPresetId
                             ? session.activeBackground.css
                             : undefined
                         }
@@ -620,8 +721,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         showSpacingControls={adjustSpacing && isReady}
                         canvasSelection={inspectorSelection}
                         onCanvasSelect={handleCanvasSelect}
-                        showContent={doc.showContent && isReady}
+                        showContent={
+                          (doc.showContent || isNeedsBrief) && showCanvasBlocks
+                        }
                       />
+                      )}
                     </div>
                   </div>
                 </div>

@@ -2,10 +2,10 @@ import type { BrandKitPersisted } from "@/lib/brand/types";
 import type { FeaturedBlockPersisted } from "@/lib/social-tool/featuredBlock";
 import type { PostLayoutSpacing } from "@/lib/social-tool/layoutSpacing";
 import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
+import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import type {
   LogoAlign,
   LogoPlacement,
-  PatternId,
   PlatformId,
   PostCopy,
   PostTheme,
@@ -29,11 +29,12 @@ export type DesignDocument = {
   layoutId: PostLayoutId;
   layoutSpacing: PostLayoutSpacing;
   copy: PostCopy;
-  pattern: PatternId;
+  pattern: PatternRef;
   patternOpacity: number;
   patternScale: number;
   patternAnimated: boolean;
   showPattern: boolean;
+  showBackground: boolean;
   typeScale: number;
   logoScale: number;
   logoAlign: LogoAlign;

@@ -2,9 +2,9 @@
 
 import { Logo } from "@/components/Logo";
 import { PostPattern } from "@/components/social-tool/PostPattern";
+import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import {
   parseAccentMarkup,
-  type PatternId,
   type PostCopy,
   type PostTheme,
   type TypeScaleId,
@@ -15,7 +15,7 @@ type Props = {
   height: number;
   theme: PostTheme;
   copy: PostCopy;
-  pattern: PatternId;
+  pattern: PatternRef;
   typeScale?: TypeScaleId;
   accentPeriod?: boolean;
 };

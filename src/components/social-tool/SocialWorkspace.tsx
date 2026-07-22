@@ -23,7 +23,6 @@ import {
   getTemplate,
   type LogoAlign,
   type LogoPlacement,
-  type PatternId,
   type PlatformId,
   type PostCopy,
   type PostTheme,
@@ -31,6 +30,8 @@ import {
   type TemplateId,
   type TextAlign,
 } from "@/lib/social-tool/presets";
+import type { PatternRef } from "@/lib/social-tool/patterns/types";
+import { DEFAULT_PATTERN_REF } from "@/lib/social-tool/patterns/types";
 import { useFeaturedBlock } from "@/lib/social-tool/useFeaturedBlock";
 import {
   exportPost,
@@ -54,6 +55,7 @@ import {
 } from "@/lib/social-tool/postLayouts";
 import {
   canvasSelectionFromContrastBlock,
+  isCanvasSelectableTarget,
   type CanvasSelectionId,
 } from "@/lib/social-tool/canvasSelection";
 import {
@@ -81,11 +83,12 @@ function ToolSocialWorkspace() {
   const [templateId] = useState<TemplateId>("product-shot");
   const [platformId, setPlatformId] = useState<PlatformId>("linkedin-square");
   const [theme, setTheme] = useState<PostTheme>("dark");
-  const [pattern, setPattern] = useState<PatternId>("monogram");
+  const [pattern, setPattern] = useState<PatternRef>(DEFAULT_PATTERN_REF);
   const [patternOpacity, setPatternOpacity] = useState(0.28);
   const [patternScale, setPatternScale] = useState(1);
   const [patternAnimated, setPatternAnimated] = useState(false);
   const [showPattern, setShowPattern] = useState(true);
+  const [showBackground, setShowBackground] = useState(true);
   const [typeScale, setTypeScale] = useState(1);
   const [logoScale, setLogoScale] = useState(1);
   const [logoAlign, setLogoAlign] = useState<LogoAlign>("left");
@@ -137,11 +140,22 @@ function ToolSocialWorkspace() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setCanvasSelection(null);
+      if (e.key === "Escape") clearInspectorSelection();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  function clearInspectorSelection() {
+    setCanvasSelection(null);
+    setSelectedBlock(null);
+    setContrastPanelOpen(false);
+  }
+
+  function handleStagePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (isCanvasSelectableTarget(e.target)) return;
+    clearInspectorSelection();
+  }
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -295,6 +309,10 @@ function ToolSocialWorkspace() {
       : null);
 
   function handleCanvasSelect(id: CanvasSelectionId | null) {
+    if (id === null) {
+      clearInspectorSelection();
+      return;
+    }
     setCanvasSelection(id);
     if (id === "copy") setShowContent(true);
     if (id === "logo") setShowBrand(true);
@@ -324,7 +342,11 @@ function ToolSocialWorkspace() {
         height: platform.height,
         scale: exportScale,
         filename,
-        backgroundColor: theme === "light" ? "#f8faf9" : "#040c0b",
+        backgroundColor: showBackground
+          ? theme === "light"
+            ? "#f8faf9"
+            : "#040c0b"
+          : undefined,
         printInches: platform.printInches,
       });
     } catch (err) {
@@ -516,8 +538,11 @@ function ToolSocialWorkspace() {
             onFeaturedTransformChange={setFeaturedTransform}
             pattern={pattern}
             onPatternChange={setPattern}
+            patternTint={brand.activeBackground.css.patternTint}
             showPattern={showPattern}
             onShowPatternChange={setShowPattern}
+            showBackground={showBackground}
+            onShowBackgroundChange={setShowBackground}
             patternOpacity={patternOpacity}
             onPatternOpacityChange={setPatternOpacity}
             patternScale={patternScale}
@@ -560,9 +585,7 @@ function ToolSocialWorkspace() {
         <div
           ref={stageRef}
           className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto overscroll-contain bg-[color-mix(in_oklab,var(--gray-950)_6%,var(--surface-primary))] p-6 dark:bg-[color-mix(in_oklab,var(--white)_4%,var(--surface-primary))]"
-          onPointerDown={(e) => {
-            if (e.target === stageRef.current) handleCanvasSelect(null);
-          }}
+          onPointerDown={handleStagePointerDown}
         >
           <div className="flex w-full max-w-full flex-col items-center gap-3">
             <div
@@ -636,6 +659,8 @@ function ToolSocialWorkspace() {
                   copy={copy}
                   pattern={pattern}
                   showPattern={showPattern}
+                  showBackground={showBackground}
+                  exporting={!!exporting}
                   patternOpacity={patternOpacity}
                   patternScale={patternScale}
                   patternAnimated={patternAnimated && !exporting}
@@ -662,7 +687,7 @@ function ToolSocialWorkspace() {
                   logoSvgMarkup={brand.kit.logo?.svgMarkup ?? null}
                   hasUploadedLogo={!!brand.kit.logo}
                   backgroundPreset={
-                    showBrand && brand.kit.activeBackgroundPresetId
+                    showBackground && brand.kit.activeBackgroundPresetId
                       ? brand.activeBackground.css
                       : undefined
                   }

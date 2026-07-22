@@ -6,7 +6,7 @@ import { ArrowUpRight } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Logo } from "@/components/Logo";
 import { Footer } from "@/components/Footer";
-import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DesignsGridPreview } from "@/components/designs/DesignsGridPreview";
 import { CutoutCTA } from "@/components/landing-2/CutoutCTA";
 import { HeroMonogramPattern } from "@/components/patterns/HeroMonogramPattern";
 import "./landing-2.css";
@@ -155,8 +155,8 @@ export function Landing2Page() {
           </div>
 
           <div className="aspect-[3/4] w-full overflow-hidden rounded-[var(--l2-radius)] shadow-2xl shadow-black/40 ring-1 ring-black/10 sm:aspect-[4/3] md:aspect-video">
-            <div className="h-full w-full bg-dash-surface">
-              <DashboardShell className="h-full" showThemeControls={false} />
+            <div className="h-full w-full bg-surface-primary">
+              <DesignsGridPreview />
             </div>
           </div>
         </div>

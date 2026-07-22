@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, PenSquare } from "lucide-react";
+import { PenSquare } from "lucide-react";
 import { Tooltip } from "@heroui/react";
+import { AppNav } from "@/components/designs/AppNav";
 import { Logo } from "@/components/Logo";
 import { ThemeControls } from "@/components/ThemeControls";
 import { createDesignId } from "@/lib/design/ids";
@@ -22,22 +22,9 @@ export function DesignToolHeader({ center, children }: Props) {
 
   return (
     <header className="design-tool-header sticky top-0 z-40 shrink-0 border-b border-leap-line bg-surface-primary px-4 py-3 sm:px-6">
-      <div className="design-tool-header-start flex min-w-0 items-center gap-3 sm:gap-4">
-        <Tooltip delay={500}>
-          <Tooltip.Trigger>
-            <Link
-              href="/"
-              aria-label="Back to home"
-              className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-text-secondary transition hover:bg-surface-secondary hover:text-text-primary"
-            >
-              <ArrowLeft className="size-4" aria-hidden />
-            </Link>
-          </Tooltip.Trigger>
-          <Tooltip.Content placement="bottom" offset={8}>
-            <p className="layout-shuffle-tooltip-title">Back to home</p>
-          </Tooltip.Content>
-        </Tooltip>
-        <Logo href="/" height={24} animation="none" className="text-current" />
+      <div className="design-tool-header-start flex min-w-0 items-center gap-2 sm:gap-3">
+        <AppNav />
+        <Logo href="/designs" height={24} animation="none" className="text-current" />
         <Tooltip delay={500}>
           <Tooltip.Trigger>
             <button
