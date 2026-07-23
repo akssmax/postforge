@@ -94,12 +94,14 @@ function normalizeDocument(
     ...blank,
     ...raw,
     version: raw.version === 2 ? 2 : 1,
-    copy: {
-      ...EMPTY_POST_COPY,
-      ...raw.copy,
-      extraFields: raw.copy?.extraFields ?? [],
-    },
-    layoutSpacing: {
+      copy: {
+        ...EMPTY_POST_COPY,
+        ...raw.copy,
+        extraFields: raw.copy?.extraFields ?? [],
+      },
+      copyVariants: raw.copyVariants,
+      copyVariantIndex: raw.copyVariantIndex ?? 0,
+      layoutSpacing: {
       ...DEFAULT_POST_LAYOUT_SPACING,
       ...raw.layoutSpacing,
     },

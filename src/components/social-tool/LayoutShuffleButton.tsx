@@ -103,8 +103,8 @@ export function LayoutShuffleButton({ layoutName, onShuffle }: Props) {
           <Tooltip.Content placement="bottom" offset={8}>
             <p className="layout-shuffle-tooltip-title">Shuffle</p>
             <p className="layout-shuffle-tooltip-body">
-              Cycle layout plus any enabled options in the menu. Swaps the featured
-              UI block or illustration when one is on the canvas.
+              Cycle enabled options in the menu — layout structure, background, pattern,
+              copy, or featured block. Turn Layout off to keep alignment and composition.
             </p>
           </Tooltip.Content>
         </Tooltip>
@@ -129,6 +129,11 @@ export function LayoutShuffleButton({ layoutName, onShuffle }: Props) {
                 label="Shuffle all"
                 checked={shuffleAll}
                 onChange={(enabled) => updatePreferences(withShuffleAll(enabled))}
+              />
+              <ShuffleMenuRow
+                label="Layout"
+                checked={preferences.layout}
+                onChange={(layout) => patchPreferences({ layout })}
               />
               <ShuffleMenuRow
                 label="Background"

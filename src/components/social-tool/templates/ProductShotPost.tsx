@@ -9,6 +9,11 @@ import { PostPattern } from "@/components/social-tool/PostPattern";
 import { ProductPreview, getProductPageNativeWidth } from "@/components/social-tool/ProductPreview";
 import { VisualBlocksLibraryPicker } from "@/components/social-tool/VisualBlocksLibraryPicker";
 import { VisualBlockRenderer } from "@/components/social-tool/visualBlocks/VisualBlockRenderer";
+import {
+  parseSvgViewBox,
+  resolveVisualBlockDimensions,
+  VISUAL_LIBRARY_FRAME,
+} from "@/lib/social-tool/visualBlocks/dimensions";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 import type { BackgroundPreset } from "@/lib/brand/types";
@@ -140,7 +145,7 @@ type Props = {
   visualBlocks?: import("@/lib/social-tool/visualBlocks/types").VisualBlockRecord[];
   activeVisualBlockId?: string | null;
   generatingVisualBlocks?: boolean;
-  onGenerateVisualBlocks?: (source?: "library" | "generate") => void;
+  onGenerateVisualBlocks?: (source?: "library" | "generate", options?: { pickFeatured?: boolean }) => void;
   onSelectVisualBlock?: (blockId: string) => void;
   dynamicLayout?: DynamicLayout;
   textSlots?: TextSlotContent[];
@@ -906,6 +911,12 @@ export function ProductShotPost({
     const isPlaceholderFeatured = slotMode === "placeholder" && slotShowFrame;
     const isComposedFeatured = slotMode === "composed" && slotShowFrame;
     const composedMarkup = composedSvgMarkup;
+    const composedSlotEmpty = !composedBlock && !composedMarkup;
+    const composedNativeSize = composedBlock
+      ? resolveVisualBlockDimensions(composedBlock)
+      : composedMarkup
+        ? parseSvgViewBox(composedMarkup) ?? VISUAL_LIBRARY_FRAME
+        : VISUAL_LIBRARY_FRAME;
     const viewportEditable = slotShowFrame && (interactive || canDrag);
     const selectId = featuredSelectId(slot.slotId);
 
@@ -940,30 +951,46 @@ export function ProductShotPost({
               style={featuredFrameRadius}
             >
               <div className="social-post-featured-placeholder">
-                {interactive && onGenerateVisualBlocks ? (
-                  <div className="social-post-featured-placeholder__actions">
-                    <VisualBlocksLibraryPicker
-                      blocks={visualBlocks}
-                      activeBlockId={activeVisualBlockId}
-                      generating={generatingVisualBlocks}
-                      brandColors={brandColors}
-                      onGenerate={onGenerateVisualBlocks}
-                      onSelect={(blockId) => onSelectVisualBlock?.(blockId)}
-                      triggerLabel="Generate UI"
-                      compact
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <span className="social-post-featured-placeholder__label">Visual slot</span>
-                    <span className="social-post-featured-placeholder__hint">
-                      Generate UI to add diagrams, cards, or illustrations
-                    </span>
-                  </>
-                )}
+                <span className="social-post-featured-placeholder__label">Visual slot</span>
+                <span className="social-post-featured-placeholder__hint">
+                  Generate UI to add diagrams, cards, or illustrations
+                </span>
               </div>
             </div>
           ) : isComposedFeatured ? (
+            composedSlotEmpty ? (
+              <div
+                className="social-post-product-frame social-post-product-frame--composed social-post-product-frame--composed-empty social-post-product-frame--slot social-post-product-frame--placeholder"
+                style={featuredFrameRadius}
+              >
+                <div className="social-post-featured-placeholder">
+                  {interactive && onGenerateVisualBlocks && !exporting ? (
+                    <div className="social-post-featured-placeholder__actions">
+                      <VisualBlocksLibraryPicker
+                        blocks={visualBlocks}
+                        activeBlockId={activeVisualBlockId}
+                        generating={generatingVisualBlocks}
+                        brandColors={brandColors}
+                        onGenerate={(source) =>
+                          onGenerateVisualBlocks?.(source, { pickFeatured: true })
+                        }
+                        onSelect={(blockId) => onSelectVisualBlock?.(blockId)}
+                        triggerLabel="Choose visual"
+                        slotTrigger
+                        autoPick
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <span className="social-post-featured-placeholder__label">Visual slot</span>
+                      <span className="social-post-featured-placeholder__hint">
+                        Add a UI block or illustration from the library
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : (
             <div
               className={`social-post-product-frame social-post-product-frame--composed${dragging ? " is-dragging" : ""}`}
               style={featuredFrameRadius}
@@ -976,28 +1003,24 @@ export function ProductShotPost({
             >
               <div
                 className={`social-post-product-inner social-post-product-inner--composed${dragging ? " is-dragging" : ""}`}
+                style={{
+                  width: composedNativeSize.width,
+                  height: composedNativeSize.height,
+                }}
               >
                 {composedBlock ? (
-                  <VisualBlockRenderer block={composedBlock} brandColors={brandColors} />
+                  <VisualBlockRenderer
+                    block={composedBlock}
+                    brandColors={brandColors}
+                    canvasFit
+                  />
                 ) : (
                   <FeaturedImageContent imageSrc={null} svgMarkup={composedMarkup} />
                 )}
               </div>
-              {interactive && onGenerateVisualBlocks ? (
-                <div className="social-post-featured-floating-actions">
-                  <VisualBlocksLibraryPicker
-                    blocks={visualBlocks}
-                    activeBlockId={activeVisualBlockId}
-                    generating={generatingVisualBlocks}
-                    onGenerate={onGenerateVisualBlocks}
-                    onSelect={(blockId) => onSelectVisualBlock?.(blockId)}
-                    triggerLabel="Visual blocks"
-                    compact
-                  />
-                </div>
-              ) : null}
               {renderFeaturedDragHandle(chromeActive && isFeaturedSlotSelected(slot.slotId))}
             </div>
+            )
           ) : isGenuiFeatured ? (
             <div
               className={`social-post-product-inner social-post-product-inner--genui${dragging ? " is-dragging" : ""}`}

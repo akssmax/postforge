@@ -241,18 +241,22 @@ function ToolSocialWorkspace() {
 
   function shufflePostLayout(prefs: ShufflePreferences) {
     const record = loadLayoutReviews();
-    const nextLayout = getRandomPlaygroundLayout(platformId, layoutId, record);
-    const layout = getPostLayout(nextLayout.id);
+    const nextLayout = prefs.layout
+      ? getRandomPlaygroundLayout(platformId, layoutId, record)
+      : getPostLayout(layoutId);
+    const layout = nextLayout;
     const patch = getLayoutStatePatch(layout);
     let nextCopy = seedCopyForLayout(copy, layout);
     if (prefs.content) {
       nextCopy = pickRandomShuffleCopy(copy, layout);
     }
 
-    setLayoutId(nextLayout.id);
-    setLogoPlacement(patch.logoPlacement);
-    setLogoAlign(patch.logoAlign);
-    setTextAlign(patch.textAlign);
+    if (prefs.layout) {
+      setLayoutId(nextLayout.id);
+      setLogoPlacement(patch.logoPlacement);
+      setLogoAlign(patch.logoAlign);
+      setTextAlign(patch.textAlign);
+    }
     setCopy(nextCopy);
     applyHierarchyScales(nextLayout.id, nextCopy, {
       preserveFeaturedTransform: !prefs.featuredPosition,

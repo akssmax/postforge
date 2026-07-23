@@ -2,6 +2,7 @@ import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 import type { DesignPlan } from "@/lib/llm/schemas/designPlan";
 import type { SlotDraft } from "@/lib/llm/schemas/slotDraft";
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
+import type { CopyVariant } from "@/lib/social-tool/presets";
 import { variantNotesForLayout } from "@/lib/social-tool/engine/layoutVariants";
 import type { VisualPolicy } from "@/lib/social-tool/engine/visualPolicy";
 import { catalogLayoutToDynamic } from "@/lib/social-tool/layoutAdapter";
@@ -30,6 +31,8 @@ export function assembleDesignPlan(input: {
   brief: string;
   rulesProfile?: DesignRulesProfile;
   theme?: string;
+  copyVariants?: CopyVariant[];
+  copyVariantIndex?: number;
 }): DesignPlan {
   const dynamicLayout = catalogLayoutToDynamic(input.layout);
   const variantNotes = variantNotesForLayout(
@@ -91,7 +94,7 @@ export function assembleDesignPlan(input: {
     input.rulesProfile ? `Rules: ${input.rulesProfile.label}` : "",
     input.theme ? `Theme: ${input.theme}` : "",
     ...variantNotes,
-    `Intent: ${input.intent.primaryIntent} · Goal: ${input.intent.goal}`,
+    `Intent: ${input.intent.primaryIntent} · Goal: ${input.intent.goal} · Featured: ${input.intent.featuredVisualKind}`,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -111,5 +114,7 @@ export function assembleDesignPlan(input: {
     patternAnimated: input.visual.patternAnimated,
     patternRef: input.visual.patternRef,
     backgroundPresetId: input.visual.backgroundPresetId,
+    copyVariants: input.copyVariants,
+    copyVariantIndex: input.copyVariantIndex ?? 0,
   };
 }

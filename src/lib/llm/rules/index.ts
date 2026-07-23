@@ -54,7 +54,7 @@ export function detectFormatFromBrief(brief: string): "ad" | "post" | undefined 
 export function rulesProfilePrompt(profile: DesignRulesProfile): string {
   const featuredLine =
     profile.featuredPolicy === "library"
-      ? "Featured: library — auto-pick a UI block or illustration from the visuals library (composed mode); custom AI generation is optional."
+      ? "Featured: library — infer featuredVisualKind (ui vs illustration) from brief intent; pick HeroUI UI cards for product/metrics proof, illustrations for brand/narrative/festive themes; match tags to copy."
       : `Featured: ${profile.featuredPolicy}.`;
 
   return [

@@ -10,6 +10,7 @@ type ToolOutput = CanvasPatchResult & {
 
 const CANVAS_TOOL_TYPES = [
   "tool-updateCopy",
+  "tool-refreshCopyVariants",
   "tool-updateBackground",
   "tool-updatePattern",
   "tool-updateFeatured",

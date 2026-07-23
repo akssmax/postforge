@@ -15,6 +15,10 @@ type Props = {
   onSelect: (blockId: string) => void;
   triggerLabel?: string;
   compact?: boolean;
+  /** Larger trigger for empty featured slot (counter-scales with canvas preview). */
+  slotTrigger?: boolean;
+  /** Skip popover — click immediately picks from the library. */
+  autoPick?: boolean;
 };
 
 export function VisualBlocksLibraryPicker({
@@ -26,17 +30,42 @@ export function VisualBlocksLibraryPicker({
   onSelect,
   triggerLabel = "Generate UI",
   compact = false,
+  slotTrigger = false,
+  autoPick = false,
 }: Props) {
+  const triggerSize = slotTrigger ? "md" : compact ? "sm" : "md";
+  const triggerVariant = slotTrigger ? "primary" : compact ? "secondary" : "primary";
+  const triggerClass = slotTrigger
+    ? "visual-blocks-slot-trigger"
+    : compact
+      ? "visual-blocks-generate-btn"
+      : undefined;
+
+  if (autoPick) {
+    return (
+      <Button
+        size={triggerSize}
+        variant={triggerVariant}
+        isDisabled={generating}
+        className={triggerClass}
+        onPress={() => onGenerate("library")}
+      >
+        <Sparkles className={slotTrigger ? "visual-blocks-slot-trigger__icon" : "size-4"} />
+        {generating ? "Choosing…" : triggerLabel}
+      </Button>
+    );
+  }
+
   return (
     <Popover>
       <Popover.Trigger>
         <Button
-          size={compact ? "sm" : "md"}
-          variant={compact ? "secondary" : "primary"}
+          size={triggerSize}
+          variant={triggerVariant}
           isDisabled={generating}
-          className={compact ? "visual-blocks-generate-btn" : undefined}
+          className={triggerClass}
         >
-          <Sparkles className="size-4" />
+          <Sparkles className={slotTrigger ? "visual-blocks-slot-trigger__icon" : "size-4"} />
           {generating ? "Generating…" : triggerLabel}
         </Button>
       </Popover.Trigger>

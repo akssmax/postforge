@@ -21,6 +21,19 @@ export type VisualBlockGenerateInput = {
     primary?: string;
     accent?: string;
   };
+  /** Campaign intent signals for tag-based library matching. */
+  intent?: {
+    primaryIntent?: string;
+    audience?: string;
+    goal?: string;
+    visualPriority?: string;
+    proofStrategy?: string;
+    featuredVisualKind?: "ui" | "illustration";
+    keywords?: string[];
+    themes?: string[];
+  };
+  /** Override featured slot kind when picking from library. */
+  preferredKind?: "ui" | "illustration";
   slotWidth?: number;
   slotHeight?: number;
   count?: number;

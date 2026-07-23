@@ -243,3 +243,24 @@
   font-size: 0.6875rem;
   background: color-mix(in oklab, currentColor 6%, transparent);
 }
+
+.visuals-page__more {
+  max-width: 1280px;
+  margin: 32px auto 0;
+  display: flex;
+  justify-content: center;
+}
+
+.visuals-page__more-btn {
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, currentColor 16%, transparent);
+  background: color-mix(in oklab, currentColor 4%, transparent);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.visuals-page__more-btn:hover {
+  background: color-mix(in oklab, currentColor 8%, transparent);
+}

@@ -10,6 +10,7 @@ import {
   type CampaignIntent,
 } from "@/lib/llm/schemas/campaignIntent";
 import { intentFromBrief } from "@/lib/social-tool/engine/intentFromBrief";
+import { inferFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import type { PlatformId } from "@/lib/social-tool/presets";
 
 function latestUserText(messages: UIMessage[]): string {
@@ -50,6 +51,8 @@ export async function analyzeIntent(input: {
         "You analyze marketing briefs for social post design.",
         "Extract structured campaign intent only — no layout, copy, colors, or geometry.",
         `Target platform: ${input.platformId}`,
+        "Set featuredVisualKind to ui when the brief needs product proof (SaaS UI, metrics, dashboards, demos, ROI).",
+        "Set featuredVisualKind to illustration when the brief is narrative, emotional, brand, cultural, festive, or lifestyle-led.",
         format === "ad"
           ? "This is an advertisement — set campaignType to advertisement and format to ad."
           : "",
@@ -76,6 +79,9 @@ export async function analyzeIntent(input: {
       platform: input.platformId,
       keywords: result.object.keywords.length ? result.object.keywords : fallback.keywords,
       themes: result.object.themes.length ? result.object.themes : themes,
+      featuredVisualKind:
+        result.object.featuredVisualKind ??
+        inferFeaturedVisualKind(userMessage, { ...result.object, keywords: fallback.keywords }),
       format: result.object.format ?? format,
       campaignType:
         format === "ad" || result.object.format === "ad"

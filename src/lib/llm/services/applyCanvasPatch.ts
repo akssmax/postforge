@@ -5,6 +5,11 @@ import type { FeaturedImageTransform } from "@/components/social-tool/templates/
 import { getPlatform } from "@/lib/social-tool/presets";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { resolveLayoutHierarchy } from "@/lib/social-tool/layoutHierarchy";
+import {
+  resolveVisualBlockDimensions,
+  VISUAL_LIBRARY_FRAME,
+} from "@/lib/social-tool/visualBlocks/dimensions";
+import { findVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
 
 function omitUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
   return Object.fromEntries(
@@ -103,6 +108,10 @@ export function applyCanvasPatchToSession(
           : next.featured.mode === "placeholder"
             ? "placeholder"
             : "genui";
+    const activeBlock =
+      featuredMode === "composed"
+        ? findVisualBlock(next.featured.visualBlocks ?? [], next.featured.activeBlockId)
+        : null;
     const hierarchy = resolveLayoutHierarchy({
       width: platform.width,
       height: platform.height,
@@ -114,6 +123,12 @@ export function applyCanvasPatchToSession(
       showFeaturedImage: doc.showFeaturedImage,
       featuredMode,
       productPage: next.featured.productPage,
+      visualBlockDimensions:
+        featuredMode === "composed"
+          ? activeBlock
+            ? resolveVisualBlockDimensions(activeBlock)
+            : VISUAL_LIBRARY_FRAME
+          : undefined,
     });
 
     next = {

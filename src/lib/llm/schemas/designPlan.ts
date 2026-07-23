@@ -99,6 +99,15 @@ export const designPlanSchema = z.object({
   patternOpacity: z.number().min(0.05).max(1).optional(),
   patternScale: z.number().min(0.5).max(4).optional(),
   patternAnimated: z.boolean().optional(),
+  copyVariants: z
+    .array(
+      z.object({
+        heading: z.string(),
+        subheading: z.string(),
+      }),
+    )
+    .optional(),
+  copyVariantIndex: z.number().int().min(0).optional(),
 });
 
 export type DesignPlan = z.infer<typeof designPlanSchema>;

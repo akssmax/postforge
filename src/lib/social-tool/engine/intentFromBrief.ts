@@ -1,5 +1,7 @@
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 import { detectFormatFromBrief, extractThemesFromBrief } from "@/lib/llm/rules";
+import { inferFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
+import type { FeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import type { PlatformId } from "@/lib/social-tool/presets";
 
 const STOP_WORDS = new Set([
@@ -145,7 +147,7 @@ function inferProofStrategy(brief: string): CampaignIntent["proofStrategy"] {
 export function intentFromBrief(brief: string, platformId: PlatformId): CampaignIntent {
   const campaignType = inferCampaignType(brief);
   const format = detectFormatFromBrief(brief);
-  return {
+  const partial = {
     platform: platformId,
     campaignType: format === "ad" ? "advertisement" : campaignType,
     primaryIntent: inferPrimaryIntent(brief, campaignType),
@@ -155,13 +157,18 @@ export function intentFromBrief(brief: string, platformId: PlatformId): Campaign
     contentDensity: inferContentDensity(brief),
     visualPriority: inferVisualPriority(brief),
     proofStrategy: inferProofStrategy(brief),
-    ctaRequired:
-      format === "ad" ||
-      inferGoal(brief) === "book_demo" ||
-      inferGoal(brief) === "signup" ||
-      normalizeBrief(brief).includes("cta"),
     keywords: tokenize(brief),
     themes: extractThemesFromBrief(brief),
     format,
+  } satisfies Omit<CampaignIntent, "ctaRequired" | "featuredVisualKind">;
+
+  return {
+    ...partial,
+    featuredVisualKind: inferFeaturedVisualKind(brief, partial),
+    ctaRequired:
+      format === "ad" ||
+      partial.goal === "book_demo" ||
+      partial.goal === "signup" ||
+      normalizeBrief(brief).includes("cta"),
   };
 }

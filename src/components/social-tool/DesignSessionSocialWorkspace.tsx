@@ -36,9 +36,14 @@ import {
   type LayoutReviewRecord,
 } from "@/lib/social-tool/layoutReviews";
 import { pickRandomShuffleSurface } from "@/lib/social-tool/shuffleSurface";
-import { pickRandomShuffleCopy } from "@/lib/social-tool/shuffleCopy";
+import { pickNextCopyVariant } from "@/lib/social-tool/shuffleCopy";
 import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
 import { resolveLayoutHierarchyFromIds } from "@/lib/social-tool/layoutHierarchy";
+import {
+  resolveVisualBlockDimensions,
+  parseSvgViewBox,
+  VISUAL_LIBRARY_FRAME,
+} from "@/lib/social-tool/visualBlocks/dimensions";
 import {
   canvasSelectionFromContrastBlock,
   isCanvasSelectableTarget,
@@ -67,7 +72,8 @@ import { designRepository } from "@/lib/design/repository";
 import type { DesignDocument } from "@/lib/design/types";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
-import { resolveDocumentLayout } from "@/lib/social-tool/layoutRegistry";
+import { resolveDocumentLayout, layoutIdForDocument } from "@/lib/social-tool/layoutRegistry";
+import { catalogLayoutRef, catalogLayoutToDynamic, textSlotsFromCopy } from "@/lib/social-tool/layoutAdapter";
 import { useBriefChat } from "@/lib/llm/useBriefChat";
 import { buildDesignSnapshot } from "@/lib/design/buildDesignSnapshot";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
@@ -111,7 +117,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const showCanvasBlocks = !isNeedsLogo;
   const template = getTemplate(doc.templateId);
   const platform = getPlatform(doc.platformId);
-  const activeLayout = getPostLayout(doc.layoutId);
+  const activeLayout = getPostLayout(layoutIdForDocument(doc));
 
   useEffect(() => {
     setSelectedBlock(null);
@@ -189,6 +195,15 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   const patchDocument = session.patchDocument;
 
+  const composedBlockDimensions = useMemo(() => {
+    if (session.featured.mode !== "composed") return undefined;
+    const block = activeVisualBlock(
+      session.featured.visualBlocks ?? [],
+      session.featured.activeBlockId,
+    );
+    return block ? resolveVisualBlockDimensions(block) : VISUAL_LIBRARY_FRAME;
+  }, [session.featured.mode, session.featured.visualBlocks, session.featured.activeBlockId]);
+
   const applyPostLayout = useCallback(
     (nextId: PostLayoutId, record: LayoutReviewRecord = loadLayoutReviews()) => {
       const layout = getPostLayout(nextId);
@@ -205,9 +220,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         featuredMode: session.featured.mode,
         productPage: session.featured.productPage,
         hasUploadedFeaturedImage: !!session.featured.image,
+        visualBlockDimensions: composedBlockDimensions,
       });
       patchDocument({
         layoutId: nextId,
+        layoutRef: catalogLayoutRef(nextId),
         logoPlacement: patch.logoPlacement,
         logoAlign: patch.logoAlign,
         textAlign: patch.textAlign,
@@ -219,6 +236,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       });
     },
     [
+      composedBlockDimensions,
       doc.copy,
       doc.platformId,
       doc.showBrand,
@@ -231,17 +249,26 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   function shufflePostLayout(prefs: ShufflePreferences) {
     const record = loadLayoutReviews();
-    const nextLayout = getRandomPlaygroundLayout(
-      doc.platformId,
-      doc.layoutId,
-      record,
-    );
-    const layout = getPostLayout(nextLayout.id);
+    const currentLayoutId = layoutIdForDocument(doc);
+    const nextLayout = prefs.layout
+      ? getRandomPlaygroundLayout(doc.platformId, currentLayoutId, record)
+      : getPostLayout(currentLayoutId);
+    const layout = nextLayout;
     const patch = getLayoutStatePatch(layout);
-    const nextSpacing = resolveLayoutSpacing(record, doc.platformId, nextLayout.id);
+    const nextSpacing = prefs.layout
+      ? resolveLayoutSpacing(record, doc.platformId, nextLayout.id)
+      : doc.layoutSpacing;
     let nextCopy = seedCopyForLayout(doc.copy, layout);
+    let nextCopyVariantIndex = doc.copyVariantIndex ?? 0;
     if (prefs.content) {
-      nextCopy = pickRandomShuffleCopy(doc.copy, layout);
+      const shuffled = pickNextCopyVariant(
+        doc.copy,
+        layout,
+        doc.copyVariants,
+        doc.copyVariantIndex,
+      );
+      nextCopy = shuffled.copy;
+      nextCopyVariantIndex = shuffled.nextIndex;
     }
     const hierarchy = resolveLayoutHierarchyFromIds({
       platformId: doc.platformId,
@@ -253,6 +280,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       featuredMode: session.featured.mode,
       productPage: session.featured.productPage,
       hasUploadedFeaturedImage: !!session.featured.image,
+      visualBlockDimensions: composedBlockDimensions,
     });
     const surface = pickRandomShuffleSurface({
       backgrounds: session.backgroundPresets,
@@ -271,15 +299,22 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     }
 
     patchDocument({
-      layoutId: nextLayout.id,
-      logoPlacement: patch.logoPlacement,
-      logoAlign: patch.logoAlign,
-      textAlign: patch.textAlign,
-      layoutSpacing: nextSpacing,
+      ...(prefs.layout
+        ? {
+            layoutId: nextLayout.id,
+            layoutRef: catalogLayoutRef(nextLayout.id),
+            logoPlacement: patch.logoPlacement,
+            logoAlign: patch.logoAlign,
+            textAlign: patch.textAlign,
+            layoutSpacing: nextSpacing,
+            textSlots: textSlotsFromCopy(nextCopy, catalogLayoutToDynamic(nextLayout)),
+          }
+        : {}),
       copy: nextCopy,
+      copyVariantIndex: nextCopyVariantIndex,
       typeScale: hierarchy.typeScale,
       logoScale: hierarchy.logoScale,
-      ...(prefs.featuredPosition
+      ...(prefs.featuredPosition || session.featured.mode === "composed"
         ? { featuredTransform: hierarchy.featuredTransform }
         : {}),
       ...(prefs.pattern
@@ -782,11 +817,17 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               visualBlocks: session.featured.visualBlocks ?? [],
               activeBlockId: session.featured.activeBlockId,
               generatingVisualBlocks: session.generatingVisualBlocks,
+              featuredVisualKind: doc.featuredVisualKind,
               brandColors: {
                 primary: session.kit.colors.primary,
                 accent: session.kit.colors.accent,
               },
-              onGenerateVisualBlocks: (source) => void session.generateVisualBlocks({ source }),
+              onGenerateVisualBlocks: (source, options) =>
+                void session.generateVisualBlocks({
+                  source,
+                  pickFeatured: options?.pickFeatured,
+                  preferredKind: options?.preferredKind,
+                }),
               onSelectVisualBlock: session.selectVisualBlock,
               image: session.featured.image,
               imageSrc: session.featuredImageSrc,
@@ -927,8 +968,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         visualBlocks={session.featured.visualBlocks ?? []}
                         activeVisualBlockId={session.featured.activeBlockId}
                         generatingVisualBlocks={session.generatingVisualBlocks}
-                        onGenerateVisualBlocks={(source) =>
-                          void session.generateVisualBlocks({ source })
+                        onGenerateVisualBlocks={(source, options) =>
+                          void session.generateVisualBlocks({
+                            source,
+                            pickFeatured: options?.pickFeatured,
+                          })
                         }
                         onSelectVisualBlock={session.selectVisualBlock}
                         featuredImageSrc={session.featuredImageSrc}

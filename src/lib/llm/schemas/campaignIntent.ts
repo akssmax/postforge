@@ -40,6 +40,8 @@ export const proofStrategySchema = z.enum([
   "none",
 ]);
 
+export const featuredVisualKindSchema = z.enum(["ui", "illustration"]);
+
 export const campaignIntentSchema = z.object({
   platform: z.string(),
   campaignType: campaignTypeSchema,
@@ -51,6 +53,8 @@ export const campaignIntentSchema = z.object({
   contentDensity: contentDensitySchema,
   visualPriority: visualPrioritySchema,
   proofStrategy: proofStrategySchema.default("none"),
+  /** Whether the featured slot should use a HeroUI UI card or a library illustration. */
+  featuredVisualKind: featuredVisualKindSchema,
   ctaRequired: z.boolean().default(false),
   keywords: z.array(z.string()).default([]),
   themes: z.array(z.string()).default([]),

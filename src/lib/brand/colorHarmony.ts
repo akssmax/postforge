@@ -32,17 +32,190 @@ export type HarmonyColorCandidate = {
 };
 
 export function buildBrandColorsFromPrimary(primary: string): BrandColors {
-  const secondary = shiftHue(primary, 30);
-  const accent = shiftHue(primary, 180);
-  const neutral = withLightness(primary, 12);
+  return buildBrandColorsFromPalette(primary);
+}
+
+export type ExtractedColorWeight = {
+  hex: string;
+  weight: number;
+};
+
+function hueDistance(a: string, b: string): number {
+  const ha = readHsl(a)?.h ?? 0;
+  const hb = readHsl(b)?.h ?? 0;
+  const delta = Math.abs(ha - hb);
+  return Math.min(delta, 360 - delta);
+}
+
+function colorVibrancy(hex: string): number {
+  const hsl = readHsl(hex);
+  if (!hsl || isNearNeutral(hex)) return 0;
+  return hsl.s * (1 - Math.abs(hsl.l - 52) / 52);
+}
+
+function rankExtractedPalette(
+  primary: string,
+  palette: ExtractedColorWeight[] = [],
+): ExtractedColorWeight[] {
+  const merged: ExtractedColorWeight[] = [];
+
+  for (const entry of palette) {
+    if (isNearNeutral(entry.hex) || colorDistance(entry.hex, primary) < 14) continue;
+
+    const existing = merged.find((item) => colorDistance(item.hex, entry.hex) < 20);
+    if (existing) {
+      existing.weight += entry.weight;
+    } else {
+      merged.push({ hex: entry.hex, weight: entry.weight });
+    }
+  }
+
+  return merged.sort((a, b) => {
+    const vibrancyDelta = colorVibrancy(b.hex) - colorVibrancy(a.hex);
+    if (Math.abs(vibrancyDelta) > 4) return vibrancyDelta;
+    return b.weight - a.weight;
+  });
+}
+
+function isCoolOnWarmPrimary(primary: string, candidate: string): boolean {
+  const primaryHue = readHsl(primary)?.h ?? 0;
+  const candidateHue = readHsl(candidate)?.h ?? 0;
+  const warmPrimary = primaryHue >= 5 && primaryHue <= 58;
+  const coolCandidate = candidateHue >= 165 && candidateHue <= 250;
+  return warmPrimary && coolCandidate;
+}
+
+function isHarshComplement(primary: string, candidate: string): boolean {
+  const delta = hueDistance(primary, candidate);
+  return delta >= 168 && delta <= 192;
+}
+
+function pickSecondaryFromPalette(
+  primary: string,
+  ranked: ExtractedColorWeight[],
+): string | null {
+  let best: { hex: string; score: number } | null = null;
+
+  for (const entry of ranked) {
+    if (entry.hex === primary) continue;
+    const delta = hueDistance(primary, entry.hex);
+    if (delta < 12 || delta > 95) continue;
+
+    const analogBonus = delta >= 15 && delta <= 55 ? 24 : 0;
+    const score = entry.weight + colorVibrancy(entry.hex) + analogBonus;
+    if (!best || score > best.score) {
+      best = { hex: entry.hex, score };
+    }
+  }
+
+  return best?.hex ?? null;
+}
+
+function pickAccentFromPalette(
+  primary: string,
+  secondary: string,
+  ranked: ExtractedColorWeight[],
+): string | null {
+  let best: { hex: string; score: number } | null = null;
+
+  for (const entry of ranked) {
+    if (entry.hex === primary || entry.hex === secondary) continue;
+
+    const delta = hueDistance(primary, entry.hex);
+    if (delta < 35) continue;
+
+    let score = entry.weight * 0.65 + colorVibrancy(entry.hex);
+
+    if (isHarshComplement(primary, entry.hex)) score -= 48;
+    if (isCoolOnWarmPrimary(primary, entry.hex)) score -= 56;
+
+    if (delta >= 55 && delta <= 140) score += 18;
+
+    if (!best || score > best.score) {
+      best = { hex: entry.hex, score };
+    }
+  }
+
+  if (!best || best.score < 8) return null;
+  return best.hex;
+}
+
+function pickNeutralFromPalette(
+  primary: string,
+  ranked: ExtractedColorWeight[],
+): string | null {
+  let best: { hex: string; score: number } | null = null;
+
+  for (const entry of ranked) {
+    const hsl = readHsl(entry.hex);
+    if (!hsl) continue;
+
+    const neutralish = hsl.s < 28 || hsl.l < 22;
+    const score = entry.weight + (neutralish ? 30 : 0) + (hsl.l < 18 ? 20 : 0);
+    if (!best || score > best.score) {
+      best = { hex: entry.hex, score };
+    }
+  }
+
+  if (!best) return null;
+  const hsl = readHsl(best.hex);
+  if (!hsl) return withLightness(primary, 12);
+  return hslToHex({ h: hsl.h, s: clamp(hsl.s * 0.55, 8, 28), l: clamp(hsl.l, 8, 18) });
+}
+
+function synthesizeSecondary(primary: string): string {
+  return harmonyColorFromBase(primary, HARMONY_HUE_OFFSETS.analogous[1], 0.92, "mid");
+}
+
+function synthesizeAccent(primary: string, secondary: string): string {
+  const hsl = readHsl(primary);
+  if (!hsl) {
+    return harmonyColorFromBase(
+      primary,
+      HARMONY_HUE_OFFSETS.splitComplementary[0],
+      0.86,
+      "mid",
+    );
+  }
+
+  if (hsl.h >= 8 && hsl.h <= 58) {
+    return hslToHex({
+      h: hsl.h,
+      s: clamp(hsl.s * 0.96, 52, 96),
+      l: clamp(hsl.l - 14, 30, 46),
+    });
+  }
+
+  if (hueDistance(primary, secondary) >= 20) {
+    return withSaturation(withLightness(secondary, clamp(hsl.l + 4, 38, 62)), clamp(hsl.s, 55, 92));
+  }
+
+  return harmonyColorFromBase(
+    primary,
+    HARMONY_HUE_OFFSETS.splitComplementary[0],
+    0.86,
+    "mid",
+  );
+}
+
+/** Assign brand roles from a dominant primary plus optional extracted palette. */
+export function buildBrandColorsFromPalette(
+  primary: string,
+  palette: ExtractedColorWeight[] = [],
+): BrandColors {
+  const base = resolveHarmonyBase(primary);
+  const ranked = rankExtractedPalette(base, palette);
+  const secondary = pickSecondaryFromPalette(base, ranked) ?? synthesizeSecondary(base);
+  const accent = pickAccentFromPalette(base, secondary, ranked) ?? synthesizeAccent(base, secondary);
+  const neutral = pickNeutralFromPalette(base, ranked) ?? withLightness(base, 12);
 
   return {
-    primary,
+    primary: base,
     secondary,
     accent,
     neutral,
     extracted: {
-      primary,
+      primary: base,
       secondary,
       accent,
       neutral,

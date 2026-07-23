@@ -243,6 +243,10 @@ export function catalogLayoutIdFromRef(ref: LayoutRef): PostLayoutId {
   return "classic-hero";
 }
 
+export function catalogLayoutRef(id: PostLayoutId): LayoutRef {
+  return { source: "catalog", id };
+}
+
 export function defaultProductPageForSlots(slots: FeaturedSlotContent[]): ProductPageId {
   const first = slots.find((s) => s.visible && s.mode === "genui");
   return normalizeProductPage(first?.productPage ?? "leads");

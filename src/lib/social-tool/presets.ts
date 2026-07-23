@@ -147,6 +147,14 @@ export type PostCopy = {
   extraFields: ExtraField[];
 };
 
+/** Headline + subheading pair stored for shuffle cycling. */
+export type CopyVariant = {
+  heading: string;
+  subheading: string;
+};
+
+export const COPY_VARIANT_POOL_SIZE = 8;
+
 export type PatternOption = {
   id: PatternId;
   label: string;

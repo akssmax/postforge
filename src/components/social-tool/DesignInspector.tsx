@@ -55,8 +55,12 @@ type FeaturedPanelProps = {
   visualBlocks: import("@/lib/social-tool/visualBlocks/types").VisualBlockRecord[];
   activeBlockId?: string | null;
   generatingVisualBlocks?: boolean;
+  featuredVisualKind?: "ui" | "illustration";
   brandColors?: { primary?: string; accent?: string };
-  onGenerateVisualBlocks: (source?: "library" | "generate") => void;
+  onGenerateVisualBlocks: (
+    source?: "library" | "generate",
+    options?: { pickFeatured?: boolean; preferredKind?: "ui" | "illustration" },
+  ) => void;
   onSelectVisualBlock: (blockId: string) => void;
   image: import("@/lib/social-tool/featuredBlock").FeaturedImageRecord | null;
   imageSrc: string | null;
@@ -239,6 +243,7 @@ function BlockPanelsOverview(props: Props) {
       visualBlocks={props.featured.visualBlocks}
       activeBlockId={props.featured.activeBlockId}
       generatingVisualBlocks={props.featured.generatingVisualBlocks}
+      featuredVisualKind={props.featured.featuredVisualKind}
       brandColors={props.featured.brandColors}
       onGenerateVisualBlocks={props.featured.onGenerateVisualBlocks}
       onSelectVisualBlock={props.featured.onSelectVisualBlock}
@@ -433,6 +438,7 @@ export function DesignInspector(props: Props) {
           visualBlocks={featured.visualBlocks}
           activeBlockId={featured.activeBlockId}
           generatingVisualBlocks={featured.generatingVisualBlocks}
+          featuredVisualKind={featured.featuredVisualKind}
           brandColors={featured.brandColors}
           onGenerateVisualBlocks={featured.onGenerateVisualBlocks}
           onSelectVisualBlock={featured.onSelectVisualBlock}

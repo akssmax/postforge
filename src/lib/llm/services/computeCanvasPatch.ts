@@ -13,6 +13,7 @@ import type {
 } from "@/lib/llm/schemas/canvasTools";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import type { z } from "zod";
+import type { CopyVariant } from "@/lib/social-tool/presets";
 import {
   catalogLayoutToDynamic,
   copyFromTextSlots,
@@ -70,6 +71,38 @@ export function computeUpdateCopyPatch(
     document: {
       textSlots: nextSlots,
       copy,
+      showContent: true,
+    },
+  };
+}
+
+export function computeRefreshCopyVariantsPatch(
+  snapshot: DesignSnapshot,
+  variants: CopyVariant[],
+  variantIndex = 0,
+): CanvasPatchResult {
+  if (variants.length === 0) {
+    return { success: false, error: "No copy variants generated" };
+  }
+
+  const index = Math.min(Math.max(variantIndex, 0), variants.length - 1);
+  const active = variants[index]!;
+  const layout = catalogLayoutToDynamic(getPostLayout(snapshot.layoutId as PostLayoutId));
+  const copy = {
+    ...snapshot.copy,
+    heading: active.heading,
+    subheading: active.subheading,
+  };
+  const textSlots = textSlotsFromCopy(copy, layout);
+
+  return {
+    success: true,
+    message: "Copy variants refreshed",
+    document: {
+      copy,
+      textSlots,
+      copyVariants: variants,
+      copyVariantIndex: index,
       showContent: true,
     },
   };

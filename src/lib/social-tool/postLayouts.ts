@@ -493,6 +493,15 @@ export function isShuffleableLayout(layout: PostLayout): boolean {
   return layout.textAlign !== "right";
 }
 
+/** Group layouts by visual structure so shuffle can cycle between families. */
+export function getLayoutShuffleFamily(layout: PostLayout): string {
+  if (layout.composition === "split") {
+    if (layout.id === "deck-sidebar") return "split-deck";
+    return `split-${getLayoutTextSide(layout)}`;
+  }
+  return layout.stack;
+}
+
 /** Pick a different layout at random (for the shuffle control) */
 export function getRandomPostLayout(excludeId?: PostLayoutId): PostLayout {
   const pool = POST_LAYOUTS.filter(

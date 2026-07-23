@@ -25,6 +25,18 @@ export const generateVisualBlocksBodySchema = z.object({
   excludeLibraryIds: z.array(z.string()).optional(),
   source: z.enum(["library", "generate"]).optional(),
   libraryIds: z.array(z.string()).optional(),
+  preferredKind: z.enum(["ui", "illustration"]).optional(),
+  intent: z
+    .object({
+      primaryIntent: z.string().optional(),
+      audience: z.string().optional(),
+      goal: z.string().optional(),
+      visualPriority: z.string().optional(),
+      proofStrategy: z.string().optional(),
+      keywords: z.array(z.string()).optional(),
+      themes: z.array(z.string()).optional(),
+    })
+    .optional(),
 });
 
 export const modifyVisualBlockBodySchema = z.object({

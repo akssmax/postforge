@@ -19,6 +19,11 @@ import {
 } from "@/lib/social-tool/postLayouts";
 import { getProductPageFrame } from "@/lib/social-tool/productFrames";
 import { getPlatform, type PlatformId, type PostCopy, type ProductPageId } from "@/lib/social-tool/presets";
+import {
+  computeVisualBlockFitScale,
+  VISUAL_LIBRARY_FRAME,
+  type VisualBlockDimensions,
+} from "@/lib/social-tool/visualBlocks/dimensions";
 
 const TYPE_SCALE_MIN = 0.75;
 const TYPE_SCALE_MAX = 4;
@@ -47,6 +52,7 @@ export type HierarchyInput = {
   showFeaturedImage: boolean;
   featuredMode: FeaturedBlockMode;
   productPage: ProductPageId;
+  visualBlockDimensions?: VisualBlockDimensions;
 };
 
 export type HierarchyResult = {
@@ -248,27 +254,46 @@ function computeFeaturedTransform(
 ): FeaturedImageTransform {
   const base = { ...DEFAULT_FEATURED_TRANSFORM };
 
-  if (!input.showFeaturedImage || input.featuredMode !== "genui") {
+  if (!input.showFeaturedImage || slotWidth <= 0 || slotHeight <= 0) {
     return base;
   }
 
-  if (slotWidth <= 0 || slotHeight <= 0) {
-    return base;
+  if (input.featuredMode === "genui") {
+    const native = getProductPageFrame(input.productPage);
+    let scale = (slotWidth * 0.92) / native.width;
+
+    if (layoutUsesSplit(input.layout)) {
+      scale = Math.min(scale, (slotHeight * 0.95) / native.height);
+    }
+
+    scale = clamp(scale, FEATURED_SCALE_MIN, FEATURED_SCALE_MAX);
+
+    return {
+      ...base,
+      scale: roundScale(scale),
+    };
   }
 
-  const native = getProductPageFrame(input.productPage);
-  let scale = (slotWidth * 0.92) / native.width;
+  if (input.featuredMode === "composed") {
+    const native = input.visualBlockDimensions ?? VISUAL_LIBRARY_FRAME;
+    const scale = clamp(
+      computeVisualBlockFitScale(
+        slotWidth,
+        slotHeight,
+        native.width,
+        native.height,
+      ),
+      FEATURED_SCALE_MIN,
+      FEATURED_SCALE_MAX,
+    );
 
-  if (layoutUsesSplit(input.layout)) {
-    scale = Math.min(scale, (slotHeight * 0.95) / native.height);
+    return {
+      ...base,
+      scale: roundScale(scale),
+    };
   }
 
-  scale = clamp(scale, FEATURED_SCALE_MIN, FEATURED_SCALE_MAX);
-
-  return {
-    ...base,
-    scale: roundScale(scale),
-  };
+  return base;
 }
 
 function stackedCopyFits(
@@ -342,13 +367,18 @@ export function resolveLayoutHierarchyFromIds(opts: {
   featuredMode: FeaturedBlockMode;
   productPage: ProductPageId;
   hasUploadedFeaturedImage?: boolean;
+  visualBlockDimensions?: VisualBlockDimensions;
 }): HierarchyResult {
   const platform = getPlatform(opts.platformId);
   const layout = getPostLayout(opts.layoutId);
   const featuredMode =
     opts.featuredMode === "image" && opts.hasUploadedFeaturedImage
       ? "image"
-      : "genui";
+      : opts.featuredMode === "composed"
+        ? "composed"
+        : opts.featuredMode === "placeholder"
+          ? "placeholder"
+          : "genui";
   return resolveLayoutHierarchy({
     width: platform.width,
     height: platform.height,
@@ -360,5 +390,6 @@ export function resolveLayoutHierarchyFromIds(opts: {
     showFeaturedImage: opts.showFeaturedImage,
     featuredMode,
     productPage: opts.productPage,
+    visualBlockDimensions: opts.visualBlockDimensions,
   });
 }

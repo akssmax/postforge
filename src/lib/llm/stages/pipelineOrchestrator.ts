@@ -10,6 +10,12 @@ import { analyzeIntent } from "@/lib/llm/stages/intentAnalyzer";
 import { rankLayout } from "@/lib/llm/stages/layoutRanker";
 import { writeSlotsWithRetries } from "@/lib/llm/stages/slotWriter";
 import { writeSlotsOffline } from "@/lib/llm/stages/slotWriterOffline";
+import {
+  buildCopyVariantPool,
+  primaryCopyFromTextSlots,
+  writeCopyVariants,
+  writeCopyVariantsOffline,
+} from "@/lib/llm/stages/copyVariantWriter";
 import type {
   DesignVariant,
   PipelineResult,
@@ -159,6 +165,27 @@ async function runPipelineAttempt(input: {
         themeAngle: input.themeAngle,
       });
 
+  const primaryCopy = primaryCopyFromTextSlots(slotResult.draft.textSlots);
+  const alternativeVariants = input.offline
+    ? writeCopyVariantsOffline({
+        userMessage: input.userMessage,
+        rulesProfile: input.rulesProfile,
+      })
+    : await writeCopyVariants({
+        intent: input.intent,
+        userMessage: input.userMessage,
+        platformId: input.platformId,
+        brandSummary: input.brandSummary,
+        rulesProfile: input.rulesProfile,
+        themeAngle: input.themeAngle,
+        excludePrimary: primaryCopy,
+      });
+  const copyVariants = buildCopyVariantPool(
+    primaryCopy,
+    alternativeVariants,
+    input.rulesProfile,
+  );
+
   const planInput = assembleDesignPlan({
     intent: input.intent,
     layout,
@@ -169,6 +196,8 @@ async function runPipelineAttempt(input: {
     brief: input.userMessage,
     rulesProfile: input.rulesProfile,
     theme: input.themeAngle,
+    copyVariants,
+    copyVariantIndex: 0,
   });
 
   const validated = validateDesignPlan(planInput, input.platformId, input.rulesProfile);

@@ -9,6 +9,8 @@ import { createMistralModel } from "@/lib/llm/mistral";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 import { resolveDesignRulesForBrief, rulesProfilePrompt, detectFormatFromBrief } from "@/lib/llm/rules";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
+import type { DesignRulesProfile } from "@/lib/llm/rules/types";
+import type { PlatformId } from "@/lib/social-tool/presets";
 import {
   generateVisualBlockToolSchema,
   modifyVisualBlockToolSchema,
@@ -17,6 +19,7 @@ import {
   updateBrandToolSchema,
   updateCopyToolSchema,
   updateFeaturedToolSchema,
+  refreshCopyVariantsToolSchema,
   updateLayoutToolSchema,
   updatePatternToolSchema,
   updateSpacingToolSchema,
@@ -24,7 +27,16 @@ import {
   updateVisibilityToolSchema,
 } from "@/lib/llm/schemas/canvasTools";
 import { composeVisualBlocks, modifyVisualBlock as modifyVisualBlockComposer } from "@/lib/llm/stages/genuiComposer";
-import { composeVisualBlocksFromLibrary, libraryPatternSummaryForPrompt } from "@/lib/social-tool/visualBlocks/library";
+import {
+  buildCopyVariantPool,
+  writeCopyVariants,
+} from "@/lib/llm/stages/copyVariantWriter";
+import {
+  composeVisualBlocksFromLibrary,
+  libraryPatternSummaryForPrompt,
+} from "@/lib/social-tool/visualBlocks/library";
+import { buildVisualPickIntentFromText } from "@/lib/social-tool/visualBlocks/library/scoring";
+import { inferFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import { findVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
 import {
   computeGeneratedVisualBlocksPatch,
@@ -33,6 +45,7 @@ import {
   computeUpdateBackgroundPatch,
   computeUpdateBrandPatch,
   computeUpdateCopyPatch,
+  computeRefreshCopyVariantsPatch,
   computeUpdateFeaturedPatch,
   computeUpdateLayoutPatch,
   computeUpdatePatternPatch,
@@ -64,13 +77,64 @@ function buildSnapshotPrompt(snapshot: DesignSnapshot): string {
     .join("\n");
 }
 
-function buildCanvasTools(snapshot: DesignSnapshot) {
+function buildCanvasTools(
+  snapshot: DesignSnapshot,
+  rulesProfile: DesignRulesProfile,
+  followUpMessage: string,
+) {
   return {
     updateCopy: tool({
       description:
         "Update text in one or more copy slots (headline, subheading, CTA/extras). Provide full new text per slot.",
       inputSchema: updateCopyToolSchema,
       execute: async (input) => computeUpdateCopyPatch(snapshot, input),
+    }),
+    refreshCopyVariants: tool({
+      description:
+        "Regenerate 7-8 brief-specific headline/subheading options and apply the best one. Prefer this when the user asks to rewrite, refresh, or change copy direction.",
+      inputSchema: refreshCopyVariantsToolSchema,
+      execute: async (input) => {
+        const instruction = input.instruction?.trim() || followUpMessage.trim();
+        const briefContext = [
+          snapshot.copy.heading,
+          snapshot.copy.subheading,
+          instruction,
+        ]
+          .filter(Boolean)
+          .join(". ");
+        const generated = await writeCopyVariants({
+          intent: {
+            campaignType: "announcement",
+            platform: snapshot.platformId,
+            format: "post",
+            primaryIntent: "copy_refresh",
+            audience: "general",
+            goal: "awareness",
+            tone: "enterprise",
+            contentDensity: "low",
+            visualPriority: "balanced",
+            proofStrategy: "none",
+            featuredVisualKind: inferFeaturedVisualKind(briefContext),
+            ctaRequired: false,
+            keywords: [],
+            themes: [],
+          },
+          userMessage: briefContext,
+          platformId: snapshot.platformId as PlatformId,
+          rulesProfile,
+          brandSummary: {
+            primary: snapshot.brand.primary,
+            accent: snapshot.brand.accent,
+          },
+          instruction: instruction || undefined,
+        });
+        const primary = generated[0] ?? {
+          heading: snapshot.copy.heading,
+          subheading: snapshot.copy.subheading,
+        };
+        const variants = buildCopyVariantPool(primary, generated.slice(1), rulesProfile);
+        return computeRefreshCopyVariantsPatch(snapshot, variants, 0);
+      },
     }),
     updateBackground: tool({
       description:
@@ -104,6 +168,13 @@ function buildCanvasTools(snapshot: DesignSnapshot) {
             accent: snapshot.brand.accent,
           },
           count: input.count ?? 3,
+          intent: buildVisualPickIntentFromText(
+            snapshot.copy.heading,
+            snapshot.copy.subheading,
+            input.theme,
+            input.brief,
+            followUpMessage,
+          ),
         };
         const blocks =
           source === "library"
@@ -183,7 +254,6 @@ export async function handleCanvasAgentRequest(input: {
   snapshot: DesignSnapshot;
 }) {
   const model = createMistralModel();
-  const tools = buildCanvasTools(input.snapshot);
   const userMessage =
     input.messages
       .slice()
@@ -209,12 +279,15 @@ export async function handleCanvasAgentRequest(input: {
       contentDensity: "low",
       visualPriority: "balanced",
       proofStrategy: "none",
+      featuredVisualKind: inferFeaturedVisualKind(userMessage),
       ctaRequired: false,
       keywords: [],
       themes: [],
     },
     userMessage,
   );
+
+  const tools = buildCanvasTools(input.snapshot, rulesProfile, userMessage);
 
   const result = streamText({
     model,
@@ -230,10 +303,11 @@ export async function handleCanvasAgentRequest(input: {
       libraryPatternSummaryForPrompt(),
       "Use modifyVisualBlock to refine the active block.",
       "Use selectVisualBlock to swap blocks from the library.",
-      "Use updateCopy only when the user asks to change headline/subheading/CTA.",
+      "Use refreshCopyVariants when the user asks to rewrite, refresh, or change headline/subheading direction.",
+      "Use updateCopy only for precise edits to specific slot text.",
       rulesProfilePrompt(rulesProfile),
       rulesProfile.featuredPolicy === "library"
-        ? 'For "add visual" requests, prefer generateVisualBlock with source=library — pick UI blocks or illustrations matched to copy. Use source=generate only when the user explicitly wants custom AI SVG.'
+        ? 'For "add visual" requests, prefer generateVisualBlock with source=library — pick UI blocks or illustrations whose tags match brief intent (keywords, goal, proofStrategy). Use libraryIds when you know the best-matched asset id. Use source=generate only when the user explicitly wants custom AI SVG.'
         : rulesProfile.featuredPolicy === "placeholder"
           ? 'For "add visual" requests on ads, use updateFeatured with mode placeholder — not product UI pages.'
           : "",

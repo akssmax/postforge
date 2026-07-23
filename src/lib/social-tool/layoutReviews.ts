@@ -7,6 +7,7 @@ import {
 } from "@/lib/social-tool/layoutSpacing";
 import {
   getPostLayout,
+  getLayoutShuffleFamily,
   isShuffleableLayout,
   POST_LAYOUTS,
   type PostLayout,
@@ -324,11 +325,31 @@ export function getApprovedShuffleLayouts(
 ): PostLayout[] {
   return POST_LAYOUTS.filter((layout) => {
     if (!isShuffleableLayout(layout)) return false;
+    if (!layoutMatchesPlatform(layout, platformId)) return false;
     return (
       getLayoutDecision(getLayoutReviewEntry(record, platformId, layout.id)) ===
       "approved"
     );
   });
+}
+
+function buildShuffleLayoutPool(
+  record: LayoutReviewRecord,
+  platformId: PlatformId,
+  excludeId?: PostLayoutId,
+): PostLayout[] {
+  const approved = getApprovedShuffleLayouts(record, platformId).filter(
+    (layout) => layout.id !== excludeId,
+  );
+  if (approved.length > 0) return approved;
+
+  return POST_LAYOUTS.filter(
+    (layout) =>
+      isShuffleableLayout(layout) &&
+      layout.id !== excludeId &&
+      getLayoutDecision(getLayoutReviewEntry(record, platformId, layout.id)) ===
+        "approved",
+  );
 }
 
 export function isLayoutApprovedForPlatform(
@@ -347,9 +368,18 @@ export function getRandomPlaygroundLayout(
   excludeId?: PostLayoutId,
   record: LayoutReviewRecord = getCommittedLayoutReviews(),
 ): PostLayout {
-  const pool = getApprovedShuffleLayouts(record, platformId).filter(
-    (layout) => layout.id !== excludeId,
-  );
+  const current = excludeId ? getPostLayout(excludeId) : undefined;
+  const currentFamily = current ? getLayoutShuffleFamily(current) : undefined;
+  let pool = buildShuffleLayoutPool(record, platformId, excludeId);
+
+  if (currentFamily && pool.length > 1) {
+    const alternateFamilies = pool.filter(
+      (layout) => getLayoutShuffleFamily(layout) !== currentFamily,
+    );
+    if (alternateFamilies.length > 0) {
+      pool = alternateFamilies;
+    }
+  }
 
   return (
     pool[Math.floor(Math.random() * pool.length)] ??

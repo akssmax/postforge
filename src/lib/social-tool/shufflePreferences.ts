@@ -1,4 +1,5 @@
 export type ShufflePreferences = {
+  layout: boolean;
   background: boolean;
   pattern: boolean;
   content: boolean;
@@ -6,6 +7,7 @@ export type ShufflePreferences = {
 };
 
 export const DEFAULT_SHUFFLE_PREFERENCES: ShufflePreferences = {
+  layout: true,
   background: true,
   pattern: true,
   content: true,
@@ -21,6 +23,7 @@ export function loadShufflePreferences(): ShufflePreferences {
     if (!raw) return DEFAULT_SHUFFLE_PREFERENCES;
     const parsed = JSON.parse(raw) as Partial<ShufflePreferences>;
     return {
+      layout: parsed.layout ?? DEFAULT_SHUFFLE_PREFERENCES.layout,
       background: parsed.background ?? DEFAULT_SHUFFLE_PREFERENCES.background,
       pattern: parsed.pattern ?? DEFAULT_SHUFFLE_PREFERENCES.pattern,
       content: parsed.content ?? DEFAULT_SHUFFLE_PREFERENCES.content,
@@ -39,6 +42,7 @@ export function saveShufflePreferences(prefs: ShufflePreferences): void {
 
 export function isShuffleAllEnabled(prefs: ShufflePreferences): boolean {
   return (
+    prefs.layout &&
     prefs.background &&
     prefs.pattern &&
     prefs.content &&
@@ -48,6 +52,7 @@ export function isShuffleAllEnabled(prefs: ShufflePreferences): boolean {
 
 export function withShuffleAll(enabled: boolean): ShufflePreferences {
   return {
+    layout: enabled,
     background: enabled,
     pattern: enabled,
     content: enabled,

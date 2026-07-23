@@ -6,10 +6,13 @@ import type { VisualTemplateContext } from "../templateContext";
 
 const DEFAULT_RECOLOR = ["#6c63ff", "#6C63FF", "#6366F1", "#6366f1"];
 
-function recolorSvg(svg: string, accent: string, extra?: string[]): string {
+/** Storyset Rafiki style default editable accent (all bundled Storyset SVGs use this). */
+const STORYSET_PRIMARY_ACCENTS = ["#407BFF", "#407bff"];
+
+function recolorSvg(svg: string, brandPrimary: string, extra?: string[]): string {
   let out = svg;
   for (const hex of [...(extra ?? []), ...DEFAULT_RECOLOR]) {
-    out = out.replaceAll(hex, accent);
+    out = out.replaceAll(hex, brandPrimary);
   }
   return out;
 }
@@ -31,8 +34,11 @@ export function resolveIllustrationSvg(
   if (!fs.existsSync(publicPath)) return null;
 
   let svg = fs.readFileSync(publicPath, "utf8");
-  if (entry.recolorAccents?.length) {
-    svg = recolorSvg(svg, ctx.accent, entry.recolorAccents);
+
+  if (entry.source === "storyset") {
+    svg = recolorSvg(svg, ctx.primary, STORYSET_PRIMARY_ACCENTS);
+  } else if (entry.recolorAccents?.length) {
+    svg = recolorSvg(svg, ctx.primary, entry.recolorAccents);
   }
 
   return sanitizeSvgMarkupServer(normalizeIllustrationSvg(svg));
@@ -40,8 +46,8 @@ export function resolveIllustrationSvg(
 
 export function recolorIllustrationForPreview(
   svg: string,
-  accent: string,
+  primary: string,
   extra?: string[],
 ): string {
-  return recolorSvg(svg, accent, extra);
+  return recolorSvg(svg, primary, extra);
 }

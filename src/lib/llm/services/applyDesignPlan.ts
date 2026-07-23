@@ -44,6 +44,8 @@ export function applyDesignPlanToSession(
       transform: slot.transform ?? primaryTransform,
     })),
     copy: plan.copy,
+    copyVariants: plan.copyVariants,
+    copyVariantIndex: plan.copyVariantIndex ?? 0,
     logoPlacement: plan.logoPlacement,
     logoAlign: plan.logoAlign,
     textAlign: plan.textAlign,

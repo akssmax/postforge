@@ -14,6 +14,12 @@ import {
   type VisualLibraryPattern,
 } from "./catalog";
 import { resolveIllustrationSvg } from "./illustrations/resolver";
+import { ILLUSTRATION_LIBRARY } from "./illustrations/manifest";
+import {
+  rankVisualPatterns,
+  resolvePreferredVisualKind,
+  scoreVisualPattern,
+} from "./scoring";
 import type { VisualTemplateContext } from "./templateContext";
 
 export { VISUAL_LIBRARY, VISUAL_LIBRARY_BY_ID, isAssetPattern, isParametricPattern, type VisualLibraryPattern } from "./catalog";
@@ -32,24 +38,6 @@ function buildTemplateContext(input: VisualBlockGenerateInput): VisualTemplateCo
     theme: input.theme ?? input.brief ?? input.headline ?? "Product value",
     subheading: input.subheading,
   };
-}
-
-function scorePattern(pattern: VisualLibraryPattern, input: VisualBlockGenerateInput): number {
-  const haystack = [input.headline, input.subheading, input.theme, input.brief]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  const tokens = haystack.split(/\W+/).filter((token) => token.length > 2);
-
-  let score = 0;
-  for (const tag of pattern.tags) {
-    const normalized = tag.toLowerCase();
-    if (haystack.includes(normalized)) score += 4;
-    for (const token of tokens) {
-      if (normalized.includes(token) || token.includes(normalized)) score += 1;
-    }
-  }
-  return score;
 }
 
 function pickWithKindDiversity(
@@ -100,10 +88,15 @@ export function pickShuffleFeaturedVisual(
   options?: { randomize?: boolean },
 ): VisualBlockRecord | null {
   const excluded = new Set(excludeLibraryIds.filter(Boolean));
+  const preferredKind = resolvePreferredVisualKind(input);
   let candidates = VISUAL_LIBRARY.filter(
     (pattern) =>
       FEATURED_SLOT_KINDS.includes(pattern.kind) && !excluded.has(pattern.id),
   );
+  if (preferredKind) {
+    const kindMatches = candidates.filter((pattern) => pattern.kind === preferredKind);
+    if (kindMatches.length > 0) candidates = kindMatches;
+  }
   if (candidates.length === 0) {
     candidates = VISUAL_LIBRARY.filter((pattern) =>
       FEATURED_SLOT_KINDS.includes(pattern.kind),
@@ -111,13 +104,14 @@ export function pickShuffleFeaturedVisual(
   }
   if (candidates.length === 0) return null;
 
-  const ranked = [...candidates].sort(
-    (a, b) => scorePattern(b, input) - scorePattern(a, input),
-  );
+  const ranked = rankVisualPatterns(candidates, input);
+  const topScore = ranked[0] ? scoreVisualPattern(ranked[0], input) : 0;
+  const poolSize =
+    topScore > 0 ? Math.min(12, ranked.length) : Math.min(5, ranked.length);
   const pattern =
     options?.randomize === false
       ? ranked[0]!
-      : ranked[Math.floor(Math.random() * Math.min(5, ranked.length))]!;
+      : ranked[Math.floor(Math.random() * poolSize)]!;
   return instantiateLibraryPattern(pattern, input);
 }
 
@@ -126,9 +120,7 @@ export function pickFromLibrary(
   count = 3,
 ): VisualLibraryPattern[] {
   const limit = Math.min(3, Math.max(1, count));
-  const ranked = [...VISUAL_LIBRARY].sort(
-    (a, b) => scorePattern(b, input) - scorePattern(a, input),
-  );
+  const ranked = rankVisualPatterns(VISUAL_LIBRARY, input);
   return pickWithKindDiversity(ranked, limit);
 }
 
@@ -186,15 +178,28 @@ export function composeVisualBlocksFromLibrary(
     .filter((block): block is VisualBlockRecord => block !== null);
 }
 
-export function libraryPatternSummaryForPrompt(limit = 50): string {
-  return VISUAL_LIBRARY.slice(0, limit)
-    .map((pattern) => {
-      const source = isAssetPattern(pattern)
-        ? `source: ${pattern.source}`
-        : isUiReactPattern(pattern.id)
-          ? "HeroUI react template — edit content fields only"
-          : "parametric svg template";
-      return `- ${pattern.id}: ${pattern.label} (${pattern.kind}, ${source}) — ${pattern.description}; tags: ${pattern.tags.join(", ")}`;
-    })
-    .join("\n");
+export function libraryPatternSummaryForPrompt(limit = 40): string {
+  const parametric = VISUAL_LIBRARY.filter((pattern) => isParametricPattern(pattern));
+  const parametricLines = parametric.slice(0, limit).map((pattern) => {
+    const source = isUiReactPattern(pattern.id)
+      ? "HeroUI react template — edit content fields only"
+      : "parametric svg template";
+    return `- ${pattern.id}: ${pattern.label} (${pattern.kind}, ${source}) — ${pattern.description}; tags: ${pattern.tags.join(", ")}`;
+  });
+
+  const illustrationCount = ILLUSTRATION_LIBRARY.length;
+  const storysetCount = ILLUSTRATION_LIBRARY.filter((e) => e.source === "storyset").length;
+
+  return [
+    "Parametric UI + diagram patterns (instant, brand-themed):",
+    parametricLines.join("\n"),
+    "",
+    `Illustration library: ${illustrationCount} bundled SVGs (${storysetCount} Storyset, plus unDraw + Open Doodles).`,
+    "Do NOT enumerate all illustrations — pick by libraryId using tag/intent overlap with the brief.",
+    "Use intent.featuredVisualKind: ui → HeroUI stat/pricing/comparison cards; illustration → storyset/undraw/open-doodles scenes.",
+    "Match brief keywords to illustration tags (examples: sync/integration→storyset-sync, team→collaboration tags, growth/sales→revenue tags, chat→support tags).",
+    "Prefer storyset-* for narrative/brand visuals, undraw-* for SaaS/tech scenes, open-doodles for playful tone.",
+    "Use proofStrategy: product_ui → UI patterns; stats → diagrams; social_proof/awareness → illustrations.",
+    "Pass libraryIds with the best tag match when you know the exact asset id.",
+  ].join("\n");
 }

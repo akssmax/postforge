@@ -1,10 +1,7 @@
 import { seedCopyForLayout, type PostLayout } from "@/lib/social-tool/postLayouts";
-import type { PostCopy } from "@/lib/social-tool/presets";
+import type { CopyVariant, PostCopy } from "@/lib/social-tool/presets";
 
-const SHUFFLE_COPY_VARIANTS: ReadonlyArray<{
-  heading: string;
-  subheading: string;
-}> = [
+const FALLBACK_COPY_VARIANTS: ReadonlyArray<CopyVariant> = [
   {
     heading: "Your CRM Just Got Smarter",
     subheading: "Capture every interaction, automate every update.",
@@ -37,40 +34,47 @@ const SHUFFLE_COPY_VARIANTS: ReadonlyArray<{
     heading: "The Modern Stack for GTM Teams",
     subheading: "From first touch to closed-won — aligned in one place.",
   },
-  {
-    heading: "Launch Week Starts Now",
-    subheading: "Announce the update your customers have been waiting for.",
-  },
-  {
-    heading: "Design Once. Publish Everywhere.",
-    subheading: "Square, landscape, and story formats from one source of truth.",
-  },
 ];
 
-function pickRandom<T>(pool: T[], exclude?: T | null): T {
-  const filtered =
-    exclude != null ? pool.filter((item) => item !== exclude) : pool;
-  const source = filtered.length > 0 ? filtered : pool;
-  return source[Math.floor(Math.random() * source.length)]!;
+function applyVariantToCopy(
+  current: PostCopy,
+  variant: CopyVariant,
+  layout: PostLayout,
+): PostCopy {
+  return seedCopyForLayout(
+    {
+      ...current,
+      heading: variant.heading,
+      subheading: variant.subheading,
+    },
+    layout,
+  );
 }
 
+/** Cycle through brief-generated copy variants; falls back to static pool when empty. */
+export function pickNextCopyVariant(
+  current: PostCopy,
+  layout: PostLayout,
+  variants: CopyVariant[] | undefined,
+  currentIndex: number | undefined,
+): { copy: PostCopy; nextIndex: number; pool: CopyVariant[] } {
+  const pool =
+    variants && variants.length > 0 ? variants : [...FALLBACK_COPY_VARIANTS];
+  const index = typeof currentIndex === "number" ? currentIndex : 0;
+  const nextIndex = (index + 1) % pool.length;
+  const variant = pool[nextIndex] ?? pool[0]!;
+
+  return {
+    copy: applyVariantToCopy(current, variant, layout),
+    nextIndex,
+    pool,
+  };
+}
+
+/** @deprecated Use pickNextCopyVariant with session copyVariants. */
 export function pickRandomShuffleCopy(
   current: PostCopy,
   layout: PostLayout,
 ): PostCopy {
-  const candidates = SHUFFLE_COPY_VARIANTS.filter(
-    (variant) => variant.heading !== current.heading,
-  );
-  const picked = pickRandom(
-    candidates.length > 0 ? [...candidates] : [...SHUFFLE_COPY_VARIANTS],
-  );
-
-  return seedCopyForLayout(
-    {
-      ...current,
-      heading: picked.heading,
-      subheading: picked.subheading,
-    },
-    layout,
-  );
+  return pickNextCopyVariant(current, layout, undefined, undefined).copy;
 }

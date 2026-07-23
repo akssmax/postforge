@@ -1,4 +1,7 @@
-import { buildBrandColorsFromPrimary } from "@/lib/brand/colorHarmony";
+import {
+  buildBrandColorsFromPalette,
+  type ExtractedColorWeight,
+} from "@/lib/brand/colorHarmony";
 import type { BrandColors } from "@/lib/brand/types";
 import {
   colorDistance,
@@ -51,6 +54,29 @@ function pickPrimary(counts: Map<string, number>): string {
   return best;
 }
 
+function countsToPalette(counts: Map<string, number>): ExtractedColorWeight[] {
+  return [...counts.entries()].map(([hex, weight]) => ({ hex, weight }));
+}
+
+function mergeSimilarColors(counts: Map<string, number>): Map<string, number> {
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const merged = new Map<string, number>();
+
+  for (const [hex, weight] of sorted) {
+    let placed = false;
+    for (const key of merged.keys()) {
+      if (colorDistance(key, hex) < 36) {
+        merged.set(key, (merged.get(key) ?? 0) + weight);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) merged.set(hex, weight);
+  }
+
+  return merged;
+}
+
 export function extractColorsFromSvgMarkup(markup: string): BrandColors {
   const counts = new Map<string, number>();
   const fillStroke =
@@ -69,8 +95,9 @@ export function extractColorsFromSvgMarkup(markup: string): BrandColors {
     if (hex) counts.set(hex, (counts.get(hex) ?? 0) + 1);
   }
 
-  const primary = pickPrimary(counts);
-  return buildBrandColorsFromPrimary(primary);
+  const merged = mergeSimilarColors(counts);
+  const primary = pickPrimary(merged);
+  return buildBrandColorsFromPalette(primary, countsToPalette(merged));
 }
 
 function samplePixel(data: Uint8ClampedArray, i: number): Rgb {
@@ -114,21 +141,7 @@ export async function extractColorsFromImageBlob(blob: Blob): Promise<BrandColor
     counts.set(hex, (counts.get(hex) ?? 0) + 1);
   }
 
-  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  const primary = sorted[0]?.[0] ?? DEFAULT_BRAND_COLORS.primary;
-
-  const merged = new Map<string, number>();
-  for (const [hex, weight] of sorted) {
-    let placed = false;
-    for (const key of merged.keys()) {
-      if (colorDistance(key, hex) < 36) {
-        merged.set(key, (merged.get(key) ?? 0) + weight);
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) merged.set(hex, weight);
-  }
-
-  return buildBrandColorsFromPrimary(pickPrimary(merged));
+  const merged = mergeSimilarColors(counts);
+  const primary = pickPrimary(merged);
+  return buildBrandColorsFromPalette(primary, countsToPalette(merged));
 }

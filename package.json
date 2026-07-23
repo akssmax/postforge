@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "fetch:storyset": "node scripts/fetch-storyset-illustrations.mjs"
   },
   "dependencies": {
     "@ai-sdk/mistral": "^4.0.14",

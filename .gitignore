@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Storyset illustrations — fetched locally via `npm run fetch:storyset`
+/public/visuals/illustrations/storyset/

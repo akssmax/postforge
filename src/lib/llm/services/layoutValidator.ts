@@ -163,6 +163,8 @@ export function validateDesignPlan(
       patternOpacity: input.patternOpacity ?? (input.showPattern ? 0.28 : 0.28),
       patternScale: input.patternScale ?? 1,
       patternAnimated: input.patternAnimated ?? false,
+      copyVariants: input.copyVariants,
+      copyVariantIndex: input.copyVariantIndex ?? 0,
     },
   };
 }

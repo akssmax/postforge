@@ -22,6 +22,10 @@ import { resolveLayoutHierarchy } from "@/lib/social-tool/layoutHierarchy";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { getPlatform } from "@/lib/social-tool/presets";
 import {
+  resolveVisualBlockDimensions,
+  VISUAL_LIBRARY_FRAME,
+} from "@/lib/social-tool/visualBlocks/dimensions";
+import {
   getLogoRecord,
   kitHasAnyLogo,
   setLogoInKit,
@@ -75,13 +79,52 @@ import { applyCanvasPatchToSession, repairDesignDocument } from "@/lib/llm/servi
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
+import { buildVisualPickIntentFromText } from "@/lib/social-tool/visualBlocks/library/scoring";
+import { inferFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import {
   activeVisualBlock,
   appendVisualBlocks,
+  findVisualBlock,
   upsertVisualBlock,
 } from "@/lib/social-tool/visualBlocks/storage";
 
 const PERSIST_DEBOUNCE_MS = 300;
+
+function visualBlockPickPayload(
+  session: DesignSessionPersisted,
+  input?: {
+    headline?: string;
+    subheading?: string;
+    theme?: string;
+    brief?: string;
+    preferredKind?: "ui" | "illustration";
+  },
+) {
+  const headline = input?.headline ?? session.document.copy.heading;
+  const subheading = input?.subheading ?? session.document.copy.subheading;
+  const theme = input?.theme ?? headline;
+  const brief = input?.brief ?? [headline, subheading, theme].filter(Boolean).join(" ");
+  const featuredVisualKind =
+    input?.preferredKind ??
+    session.document.featuredVisualKind ??
+    inferFeaturedVisualKind(brief);
+
+  return {
+    headline,
+    subheading,
+    theme,
+    brief,
+    brandColors: {
+      primary: session.brand.colors.primary,
+      accent: session.brand.colors.accent,
+    },
+    preferredKind: featuredVisualKind,
+    intent: {
+      ...buildVisualPickIntentFromText(headline, subheading, theme, brief),
+      featuredVisualKind,
+    },
+  };
+}
 
 export type UseDesignSessionResult = {
   ready: boolean;
@@ -124,6 +167,8 @@ export type UseDesignSessionResult = {
     brief?: string;
     source?: "library" | "generate";
     libraryIds?: string[];
+    pickFeatured?: boolean;
+    preferredKind?: "ui" | "illustration";
   }) => Promise<void>;
   selectVisualBlock: (blockId: string) => void;
   modifyVisualBlock: (blockId: string, instruction: string) => Promise<void>;
@@ -552,35 +597,70 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
     [updateSession],
   );
 
-  const syncComposedFeaturedSlots = useCallback(
-    (prev: DesignSessionPersisted, activeBlockId: string | null) => ({
-      ...prev,
-      featured: {
-        ...prev.featured,
-        mode: "composed" as const,
-        activeBlockId,
-      },
-      document: {
-        ...prev.document,
-        showFeaturedImage: true,
-        featuredSlots: [
-          {
-            slotId: "featured-primary",
-            mode: "composed" as const,
-            visible: true,
-            transform: prev.document.featuredTransform,
-          },
-        ],
-      },
-      updatedAt: Date.now(),
-    }),
+  const composedFeaturedTransform = useCallback(
+    (prev: DesignSessionPersisted, activeBlockId: string | null) => {
+      const block = activeBlockId
+        ? findVisualBlock(prev.featured.visualBlocks ?? [], activeBlockId)
+        : null;
+      const platform = getPlatform(prev.document.platformId);
+      const layout = getPostLayout(prev.document.layoutId);
+
+      return resolveLayoutHierarchy({
+        width: platform.width,
+        height: platform.height,
+        platformId: prev.document.platformId,
+        layout,
+        copy: prev.document.copy,
+        spacing: prev.document.layoutSpacing,
+        showLogo: prev.document.showBrand,
+        showFeaturedImage: prev.document.showFeaturedImage,
+        featuredMode: "composed",
+        productPage: prev.featured.productPage,
+        visualBlockDimensions: block
+          ? resolveVisualBlockDimensions(block)
+          : VISUAL_LIBRARY_FRAME,
+      }).featuredTransform;
+    },
     [],
+  );
+
+  const syncComposedFeaturedSlots = useCallback(
+    (prev: DesignSessionPersisted, activeBlockId: string | null) => {
+      const featuredTransform = composedFeaturedTransform(prev, activeBlockId);
+
+      return {
+        ...prev,
+        featured: {
+          ...prev.featured,
+          mode: "composed" as const,
+          activeBlockId,
+        },
+        document: {
+          ...prev.document,
+          showFeaturedImage: true,
+          featuredTransform,
+          featuredSlots: [
+            {
+              slotId: "featured-primary",
+              mode: "composed" as const,
+              visible: true,
+              transform: featuredTransform,
+            },
+          ],
+        },
+        updatedAt: Date.now(),
+      };
+    },
+    [composedFeaturedTransform],
   );
 
   const applyDesignPlan = useCallback(
     (plan: ValidatedDesignPlan) => {
       const needsFeaturedLibrary = plan.featuredSlots.some(
         (slot) => slot.visible && slot.mode === "composed",
+      );
+      const featuredVisualKind = inferFeaturedVisualKind(
+        [plan.copy.heading, plan.copy.subheading, plan.rationale].filter(Boolean).join(" "),
       );
 
       updateSession((prev) => {
@@ -599,6 +679,7 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
           document: {
             ...prev.document,
             ...applied.document,
+            featuredVisualKind,
           },
           updatedAt: Date.now(),
         };
@@ -607,24 +688,23 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       if (!needsFeaturedLibrary) return;
 
       void (async () => {
+        if (!session) return;
         setGeneratingVisualBlocks(true);
         setFeaturedError(null);
         try {
-          const brandColors = session
-            ? {
-                primary: session.brand.colors.primary,
-                accent: session.brand.colors.accent,
-              }
-            : undefined;
           const response = await fetch("/api/visual-blocks/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              headline: plan.copy.heading,
-              subheading: plan.copy.subheading,
-              theme: plan.rationale,
-              brief: plan.copy.heading,
-              brandColors,
+              ...visualBlockPickPayload(session, {
+                headline: plan.copy.heading,
+                subheading: plan.copy.subheading,
+                theme: plan.rationale,
+                brief: [plan.copy.heading, plan.copy.subheading, plan.rationale]
+                  .filter(Boolean)
+                  .join(" "),
+                preferredKind: featuredVisualKind,
+              }),
               pickFeatured: true,
               source: "library",
             }),
@@ -797,25 +877,25 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       brief?: string;
       source?: "library" | "generate";
       libraryIds?: string[];
+      pickFeatured?: boolean;
+      preferredKind?: "ui" | "illustration";
     }) => {
       if (!session) return;
       setGeneratingVisualBlocks(true);
       setFeaturedError(null);
       try {
-        const doc = session.document;
+        const pickFeatured = input?.pickFeatured ?? false;
         const response = await fetch("/api/visual-blocks/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            headline: doc.copy.heading,
-            subheading: doc.copy.subheading,
-            theme: input?.theme,
-            brief: input?.brief,
-            brandColors: {
-              primary: session.brand.colors.primary,
-              accent: session.brand.colors.accent,
-            },
-            count: 3,
+            ...visualBlockPickPayload(session, {
+              theme: input?.theme,
+              brief: input?.brief,
+              preferredKind: input?.preferredKind,
+            }),
+            count: pickFeatured ? 1 : 3,
+            pickFeatured,
             source: input?.source ?? "library",
             libraryIds: input?.libraryIds,
           }),
@@ -825,6 +905,28 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
           throw new Error(payload.error ?? "Generation failed");
         }
         const payload = (await response.json()) as { blocks: VisualBlockRecord[] };
+
+        if (pickFeatured) {
+          const block = payload.blocks[0];
+          if (!block) {
+            setFeaturedError("No matching visual found in the library.");
+            return;
+          }
+          updateSession((prev) =>
+            syncComposedFeaturedSlots(
+              {
+                ...prev,
+                featured: {
+                  ...prev.featured,
+                  visualBlocks: [block],
+                },
+              },
+              block.id,
+            ),
+          );
+          return;
+        }
+
         updateSession((prev) => {
           const visualBlocks = appendVisualBlocks(
             prev.featured.visualBlocks ?? [],
@@ -940,14 +1042,12 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            headline,
-            subheading,
-            theme: headline,
-            brief: headline,
-            brandColors: {
-              primary: session.brand.colors.primary,
-              accent: session.brand.colors.accent,
-            },
+            ...visualBlockPickPayload(session, {
+              headline,
+              subheading,
+              theme: headline,
+              brief: [headline, subheading].filter(Boolean).join(" "),
+            }),
             pickFeatured: true,
             excludeLibraryIds: active?.libraryId ? [active.libraryId] : [],
             source: "library",

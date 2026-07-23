@@ -46,7 +46,7 @@ function featuredInstructions(rulesProfile: DesignRulesProfile): string[] {
     return [
       "Set showFeaturedImage true.",
       "Use featuredSlots with slotId featured-primary, mode composed, visible true.",
-      "Do not use genui product pages or placeholder frames — the pipeline picks a visuals-library UI block or illustration.",
+      "Do not use genui product pages or placeholder frames — the pipeline picks a visuals-library asset matched to intent (UI block or illustration).",
     ];
   }
   if (rulesProfile.featuredPolicy === "placeholder") {

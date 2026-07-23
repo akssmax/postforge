@@ -9,6 +9,7 @@ import type { PostLayoutSpacing } from "@/lib/social-tool/layoutSpacing";
 import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import type {
+  CopyVariant,
   LogoAlign,
   LogoPlacement,
   PlatformId,
@@ -37,6 +38,12 @@ export type DesignDocument = {
   featuredSlots?: FeaturedSlotContent[];
   layoutSpacing: PostLayoutSpacing;
   copy: PostCopy;
+  /** Brief-specific headline/subheading options for shuffle. */
+  copyVariants?: CopyVariant[];
+  /** Index into copyVariants for the active headline/subheading. */
+  copyVariantIndex?: number;
+  /** Inferred preferred asset type for the featured visual slot. */
+  featuredVisualKind?: "ui" | "illustration";
   pattern: PatternRef;
   patternOpacity: number;
   patternScale: number;

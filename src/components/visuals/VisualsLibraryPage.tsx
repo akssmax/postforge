@@ -42,6 +42,7 @@ const SOURCE_FILTERS: { id: SourceFilter; label: string }[] = [
   { id: "all", label: "All sources" },
   { id: "undraw", label: "unDraw" },
   { id: "open-doodles", label: "Open Doodles" },
+  { id: "storyset", label: "Storyset" },
 ];
 
 function parametricPreview(pattern: VisualLibraryPattern): string {
@@ -61,10 +62,13 @@ function matchesSearch(pattern: VisualLibraryPattern, query: string): boolean {
     .every((token) => haystack.includes(token));
 }
 
+const PAGE_SIZE = 60;
+
 export function VisualsLibraryPage() {
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [search, setSearch] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const filtered = useMemo(() => {
     return VISUAL_LIBRARY.filter((pattern) => {
@@ -76,6 +80,13 @@ export function VisualsLibraryPage() {
       return matchesSearch(pattern, search);
     });
   }, [kindFilter, sourceFilter, search]);
+
+  const visible = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount],
+  );
+
+  const hasMore = visibleCount < filtered.length;
 
   const counts = useMemo(() => {
     const ui = VISUAL_LIBRARY.filter((p) => p.kind === "ui").length;
@@ -111,7 +122,10 @@ export function VisualsLibraryPage() {
                 key={filter.id}
                 type="button"
                 className={`visuals-filter-chip${kindFilter === filter.id ? " is-active" : ""}`}
-                onClick={() => setKindFilter(filter.id)}
+                onClick={() => {
+                  setKindFilter(filter.id);
+                  setVisibleCount(PAGE_SIZE);
+                }}
               >
                 {filter.label}
                 {filter.id !== "all" ? (
@@ -137,7 +151,10 @@ export function VisualsLibraryPage() {
                   key={filter.id}
                   type="button"
                   className={`visuals-filter-chip${sourceFilter === filter.id ? " is-active" : ""}`}
-                  onClick={() => setSourceFilter(filter.id)}
+                  onClick={() => {
+                    setSourceFilter(filter.id);
+                    setVisibleCount(PAGE_SIZE);
+                  }}
                 >
                   {filter.label}
                 </button>
@@ -153,17 +170,21 @@ export function VisualsLibraryPage() {
             className="visuals-search__input"
             placeholder="Search by name, tag, or id…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setVisibleCount(PAGE_SIZE);
+            }}
           />
         </label>
       </div>
 
       <p className="visuals-page__results">
-        Showing {filtered.length} of {counts.total}
+        Showing {Math.min(visibleCount, filtered.length)} of {filtered.length} matches
+        {filtered.length !== counts.total ? ` (${counts.total} total)` : ""}
       </p>
 
       <div className="visuals-page__grid">
-        {filtered.map((pattern) => {
+        {visible.map((pattern) => {
           const svg = parametricPreview(pattern);
           const asset = isAssetPattern(pattern);
           const uiReact = isParametricPattern(pattern) && isUiReactPattern(pattern.id);
@@ -235,6 +256,18 @@ export function VisualsLibraryPage() {
           );
         })}
       </div>
+
+      {hasMore ? (
+        <div className="visuals-page__more">
+          <button
+            type="button"
+            className="visuals-page__more-btn"
+            onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+          >
+            Load more ({filtered.length - visibleCount} remaining)
+          </button>
+        </div>
+      ) : null}
 
       {filtered.length === 0 ? (
         <p className="visuals-page__empty">No patterns match your filters.</p>

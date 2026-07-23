@@ -12,9 +12,16 @@ type Props = {
     accent?: string;
   };
   compact?: boolean;
+  /** Reserved for future slot-aware UI pattern sizing. */
+  canvasFit?: boolean;
 };
 
-export function VisualBlockRenderer({ block, brandColors, compact = false }: Props) {
+export function VisualBlockRenderer({
+  block,
+  brandColors,
+  compact = false,
+  canvasFit = false,
+}: Props) {
   const primary = brandColors?.primary ?? "#0A1B25";
   const accent = brandColors?.accent ?? "#4BB793";
   const libraryId = block.libraryId ?? null;

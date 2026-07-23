@@ -14,7 +14,16 @@ import {
   type FeaturedImageTransform,
 } from "@/components/social-tool/templates/ProductShotPost";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
+import {
+  featuredVisualKindLabel,
+  type FeaturedVisualKind,
+} from "@/lib/social-tool/featuredVisualKind";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
+
+type GenerateOptions = {
+  pickFeatured?: boolean;
+  preferredKind?: FeaturedVisualKind;
+};
 
 type Props = {
   showFeaturedBlock: boolean;
@@ -23,8 +32,12 @@ type Props = {
   visualBlocks: VisualBlockRecord[];
   activeBlockId?: string | null;
   generatingVisualBlocks?: boolean;
+  featuredVisualKind?: FeaturedVisualKind;
   brandColors?: { primary?: string; accent?: string };
-  onGenerateVisualBlocks: (source?: "library" | "generate") => void;
+  onGenerateVisualBlocks: (
+    source?: "library" | "generate",
+    options?: GenerateOptions,
+  ) => void;
   onSelectVisualBlock: (blockId: string) => void;
   image: {
     fileName?: string;
@@ -39,6 +52,68 @@ type Props = {
   onFeaturedTransformChange: (next: FeaturedImageTransform) => void;
 };
 
+function VisualKindSection({
+  kind,
+  label,
+  blocks,
+  activeBlockId,
+  generating,
+  onPick,
+  onSelect,
+}: {
+  kind: FeaturedVisualKind;
+  label: string;
+  blocks: VisualBlockRecord[];
+  activeBlockId?: string | null;
+  generating: boolean;
+  onPick: () => void;
+  onSelect: (blockId: string) => void;
+}) {
+  const options = useMemo(
+    () =>
+      blocks.map((block) => ({
+        id: block.id,
+        label: block.label,
+        description: block.kind,
+      })),
+    [blocks],
+  );
+
+  const activeInSection = blocks.find((block) => block.id === activeBlockId) ?? null;
+
+  return (
+    <div className="featured-visual-kind-section space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+          {label}
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          isDisabled={generating}
+          onPress={onPick}
+        >
+          {generating ? "Picking…" : blocks.length > 0 ? `Swap ${label.toLowerCase()}` : `Pick ${label.toLowerCase()}`}
+        </Button>
+      </div>
+
+      {blocks.length > 0 ? (
+        <InspectorSelect
+          label={`Active ${label.toLowerCase()}`}
+          value={activeInSection?.id ?? ""}
+          onChange={onSelect}
+          options={options}
+          placeholder={`Select ${label.toLowerCase()}`}
+        />
+      ) : (
+        <p className="text-[11px] leading-4 text-text-tertiary">
+          No {label.toLowerCase()} selected yet.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function FeaturedBlockPanel({
   showFeaturedBlock,
   onShowFeaturedBlockChange,
@@ -46,6 +121,7 @@ export function FeaturedBlockPanel({
   visualBlocks,
   activeBlockId,
   generatingVisualBlocks = false,
+  featuredVisualKind,
   onGenerateVisualBlocks,
   onSelectVisualBlock,
   image,
@@ -60,22 +136,21 @@ export function FeaturedBlockPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const showImageUpload = mode === "image";
 
+  const uiBlocks = useMemo(
+    () => visualBlocks.filter((block) => block.kind === "ui"),
+    [visualBlocks],
+  );
+  const illustrationBlocks = useMemo(
+    () => visualBlocks.filter((block) => block.kind === "illustration"),
+    [visualBlocks],
+  );
+
   const activeBlock = useMemo(() => {
     if (visualBlocks.length === 0) return null;
     return (
       visualBlocks.find((block) => block.id === activeBlockId) ?? visualBlocks[0] ?? null
     );
   }, [activeBlockId, visualBlocks]);
-
-  const blockOptions = useMemo(
-    () =>
-      visualBlocks.map((block) => ({
-        id: block.id,
-        label: block.label,
-        description: block.kind,
-      })),
-    [visualBlocks],
-  );
 
   return (
     <section className="social-tool-section space-y-3">
@@ -97,43 +172,70 @@ export function FeaturedBlockPanel({
 
       {showFeaturedBlock ? (
         <div className="social-transform-panel space-y-3">
-          {visualBlocks.length > 0 ? (
-            <InspectorSelect
-              label="Visual block"
-              value={activeBlock?.id ?? ""}
-              onChange={onSelectVisualBlock}
-              options={blockOptions}
-              placeholder="Select a block"
-            />
+          {featuredVisualKind ? (
+            <p className="text-[11px] leading-4 text-text-tertiary">
+              Brief intent prefers{" "}
+              <span className="font-medium text-text-secondary">
+                {featuredVisualKindLabel(featuredVisualKind).toLowerCase()}s
+              </span>{" "}
+              in the featured slot.
+            </p>
+          ) : null}
+
+          {activeBlock ? (
+            <div className="rounded-xl border border-leap-line px-3 py-2.5">
+              <p className="text-sm font-medium text-text-primary">{activeBlock.label}</p>
+              <p className="mt-0.5 text-[11px] uppercase tracking-wide text-text-tertiary">
+                Active · {activeBlock.kind}
+              </p>
+            </div>
           ) : (
             <div className="rounded-xl border border-dashed border-leap-line px-3 py-2.5">
-              <p className="text-sm font-medium text-text-primary">No visual block</p>
+              <p className="text-sm font-medium text-text-primary">No visual selected</p>
               <p className="mt-0.5 text-[11px] leading-4 text-text-tertiary">
-                Pick a ready-made UI block or illustration from the library.
+                Pick a UI block for product proof, or an illustration for brand and story.
               </p>
             </div>
           )}
 
+          <VisualKindSection
+            kind="ui"
+            label="UI blocks"
+            blocks={uiBlocks}
+            activeBlockId={activeBlockId}
+            generating={generatingVisualBlocks}
+            onPick={() =>
+              onGenerateVisualBlocks("library", {
+                pickFeatured: true,
+                preferredKind: "ui",
+              })
+            }
+            onSelect={onSelectVisualBlock}
+          />
+
+          <VisualKindSection
+            kind="illustration"
+            label="Illustrations"
+            blocks={illustrationBlocks}
+            activeBlockId={activeBlockId}
+            generating={generatingVisualBlocks}
+            onPick={() =>
+              onGenerateVisualBlocks("library", {
+                pickFeatured: true,
+                preferredKind: "illustration",
+              })
+            }
+            onSelect={onSelectVisualBlock}
+          />
+
           <div className="featured-visual-actions flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              isDisabled={generatingVisualBlocks}
-              onPress={() => onGenerateVisualBlocks("library")}
-            >
-              {generatingVisualBlocks
-                ? "Adding…"
-                : visualBlocks.length > 0
-                  ? "Add from library"
-                  : "Pick from library"}
-            </Button>
             <Button
               variant="ghost"
               size="sm"
               isDisabled={generatingVisualBlocks}
               onPress={() => onGenerateVisualBlocks("generate")}
             >
-              Generate custom
+              Generate custom SVG
             </Button>
           </div>
 
@@ -146,9 +248,10 @@ export function FeaturedBlockPanel({
 
           <div className="featured-image-upload-card">
             <div className="featured-image-upload-meta">
-              <p className="text-sm font-medium text-text-primary">Upload image</p>
+              <p className="text-sm font-medium text-text-primary">Upload asset</p>
               <p className="text-xs text-text-tertiary">
-                Optional — replaces the generated block with a custom image.
+                Optional — upload any image (PNG, JPG, WebP) or a custom SVG to replace the
+                library visual.
               </p>
               <div className="featured-image-upload-actions">
                 <input
@@ -169,7 +272,7 @@ export function FeaturedBlockPanel({
                   onPress={() => inputRef.current?.click()}
                 >
                   <ImagePlus className="size-4" />
-                  {image ? "Replace image" : "Upload image"}
+                  {image ? "Replace asset" : "Upload asset"}
                 </Button>
                 {image ? (
                   <Button variant="outline" size="sm" onPress={() => void onRemoveImage()}>

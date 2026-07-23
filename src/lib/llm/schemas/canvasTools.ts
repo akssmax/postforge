@@ -28,6 +28,10 @@ export const updateCopyToolSchema = z.object({
     .min(1),
 });
 
+export const refreshCopyVariantsToolSchema = z.object({
+  instruction: z.string().optional(),
+});
+
 export const updateBackgroundToolSchema = z.object({
   presetId: z.string().optional(),
   showBackground: z.boolean().optional(),
@@ -48,6 +52,17 @@ export const generateVisualBlockToolSchema = z.object({
   slotId: z.string().optional(),
   source: z.enum(["library", "generate"]).optional(),
   libraryIds: z.array(z.string()).optional(),
+  intent: z
+    .object({
+      primaryIntent: z.string().optional(),
+      audience: z.string().optional(),
+      goal: z.string().optional(),
+      visualPriority: z.string().optional(),
+      proofStrategy: z.string().optional(),
+      keywords: z.array(z.string()).optional(),
+      themes: z.array(z.string()).optional(),
+    })
+    .optional(),
 });
 
 export const modifyVisualBlockToolSchema = z.object({
@@ -133,6 +148,7 @@ export const updateSpacingToolSchema = z.object({
 
 export type CanvasToolName =
   | "updateCopy"
+  | "refreshCopyVariants"
   | "updateBackground"
   | "updatePattern"
   | "updateFeatured"

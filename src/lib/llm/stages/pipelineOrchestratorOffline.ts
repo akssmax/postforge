@@ -8,6 +8,11 @@ import { retrieveLayouts } from "@/lib/social-tool/engine/layoutRetriever";
 import { scoreDesign } from "@/lib/social-tool/engine/scoringEngine";
 import { applyVisualPolicy } from "@/lib/social-tool/engine/visualPolicy";
 import { writeSlotsOffline } from "@/lib/llm/stages/slotWriterOffline";
+import {
+  buildCopyVariantPool,
+  primaryCopyFromTextSlots,
+  writeCopyVariantsOffline,
+} from "@/lib/llm/stages/copyVariantWriter";
 import { catalogLayoutToDynamic } from "@/lib/social-tool/layoutAdapter";
 import { getLayoutById } from "@/lib/social-tool/engine/layoutRetriever";
 import { validateDesignPlan } from "@/lib/llm/services/layoutValidator";
@@ -38,6 +43,13 @@ export function runDesignPipelineOffline(input: {
     rulesProfile,
   });
 
+  const primaryCopy = primaryCopyFromTextSlots(slotDraft.textSlots);
+  const copyVariants = buildCopyVariantPool(
+    primaryCopy,
+    writeCopyVariantsOffline({ userMessage, rulesProfile }),
+    rulesProfile,
+  );
+
   const rationale = `${layout.name} matched ${intent.primaryIntent}.`;
   const planInput = assembleDesignPlan({
     intent,
@@ -48,6 +60,8 @@ export function runDesignPipelineOffline(input: {
     visual,
     brief: userMessage,
     rulesProfile,
+    copyVariants,
+    copyVariantIndex: 0,
   });
 
   const validated = validateDesignPlan(planInput, input.platformId, rulesProfile);
