@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { Button, Label, TextArea, TextField } from "@heroui/react";
 import {
@@ -13,12 +13,27 @@ type Props = {
   platformId: PlatformId;
   onGenerate: (result: BriefGenerationResult) => void;
   onSkip: () => void;
+  autoFocus?: boolean;
 };
 
-export function BriefChatPanel({ platformId, onGenerate, onSkip }: Props) {
+export function BriefChatPanel({
+  platformId,
+  onGenerate,
+  onSkip,
+  autoFocus = false,
+}: Props) {
   const [brief, setBrief] = useState("");
   const [generating, setGenerating] = useState(false);
   const [lastRationale, setLastRationale] = useState<string | null>(null);
+  const briefRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!autoFocus) return;
+    const frame = requestAnimationFrame(() => {
+      briefRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [autoFocus]);
 
   function handleGenerate() {
     const trimmed = brief.trim();
@@ -45,6 +60,7 @@ export function BriefChatPanel({ platformId, onGenerate, onSkip }: Props) {
       <TextField fullWidth value={brief} onChange={setBrief}>
         <Label className="social-tool-label sr-only">Creative brief</Label>
         <TextArea
+          ref={briefRef}
           rows={4}
           className="min-h-[5.5rem] resize-y"
           placeholder="e.g. Launching our new CRM for sales teams next Tuesday…"

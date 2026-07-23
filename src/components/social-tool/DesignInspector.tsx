@@ -354,11 +354,12 @@ export function DesignInspector(props: Props) {
   if (phase === "needsBrief") {
     return (
       <>
-        <BrandInspectorSection {...props} defaultExpanded />
+        <BrandInspectorSection {...props} defaultExpanded={false} />
         <BriefChatPanel
           platformId={props.platformId}
           onGenerate={props.onBriefGenerate}
           onSkip={props.onBriefSkip}
+          autoFocus
         />
         <FixedCanvasPanels {...props} />
         <BlockPanelsOverview {...props} />
