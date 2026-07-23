@@ -46,9 +46,10 @@ export function VisualBlockRenderer({
   const isCompact = densityIsCompact(resolvedDensity, compact);
   const isHero = densityIsHero(resolvedDensity);
 
-  // Multi-part compositions use FeaturedComposer at the top level only
+  // Multi-part compositions are for UI/diagram stacks only — never stack illustrations
   if (
     !asPart &&
+    block.kind !== "illustration" &&
     block.semantic?.compositionParts &&
     block.semantic.compositionParts.length > 1
   ) {
@@ -90,6 +91,15 @@ export function VisualBlockRenderer({
   }
 
   if (block.svgMarkup) {
+    // Illustrations sit bare on the canvas — no style-pack surface card / white plate
+    if (block.kind === "illustration") {
+      return (
+        <div className="flex h-full w-full items-center justify-center overflow-hidden">
+          <FeaturedImageContent imageSrc={null} svgMarkup={block.svgMarkup} bare />
+        </div>
+      );
+    }
+
     return (
       <div
         className="flex h-full w-full items-center justify-center overflow-hidden rounded-[var(--vb-radius,12px)]"

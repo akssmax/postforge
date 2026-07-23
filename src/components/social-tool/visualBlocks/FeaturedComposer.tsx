@@ -70,27 +70,27 @@ export function FeaturedComposer({
             hierarchy: part.hierarchy,
             compositionParts: undefined,
           },
-          // Only keep SVG on the matching primary asset
-          svgMarkup:
-            part.assetId === block.libraryId ? block.svgMarkup : block.svgMarkup && part.kind === "illustration"
-              ? block.svgMarkup
-              : part.kind === "ui"
-                ? ""
-                : block.svgMarkup,
+          // Only keep SVG on the matching primary asset — never clone across parts
+          svgMarkup: part.assetId === block.libraryId ? block.svgMarkup : "",
         };
+
+        const isIllustration = part.kind === "illustration";
 
         return (
           <div
             key={`${part.assetId}-${index}`}
             className={cn(
-              "min-h-0 overflow-hidden rounded-[var(--vb-radius,12px)]",
+              "min-h-0 overflow-hidden",
+              !isIllustration && "rounded-[var(--vb-radius,12px)]",
               isHero ? "flex-[1.4]" : "flex-[0.85]",
             )}
             style={
-              {
-                boxShadow: "var(--vb-shadow)",
-                background: "var(--vb-surface)",
-              } as CSSProperties
+              isIllustration
+                ? undefined
+                : ({
+                    boxShadow: "var(--vb-shadow)",
+                    background: "var(--vb-surface)",
+                  } as CSSProperties)
             }
           >
             <VisualBlockRenderer

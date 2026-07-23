@@ -203,7 +203,11 @@ export type UseDesignSessionResult = {
   }) => Promise<void>;
   selectVisualBlock: (blockId: string) => void;
   modifyVisualBlock: (blockId: string, instruction: string) => Promise<void>;
-  shuffleFeaturedVisualBlock: (copy?: { headline?: string; subheading?: string }) => Promise<void>;
+  shuffleFeaturedVisualBlock: (copy?: {
+    headline?: string;
+    subheading?: string;
+    preferredKind?: "ui" | "illustration";
+  }) => Promise<void>;
   generatingVisualBlocks: boolean;
   advanceOnboarding: (phase: DesignOnboardingPhase) => void;
   skipBrief: () => void;
@@ -947,13 +951,26 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
             setFeaturedError("No matching visual found in the library.");
             return;
           }
+          const nextKind =
+            input?.preferredKind ??
+            (block.kind === "illustration" || block.kind === "ui" ? block.kind : undefined);
           updateSession((prev) =>
             syncComposedFeaturedSlots(
               {
                 ...prev,
+                document: {
+                  ...prev.document,
+                  ...(nextKind ? { featuredVisualKind: nextKind } : {}),
+                },
                 featured: {
                   ...prev.featured,
-                  visualBlocks: [block],
+                  // Keep opposite-kind blocks so UI ↔ Illustration toggle can restore them
+                  visualBlocks: (() => {
+                    const prevBlocks = prev.featured.visualBlocks ?? [];
+                    if (!nextKind) return [block];
+                    const others = prevBlocks.filter((b) => b.kind !== nextKind);
+                    return [...others, block];
+                  })(),
                 },
               },
               block.id,
@@ -990,7 +1007,20 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
 
   const selectVisualBlock = useCallback(
     (blockId: string) => {
-      updateSession((prev) => syncComposedFeaturedSlots(prev, blockId));
+      updateSession((prev) => {
+        const block = (prev.featured.visualBlocks ?? []).find((b) => b.id === blockId);
+        const kind =
+          block?.kind === "ui" || block?.kind === "illustration" ? block.kind : undefined;
+        return syncComposedFeaturedSlots(
+          kind
+            ? {
+                ...prev,
+                document: { ...prev.document, featuredVisualKind: kind },
+              }
+            : prev,
+          blockId,
+        );
+      });
     },
     [syncComposedFeaturedSlots, updateSession],
   );
@@ -1049,32 +1079,34 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
   );
 
   const shuffleFeaturedVisualBlock = useCallback(
-    async (copyOverride?: { headline?: string; subheading?: string }) => {
+    async (copyOverride?: {
+      headline?: string;
+      subheading?: string;
+      preferredKind?: "ui" | "illustration";
+    }) => {
       if (!session) return;
       const { featured } = session;
       if (featured.mode !== "composed") return;
 
       const blocks = featured.visualBlocks ?? [];
-      if (blocks.length === 0) return;
-
       const active = activeVisualBlock(blocks, featured.activeBlockId);
-      const activeId = active?.id ?? null;
-      const activeKind: "ui" | "illustration" | undefined =
-        active?.kind === "ui" || active?.kind === "illustration"
+      const activeKind: "ui" | "illustration" =
+        copyOverride?.preferredKind ??
+        (active?.kind === "ui" || active?.kind === "illustration"
           ? active.kind
-          : session.document.featuredVisualKind ??
-            inferFeaturedVisualKind(session.document.copy.heading);
+          : session.document.featuredVisualKind) ??
+        inferFeaturedVisualKind(session.document.copy.heading);
 
-      const sameKindBlocks = activeKind
-        ? blocks.filter((block) => block.kind === activeKind)
-        : blocks;
-
-      if (sameKindBlocks.length > 1 && activeId) {
-        const activeIndex = sameKindBlocks.findIndex((block) => block.id === activeId);
-        const next = sameKindBlocks[(activeIndex + 1) % sameKindBlocks.length]!;
-        updateSession((prev) => syncComposedFeaturedSlots(prev, next.id));
-        return;
-      }
+      // Always re-rank against the brief for the active kind — do not cycle stale
+      // same-kind blocks that may have been picked under a different intent.
+      const excludeLibraryIds = [
+        ...new Set(
+          blocks
+            .filter((block) => block.kind === activeKind)
+            .map((block) => block.libraryId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
 
       setGeneratingVisualBlocks(true);
       setFeaturedError(null);
@@ -1094,7 +1126,7 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
               preferredKind: activeKind,
             }),
             pickFeatured: true,
-            excludeLibraryIds: active?.libraryId ? [active.libraryId] : [],
+            excludeLibraryIds,
             source: "library",
           }),
         });
@@ -1104,16 +1136,31 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
         }
         const payload = (await response.json()) as { blocks: VisualBlockRecord[] };
         const newBlock = payload.blocks[0];
-        if (!newBlock) return;
+        if (!newBlock) {
+          setFeaturedError(
+            `No matching ${activeKind === "illustration" ? "illustration" : "UI"} found for this brief.`,
+          );
+          return;
+        }
+        if (
+          (activeKind === "illustration" && newBlock.kind !== "illustration") ||
+          (activeKind === "ui" && newBlock.kind === "illustration")
+        ) {
+          setFeaturedError("Shuffle returned the wrong visual kind. Try again.");
+          return;
+        }
 
         updateSession((prev) => {
           const prevBlocks = prev.featured.visualBlocks ?? [];
-          const visualBlocks = activeId
-            ? prevBlocks.map((block) => (block.id === activeId ? newBlock : block))
-            : appendVisualBlocks(prevBlocks, [newBlock]);
+          const withoutSameKind = prevBlocks.filter((block) => block.kind !== activeKind);
+          const visualBlocks = [...withoutSameKind, newBlock];
           return syncComposedFeaturedSlots(
             {
               ...prev,
+              document: {
+                ...prev.document,
+                featuredVisualKind: activeKind,
+              },
               featured: {
                 ...prev.featured,
                 visualBlocks,

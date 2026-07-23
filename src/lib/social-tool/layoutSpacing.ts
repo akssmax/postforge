@@ -23,7 +23,7 @@ export const SPACING_PX: Record<SpacingToken, number> = {
 };
 
 export type PostLayoutSpacing = {
-  /** Outer inset around the post layout (`p-*`) */
+  /** Outer inset on all sides of the post layout (`p-*`) */
   layoutPad: SpacingToken;
   /** Bottom padding inside the text band */
   textZonePadBottom: SpacingToken;

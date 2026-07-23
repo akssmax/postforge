@@ -61,7 +61,7 @@ type FeaturedPanelProps = {
     source?: "library" | "generate",
     options?: { pickFeatured?: boolean; preferredKind?: "ui" | "illustration" },
   ) => void;
-  onShuffleVisualBlock: () => void;
+  onShuffleVisualBlock: (preferredKind?: "ui" | "illustration") => void;
   onSelectVisualBlock: (blockId: string) => void;
   image: import("@/lib/social-tool/featuredBlock").FeaturedImageRecord | null;
   imageSrc: string | null;

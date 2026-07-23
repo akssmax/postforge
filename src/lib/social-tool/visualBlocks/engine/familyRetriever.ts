@@ -95,7 +95,13 @@ export function retrieveFamilyAssets(input: {
 
   const preferredKind = resolvePreferredVisualKind(input.generateInput);
   const excluded = new Set(input.excludeLibraryIds ?? []);
-  const library = getDeployableVisualLibrary().filter((p) => !excluded.has(p.id));
+  const library = getDeployableVisualLibrary().filter((p) => {
+    if (excluded.has(p.id)) return false;
+    // Hard filter: never mix UI/diagram into an illustration pick (or vice versa)
+    if (preferredKind === "illustration") return p.kind === "illustration";
+    if (preferredKind === "ui") return p.kind === "ui" || p.kind === "diagram";
+    return true;
+  });
 
   const ranked: RankedFamilyAsset[] = [];
 
@@ -104,16 +110,16 @@ export function retrieveFamilyAssets(input: {
       const { match, role } = patternInFamily(family, pattern);
       if (!match) continue;
 
-      // Prefer ui/diagram for featured unless illustration requested
       let score = 20;
       if (preferredKind === "illustration" && pattern.kind === "illustration") score += 18;
       if (preferredKind === "ui" && pattern.kind === "ui") score += 18;
       if (preferredKind === "ui" && pattern.kind === "diagram") score += 12;
-      if (preferredKind === "illustration" && pattern.kind !== "illustration") score -= 8;
       if (pattern.kind === "diagram" && preferredKind !== "illustration") score += 6;
 
       const assetMeta = family.assets.find((a) => a.id === pattern.id);
       if (assetMeta?.role === "primary") score += 10;
+      // Illustrations matched via family tags are the intended path for that kind
+      if (preferredKind === "illustration" && role === "illustration") score += 14;
 
       score += scoreVisualPattern(pattern, input.generateInput) * 0.5;
 

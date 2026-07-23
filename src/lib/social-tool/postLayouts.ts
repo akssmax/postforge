@@ -749,6 +749,11 @@ export function resolveFeaturedLayoutZones(opts: {
   } = opts;
 
   const aspect = height / width;
+  const layoutPad = spacingTokenToPx(
+    (spacing ?? DEFAULT_POST_LAYOUT_SPACING).layoutPad,
+    width,
+    height,
+  );
 
   if (!showFeaturedImage) {
     return {
@@ -773,7 +778,7 @@ export function resolveFeaturedLayoutZones(opts: {
   });
 
   const minProductZone = Math.round(height * minProductZoneShare(aspect));
-  const maxTextZone = Math.max(0, height - footerH - minProductZone);
+  const maxTextZone = Math.max(0, height - footerH - minProductZone - layoutPad);
   const minTextZone = estimateTextBandMinHeight({
     width,
     height,
@@ -790,7 +795,7 @@ export function resolveFeaturedLayoutZones(opts: {
   let textZone = Math.round(height * textRatio);
   textZone = Math.max(textZone, minTextZone);
   textZone = Math.min(textZone, maxTextZone);
-  const productZone = Math.max(0, height - textZone - footerH);
+  const productZone = Math.max(0, height - textZone - footerH - layoutPad);
 
   return { textZone, productZone };
 }
@@ -872,7 +877,7 @@ export function resolveSplitLayoutZones(opts: {
   const layoutPad = spacingTokenToPx(spacingResolved.layoutPad, width, height);
   const columnGap = spacingTokenToPx(spacingResolved.copyBlockGap, width, height);
   const innerWidth = width - 2 * layoutPad;
-  const rowHeight = Math.max(0, height - layoutPad - footerH);
+  const rowHeight = Math.max(0, height - 2 * layoutPad - footerH);
 
   if (!showFeaturedImage) {
     return {

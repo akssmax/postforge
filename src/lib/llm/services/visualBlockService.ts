@@ -33,8 +33,24 @@ export const generateVisualBlocksBodySchema = z.object({
       goal: z.string().optional(),
       visualPriority: z.string().optional(),
       proofStrategy: z.string().optional(),
+      featuredVisualKind: z.enum(["ui", "illustration"]).optional(),
       keywords: z.array(z.string()).optional(),
       themes: z.array(z.string()).optional(),
+    })
+    .optional(),
+  semantic: z
+    .object({
+      campaignType: z.string().optional(),
+      recipeId: z.string().optional(),
+      patternId: z.string().optional(),
+      designSystemId: z.string().optional(),
+      contentDensity: z.enum(["low", "medium", "high"]).optional(),
+      readingPattern: z.enum(["F", "Z", "center"]).optional(),
+      colorMood: z.string().optional(),
+      brandTone: z.string().optional(),
+      featuredKind: z.enum(["ui", "illustration"]).optional(),
+      proof: z.string().optional(),
+      platformId: z.string().optional(),
     })
     .optional(),
 });

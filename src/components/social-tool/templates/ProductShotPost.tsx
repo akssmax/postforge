@@ -847,7 +847,11 @@ export function ProductShotPost({
         className={`social-post-text-zone${isTallPrint ? " social-post-text-zone--tall" : ""}${split ? " social-post-text-zone--split" : ""}`}
         style={{
           ...(bandWidth != null ? { width: bandWidth, flexShrink: 0 } : {}),
-          height: split ? bandHeight : showFeaturedImage ? textZone - layoutPadPx : height - layoutPadPx - footerH,
+          height: split
+            ? bandHeight
+            : showFeaturedImage
+              ? textZone - layoutPadPx
+              : height - 2 * layoutPadPx - footerH,
           paddingBottom: split ? 0 : textZonePadBottomPx,
         }}
       >
@@ -1145,15 +1149,44 @@ export function ProductShotPost({
         className={`social-post-product-layout${layoutStackClass}${layoutCompositionClass}${showSpacingHandles ? " has-spacing-handles" : ""}`}
       >
         {showSpacingHandles ? (
-          <SpacingHandle
-            kind="padding"
-            variant="edge-top"
-            token={spacing.layoutPad}
-            onTokenChange={(t) => setSpacingToken("layoutPad", t)}
-            previewScale={previewScale}
-            ariaLabel="Layout padding"
-            className="spacing-handle--layout-pad"
-          />
+          <>
+            <SpacingHandle
+              kind="padding"
+              variant="edge-top"
+              token={spacing.layoutPad}
+              onTokenChange={(t) => setSpacingToken("layoutPad", t)}
+              previewScale={previewScale}
+              ariaLabel="Layout top padding"
+              className="spacing-handle--layout-pad spacing-handle--layout-pad-top"
+            />
+            <SpacingHandle
+              kind="padding"
+              variant="edge-left"
+              token={spacing.layoutPad}
+              onTokenChange={(t) => setSpacingToken("layoutPad", t)}
+              previewScale={previewScale}
+              ariaLabel="Layout left padding"
+              className="spacing-handle--layout-pad spacing-handle--layout-pad-left"
+            />
+            <SpacingHandle
+              kind="padding"
+              variant="edge-right"
+              token={spacing.layoutPad}
+              onTokenChange={(t) => setSpacingToken("layoutPad", t)}
+              previewScale={previewScale}
+              ariaLabel="Layout right padding"
+              className="spacing-handle--layout-pad spacing-handle--layout-pad-right"
+            />
+            <SpacingHandle
+              kind="padding"
+              variant="edge-bottom"
+              token={spacing.layoutPad}
+              onTokenChange={(t) => setSpacingToken("layoutPad", t)}
+              previewScale={previewScale}
+              ariaLabel="Layout bottom padding"
+              className="spacing-handle--layout-pad spacing-handle--layout-pad-bottom"
+            />
+          </>
         ) : null}
 
         {isSplit && splitZones && showFeaturedImage ? (

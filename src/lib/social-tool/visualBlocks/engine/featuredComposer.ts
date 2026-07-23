@@ -44,6 +44,7 @@ function pickBestForFamily(
 
 /**
  * Build a single-slot featured composition from bundle (preferred) or families.
+ * Illustration picks are always a single part — never stacked multi-family frames.
  */
 export function composeFeaturedSemantic(input: {
   ctx: SemanticPickContext;
@@ -55,7 +56,13 @@ export function composeFeaturedSemantic(input: {
     input.recipe ??
     (input.ctx.recipeId ? tryGetRecipe(input.ctx.recipeId) : undefined);
 
-  const bundle = retrieveBundle(input.ctx, recipe);
+  const preferredKind =
+    input.generateInput.preferredKind ??
+    input.generateInput.intent?.featuredVisualKind ??
+    input.ctx.featuredKind;
+  const illustrationOnly = preferredKind === "illustration";
+
+  const bundle = illustrationOnly ? null : retrieveBundle(input.ctx, recipe);
   const ranked = retrieveFamilyAssets({
     ctx: input.ctx,
     generateInput: input.generateInput,
@@ -70,7 +77,7 @@ export function composeFeaturedSemantic(input: {
   const parts: SemanticBlockRequest[] = [];
   const stylePack = resolveStylePack(input.ctx, ranked[0]?.family);
 
-  if (bundle) {
+  if (bundle && !illustrationOnly) {
     for (const part of bundle.contains) {
       const best = pickBestForFamily(ranked, part.family, usedIds);
       if (!best) continue;
@@ -105,13 +112,15 @@ export function composeFeaturedSemantic(input: {
     });
   }
 
-  const guarded = enforceHierarchy(parts);
+  // Illustrations never compose as multi-part stacks
+  const finalParts = illustrationOnly || parts[0]?.kind === "illustration" ? parts.slice(0, 1) : parts;
+  const guarded = enforceHierarchy(finalParts);
 
   return {
-    bundleId: bundle?.id,
+    bundleId: illustrationOnly ? undefined : bundle?.id,
     parts: guarded,
     stylePackId: stylePack.id,
-    reason: bundle
+    reason: bundle && !illustrationOnly
       ? `Bundle ${bundle.id} → ${guarded.map((p) => p.familyId).join("+")}`
       : `Families → ${guarded.map((p) => p.familyId).join("+")}`,
   };

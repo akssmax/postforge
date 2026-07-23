@@ -111,9 +111,12 @@ function trySemanticFeaturedPick(
 
   if (!composition || composition.parts.length === 0) return null;
 
+  const preferredKind = resolvePreferredVisualKind(input);
   const primary = composition.parts[0]!;
   const pattern = getLibraryPattern(primary.assetId);
   if (!pattern || !isDeployableVisualPattern(pattern)) return null;
+  if (preferredKind === "illustration" && pattern.kind !== "illustration") return null;
+  if (preferredKind === "ui" && pattern.kind === "illustration") return null;
 
   const block = instantiateLibraryPattern(pattern, input);
   if (!block) return null;
@@ -130,13 +133,16 @@ function trySemanticFeaturedPick(
     composition: primary.composition,
     stylePackId: composition.stylePackId,
     hierarchy: primary.hierarchy,
-    compositionParts: composition.parts.map((part) => ({
-      familyId: part.familyId,
-      assetId: part.assetId,
-      kind: part.kind,
-      density: part.density,
-      hierarchy: part.hierarchy,
-    })),
+    compositionParts:
+      block.kind === "illustration" || composition.parts.length <= 1
+        ? undefined
+        : composition.parts.map((part) => ({
+            familyId: part.familyId,
+            assetId: part.assetId,
+            kind: part.kind,
+            density: part.density,
+            hierarchy: part.hierarchy,
+          })),
   };
   block.prompt = composition.reason;
 
@@ -157,34 +163,33 @@ export function pickShuffleFeaturedVisual(
   excludeLibraryIds: string[] = [],
   options?: { randomize?: boolean },
 ): VisualBlockRecord | null {
+  const preferredKind = resolvePreferredVisualKind(input);
   const semanticHit = trySemanticFeaturedPick(input, excludeLibraryIds);
-  if (semanticHit && options?.randomize === false) {
+  const semanticMatchesKind =
+    !preferredKind ||
+    (preferredKind === "illustration"
+      ? semanticHit?.kind === "illustration"
+      : semanticHit?.kind === "ui" || semanticHit?.kind === "diagram");
+
+  if (semanticHit && semanticMatchesKind && options?.randomize === false) {
     return semanticHit;
-  }
-  // On shuffle with semantic context, still prefer family-ranked assets
-  if (semanticHit && options?.randomize !== false && input.semantic) {
-    // Fall through to kind-filtered ranking but bias via exclude of non-family later
   }
 
   const excluded = new Set(excludeLibraryIds.filter(Boolean));
-  const preferredKind = resolvePreferredVisualKind(input);
   const deployableLibrary = getDeployableVisualLibrary();
 
-  // Allow diagrams in featured when semantic path asked for them via composition
-  let candidates = deployableLibrary.filter(
-    (pattern) =>
-      (FEATURED_SLOT_KINDS.includes(pattern.kind) || pattern.kind === "diagram") &&
-      !excluded.has(pattern.id),
-  );
-  // Legacy featured path: ui + illustration only unless semantic present
-  if (!input.semantic) {
-    candidates = candidates.filter((pattern) =>
-      FEATURED_SLOT_KINDS.includes(pattern.kind),
-    );
-  }
-  if (preferredKind) {
-    const kindMatches = candidates.filter((pattern) => pattern.kind === preferredKind);
-    if (kindMatches.length > 0) candidates = kindMatches;
+  let candidates = deployableLibrary.filter((pattern) => {
+    if (excluded.has(pattern.id)) return false;
+    if (preferredKind === "illustration") return pattern.kind === "illustration";
+    if (preferredKind === "ui") {
+      return pattern.kind === "ui" || (Boolean(input.semantic) && pattern.kind === "diagram");
+    }
+    return FEATURED_SLOT_KINDS.includes(pattern.kind);
+  });
+
+  if (candidates.length === 0 && preferredKind) {
+    // Fall back within the requested kind only — never cross-contaminate kinds
+    candidates = deployableLibrary.filter((pattern) => pattern.kind === preferredKind);
   }
   if (candidates.length === 0) {
     candidates = deployableLibrary.filter((pattern) =>
@@ -195,15 +200,16 @@ export function pickShuffleFeaturedVisual(
 
   const ranked = rankVisualPatterns(candidates, input);
   const block = instantiateFirstAvailable(ranked, input, options);
-  if (block && semanticHit?.semantic) {
-    // Preserve style pack from semantic resolver when shuffling within family
+  if (block && semanticHit?.semantic && semanticMatchesKind) {
     block.semantic = {
       ...semanticHit.semantic,
       familyId: block.semantic?.familyId ?? semanticHit.semantic.familyId,
       stylePackId: semanticHit.semantic.stylePackId,
     };
   }
-  return block ?? semanticHit;
+  // Never return a semantic hit of the wrong kind as a fallback
+  if (block) return block;
+  return semanticMatchesKind ? semanticHit : null;
 }
 
 function instantiateFirstAvailable(

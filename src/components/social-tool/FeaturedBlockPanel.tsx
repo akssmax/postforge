@@ -38,7 +38,7 @@ type Props = {
     source?: "library" | "generate",
     options?: GenerateOptions,
   ) => void;
-  onShuffleVisualBlock: () => void;
+  onShuffleVisualBlock: (preferredKind?: FeaturedVisualKind) => void;
   onSelectVisualBlock: (blockId: string) => void;
   image: {
     fileName?: string;
@@ -111,6 +111,11 @@ export function FeaturedBlockPanel({
 
   function switchKind(nextKind: FeaturedVisualKind) {
     if (nextKind === activeKind && activeBlock) return;
+    const existing = visualBlocks.find((block) => block.kind === nextKind);
+    if (existing) {
+      onSelectVisualBlock(existing.id);
+      return;
+    }
     onGenerateVisualBlocks("library", {
       pickFeatured: true,
       preferredKind: nextKind,
@@ -178,7 +183,7 @@ export function FeaturedBlockPanel({
                     size="sm"
                     className="shrink-0"
                     isDisabled={generatingVisualBlocks}
-                    onPress={onShuffleVisualBlock}
+                    onPress={() => onShuffleVisualBlock(activeKind)}
                   >
                     <Shuffle className="size-3.5" />
                     {generatingVisualBlocks ? "Shuffling…" : "Shuffle"}
@@ -215,7 +220,7 @@ export function FeaturedBlockPanel({
                   size="sm"
                   className="shrink-0"
                   isDisabled={generatingVisualBlocks}
-                  onPress={onShuffleVisualBlock}
+                  onPress={() => onShuffleVisualBlock(activeKind)}
                 >
                   <Shuffle className="size-3.5" />
                   {generatingVisualBlocks ? "Shuffling…" : "Shuffle"}

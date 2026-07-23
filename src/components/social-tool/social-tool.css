@@ -553,6 +553,7 @@
   flex-direction: column;
   overflow: visible;
   padding-top: var(--sp-layout-pad, 64px);
+  padding-bottom: var(--sp-layout-pad, 64px);
   padding-inline: var(--sp-layout-pad, 64px);
 }
 
@@ -640,11 +641,52 @@
 
 .layout-shuffle-toolbar,
 .layout-spacing-toolbar,
-.contrast-issues-toolbar {
+.contrast-issues-toolbar,
+.canvas-zoom-toolbar {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   min-height: 2rem;
+}
+
+.canvas-zoom-toolbar {
+  gap: 0.25rem;
+}
+
+.canvas-stage-chrome {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--surface-primary) 92%, transparent);
+  border: 1px solid color-mix(in oklab, var(--gray-950) 8%, transparent);
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--gray-950) 10%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="dark"] .canvas-stage-chrome {
+  border-color: color-mix(in oklab, var(--white) 12%, transparent);
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--gray-950) 35%, transparent);
+}
+
+.canvas-zoom-icon-btn {
+  min-width: 2.25rem;
+  padding-inline: 0.5rem;
+}
+
+.canvas-zoom-percent-btn {
+  min-width: 3.25rem;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas-zoom-percent-btn .canvas-tool-pill-label {
+  letter-spacing: 0.04em;
 }
 
 .canvas-preview-toolbar-end {
@@ -658,6 +700,41 @@
 .canvas-selectable {
   position: relative;
   cursor: pointer;
+}
+
+/* Infinite-canvas stage: transform pan/zoom, never native scroll */
+.social-tool-canvas-stage {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+/* Hand tool / Space pan — after .canvas-selectable so grab wins over pointer */
+.social-tool-canvas-stage[data-canvas-hand-tool="true"] {
+  cursor: grab;
+}
+
+.social-tool-canvas-stage[data-canvas-hand-tool="true"] * {
+  cursor: grab !important;
+}
+
+.social-tool-canvas-stage[data-canvas-hand-tool="true"] .canvas-stage-chrome,
+.social-tool-canvas-stage[data-canvas-hand-tool="true"] .canvas-stage-chrome * {
+  cursor: auto !important;
+}
+
+.social-tool-canvas-stage[data-canvas-panning="true"] {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.social-tool-canvas-stage[data-canvas-panning="true"] * {
+  cursor: grabbing !important;
+}
+
+.social-tool-canvas-stage[data-canvas-panning="true"] .canvas-stage-chrome,
+.social-tool-canvas-stage[data-canvas-panning="true"] .canvas-stage-chrome * {
+  cursor: auto !important;
 }
 
 .canvas-selectable.is-canvas-selected::after {
@@ -738,6 +815,32 @@
 
 .layout-spacing-toolbar {
   margin-left: 0;
+}
+
+.layout-spacing-combobutton {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 9999px;
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--gray-950) 8%, transparent);
+  overflow: hidden;
+}
+
+.layout-spacing-combobutton-main {
+  box-shadow: none !important;
+}
+
+.layout-spacing-combobutton.is-active .layout-spacing-combobutton-main {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-right: 1px solid color-mix(in oklab, var(--white) 28%, transparent);
+}
+
+.layout-spacing-combobutton-exit {
+  min-width: 2rem;
+  padding-inline: 0.5rem !important;
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 .layout-shuffle-toolbar .layout-shuffle-btn {
@@ -897,6 +1000,11 @@
   user-select: none;
 }
 
+.spacing-handle--edge-left,
+.spacing-handle--edge-right {
+  cursor: ew-resize;
+}
+
 .spacing-handle--padding {
   background: color-mix(in oklab, #9dd98a 38%, transparent);
 }
@@ -918,18 +1026,53 @@
   min-height: 10px;
 }
 
+.spacing-handle--edge-left,
+.spacing-handle--edge-right {
+  min-width: 10px;
+}
+
 .spacing-handle--between {
   position: absolute;
   inset: 0;
   min-height: 6px;
 }
 
-.spacing-handle--layout-pad {
+/* Top / bottom layout pad — fill the padding strips (easy grab target) */
+.spacing-handle--layout-pad-top {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  transform: translateY(-100%);
+  height: max(var(--sp-layout-pad, 64px), 12px);
+  z-index: 41;
+}
+
+.spacing-handle--layout-pad-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: max(var(--sp-layout-pad, 64px), 12px);
+  z-index: 41;
+}
+
+/* Left / right layout pad — fill the side gutters */
+.spacing-handle--layout-pad-left {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: max(var(--sp-layout-pad, 64px), 12px);
+  z-index: 42;
+}
+
+.spacing-handle--layout-pad-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: max(var(--sp-layout-pad, 64px), 12px);
+  z-index: 42;
 }
 
 .spacing-handle--footer-pad {
@@ -956,13 +1099,36 @@
 /* Padding edge handles — horizontal bar on the strip */
 .spacing-handle--padding.spacing-handle--edge-top .spacing-handle-bar,
 .spacing-handle--padding.spacing-handle--edge-bottom .spacing-handle-bar,
-.spacing-handle--padding.spacing-handle--layout-pad .spacing-handle-bar,
+.spacing-handle--padding.spacing-handle--layout-pad-top .spacing-handle-bar,
+.spacing-handle--padding.spacing-handle--layout-pad-bottom .spacing-handle-bar,
 .spacing-handle--padding.spacing-handle--footer-pad .spacing-handle-bar {
   width: min(96px, 30%);
   height: 3px;
   min-height: 3px;
   max-height: 3px;
   background: color-mix(in oklab, #275144 82%, #0f1816);
+}
+
+/* Side padding handles — vertical bar in the gutter */
+.spacing-handle--padding.spacing-handle--edge-left .spacing-handle-bar,
+.spacing-handle--padding.spacing-handle--edge-right .spacing-handle-bar {
+  width: 3px;
+  min-width: 3px;
+  max-width: 3px;
+  height: min(96px, 30%);
+  background: color-mix(in oklab, #275144 82%, #0f1816);
+}
+
+.spacing-handle--layout-pad-left .spacing-handle-label {
+  writing-mode: horizontal-tb;
+  left: 50%;
+  top: 28%;
+}
+
+.spacing-handle--layout-pad-right .spacing-handle-label {
+  writing-mode: horizontal-tb;
+  left: 50%;
+  top: 28%;
 }
 
 .social-post-footer-strip.has-spacing-handles {

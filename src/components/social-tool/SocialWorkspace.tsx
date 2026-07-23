@@ -42,6 +42,8 @@ import { useBrandKit } from "@/lib/brand/useBrandKit";
 import { useBrandToolTheme } from "@/lib/brand/useBrandToolTheme";
 import { LayoutShuffleButton } from "@/components/social-tool/LayoutShuffleButton";
 import { LayoutSpacingToggle } from "@/components/social-tool/LayoutSpacingToggle";
+import { CanvasZoomControls } from "@/components/social-tool/CanvasZoomControls";
+import { useCanvasPreviewViewport } from "@/lib/social-tool/useCanvasPreviewViewport";
 import {
   DEFAULT_POST_LAYOUT_SPACING,
   type PostLayoutSpacing,
@@ -123,7 +125,6 @@ function ToolSocialWorkspace() {
   const [exportScale, setExportScale] = useState<1 | 2>(2);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
-  const [previewScale, setPreviewScale] = useState(0.45);
   const [selectedBlock, setSelectedBlock] = useState<DesignBlockId | null>(null);
   const [logoBackdrop, setLogoBackdrop] = useState(false);
   const [logoInvert, setLogoInvert] = useState(false);
@@ -171,6 +172,7 @@ function ToolSocialWorkspace() {
   }
 
   function handleStagePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.button === 1 || spaceDown || handActive) return;
     if (isCanvasSelectableTarget(e.target)) return;
     clearInspectorSelection();
   }
@@ -187,6 +189,24 @@ function ToolSocialWorkspace() {
   const template = getTemplate(templateId);
   const platform = getPlatform(platformId);
   const activeLayout = getPostLayout(layoutId);
+  const {
+    previewScale,
+    panStyle,
+    zoomPercent,
+    canActualSize,
+    spaceDown,
+    handMode,
+    handActive,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    setActualSize,
+    toggleHandMode,
+  } = useCanvasPreviewViewport({
+    stageRef,
+    platformWidth: platform.width,
+    platformHeight: platform.height,
+  });
 
   function applyHierarchyScales(
     nextLayoutId: PostLayoutId,
@@ -310,25 +330,6 @@ function ToolSocialWorkspace() {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [exportOpen]);
-
-  useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
-
-    const update = () => {
-      const pad = 48;
-      const availW = Math.max(el.clientWidth - pad, 200);
-      const availH = Math.max(el.clientHeight - pad, 200);
-      const sx = availW / platform.width;
-      const sy = availH / platform.height;
-      setPreviewScale(Math.min(sx, sy, 1));
-    };
-
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [platform.width, platform.height]);
 
   useEffect(() => {
     setOverlayContainer(viewportRef.current);
@@ -716,10 +717,24 @@ function ToolSocialWorkspace() {
         {/* Preview stage */}
         <div
           ref={stageRef}
-          className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto overscroll-contain bg-[color-mix(in_oklab,var(--gray-950)_6%,var(--surface-primary))] p-6 dark:bg-[color-mix(in_oklab,var(--white)_4%,var(--surface-primary))]"
+          className="social-tool-canvas-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden overscroll-none bg-[color-mix(in_oklab,var(--gray-950)_6%,var(--surface-primary))] p-6 dark:bg-[color-mix(in_oklab,var(--white)_4%,var(--surface-primary))]"
           onPointerDown={handleStagePointerDown}
         >
-          <div className="flex w-full max-w-full flex-col items-center gap-3">
+          <CanvasZoomControls
+            zoomPercent={zoomPercent}
+            canActualSize={canActualSize}
+            handActive={handActive}
+            handMode={handMode}
+            onToggleHand={toggleHandMode}
+            onZoomIn={zoomIn}
+            onZoomOut={zoomOut}
+            onReset={resetZoom}
+            onActualSize={setActualSize}
+          />
+          <div
+            className="flex w-max max-w-none shrink-0 flex-col items-center gap-3 will-change-transform"
+            style={panStyle}
+          >
             <div
               className="canvas-preview-stack"
               style={{ width: platform.width * previewScale }}
