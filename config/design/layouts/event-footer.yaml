@@ -1,0 +1,31 @@
+id: event-footer
+platforms: [all]
+campaigns:
+  - event
+  - webinar
+recipes:
+  - event_footer_recipe
+visualPriority: medium
+contentDensity: medium
+readingPattern: F
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - caption
+  - cta
+  - product_image
+  - badge
+score:
+  promotion: 0.45
+  announcement: 0.58
+  product_launch: 0.5
+  advertisement: 0.48
+  thought_leadership: 0.5
+  event: 0.95
+  case_study: 0.48
+  feature_release: 0.45
+  webinar: 0.93
+  hiring: 0.45

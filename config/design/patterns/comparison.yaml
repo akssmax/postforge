@@ -1,0 +1,14 @@
+id: comparison
+label: Comparison
+description: Old way versus new way, then switch CTA.
+flow:
+  - Old Way
+  - New Way
+  - Switch
+recipes:
+  - comparison_switch
+campaigns:
+  - product_launch
+  - feature_release
+  - advertisement
+  - promotion

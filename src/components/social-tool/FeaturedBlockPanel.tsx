@@ -274,7 +274,25 @@ export function FeaturedBlockPanel({
           </div>
 
           {error ? (
-            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+              {mode === "composed" ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  isDisabled={generatingVisualBlocks}
+                  onPress={() =>
+                    onGenerateVisualBlocks("library", {
+                      pickFeatured: true,
+                      preferredKind: featuredVisualKind,
+                    })
+                  }
+                >
+                  <RotateCcw className="size-3.5" />
+                  Retry pick
+                </Button>
+              ) : null}
+            </div>
           ) : null}
 
           {showFeaturedBlock &&

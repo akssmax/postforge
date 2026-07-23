@@ -1,0 +1,37 @@
+id: balanced-split
+platforms: [all]
+campaigns:
+  - advertisement
+  - product_launch
+  - promotion
+  - feature_release
+  - case_study
+recipes:
+  - comparison_switch
+  - problem_solution_flow
+  - offer_hero
+visualPriority: medium
+contentDensity: medium
+readingPattern: Z
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - cta
+  - product_image
+  - badge
+  - offer_badge
+  - metric
+score:
+  promotion: 0.82
+  announcement: 0.68
+  product_launch: 0.85
+  advertisement: 0.88
+  thought_leadership: 0.55
+  event: 0.5
+  case_study: 0.75
+  feature_release: 0.8
+  webinar: 0.52
+  hiring: 0.48

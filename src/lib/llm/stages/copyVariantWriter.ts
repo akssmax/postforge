@@ -2,11 +2,17 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import { createMistralModel } from "@/lib/llm/mistral";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
+import {
+  campaignPlanToIntent,
+  type CampaignPlan,
+} from "@/lib/llm/schemas/campaignPlan";
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
 import { rulesProfilePrompt } from "@/lib/llm/rules";
 import type { CopyVariant } from "@/lib/social-tool/presets";
 import { COPY_VARIANT_POOL_SIZE } from "@/lib/social-tool/presets";
 import { countWords } from "@/lib/social-tool/slotLibrary";
+import { resolveDesignRulesForBrief } from "@/lib/llm/rules";
+import { intentFromBrief } from "@/lib/social-tool/engine/intentFromBrief";
 import type { PlatformId } from "@/lib/social-tool/presets";
 
 const copyVariantSchema = z.object({
@@ -116,6 +122,21 @@ function extractTopic(brief: string): string {
   return topic.length > 48 ? `${topic.slice(0, 45).trim()}…` : topic;
 }
 
+/** Build a shuffle-ready copy pool for any generation path (LLM, offline, legacy). */
+export function buildCopyVariantsForBrief(
+  userMessage: string,
+  primary: CopyVariant,
+  platformId: PlatformId,
+): CopyVariant[] {
+  const intent = intentFromBrief(userMessage, platformId);
+  const rulesProfile = resolveDesignRulesForBrief(intent, userMessage);
+  return buildCopyVariantPool(
+    primary,
+    writeCopyVariantsOffline({ userMessage, rulesProfile }),
+    rulesProfile,
+  );
+}
+
 export function writeCopyVariantsOffline(input: {
   userMessage: string;
   rulesProfile: DesignRulesProfile;
@@ -133,7 +154,7 @@ export function writeCopyVariantsOffline(input: {
 }
 
 export async function writeCopyVariants(input: {
-  intent: CampaignIntent;
+  intent: CampaignIntent | CampaignPlan;
   userMessage: string;
   platformId: PlatformId;
   rulesProfile: DesignRulesProfile;
@@ -146,6 +167,10 @@ export async function writeCopyVariants(input: {
   instruction?: string;
   excludePrimary?: CopyVariant;
 }): Promise<CopyVariant[]> {
+  const intent =
+    "campaign" in input.intent && typeof input.intent.campaign === "object"
+      ? campaignPlanToIntent(input.intent as CampaignPlan)
+      : (input.intent as CampaignIntent);
   const targetCount = COPY_VARIANT_POOL_SIZE - (input.excludePrimary ? 1 : 0);
 
   try {
@@ -162,9 +187,9 @@ export async function writeCopyVariants(input: {
         input.brandSummary
           ? `Brand colors: primary ${input.brandSummary.primary}, accent ${input.brandSummary.accent}`
           : "",
-        `Tone: ${input.intent.tone}`,
-        `Audience: ${input.intent.audience}`,
-        `Goal: ${input.intent.goal}`,
+        `Tone: ${intent.tone}`,
+        `Audience: ${intent.audience}`,
+        `Goal: ${intent.goal}`,
         rulesProfilePrompt(input.rulesProfile),
         `Headline ≤${input.rulesProfile.copyBudget.headlineWords} words.`,
         `Subheading ≤${input.rulesProfile.copyBudget.subheadingWords} words.`,

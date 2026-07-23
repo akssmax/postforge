@@ -1,0 +1,34 @@
+id: centered-announcement
+platforms: [all]
+campaigns:
+  - announcement
+  - hiring
+recipes:
+  - announcement_center
+  - discount_focus
+  - statistic_hero
+visualPriority: medium
+contentDensity: medium
+readingPattern: center
+visualWeight: medium
+densityClass: copyHeavy
+supports:
+  - logo
+  - headline
+  - subheading
+  - body
+  - cta
+  - badge
+  - offer_badge
+  - metric
+score:
+  promotion: 0.7
+  announcement: 0.95
+  product_launch: 0.62
+  advertisement: 0.58
+  thought_leadership: 0.55
+  event: 0.5
+  case_study: 0.45
+  feature_release: 0.6
+  webinar: 0.48
+  hiring: 0.9

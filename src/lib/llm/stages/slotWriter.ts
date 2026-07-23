@@ -2,8 +2,13 @@ import { generateObject } from "ai";
 import { createMistralModel } from "@/lib/llm/mistral";
 import { slotDraftSchema, type SlotDraft } from "@/lib/llm/schemas/slotDraft";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
+import {
+  campaignPlanToIntent,
+  type CampaignPlan,
+} from "@/lib/llm/schemas/campaignPlan";
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
 import { rulesProfilePrompt } from "@/lib/llm/rules";
+import type { RecipeConfig } from "@/lib/design-config/registry";
 import { writeSlotsOffline } from "@/lib/llm/stages/slotWriterOffline";
 import type { DynamicLayout } from "@/lib/social-tool/dynamicLayout";
 import {
@@ -14,6 +19,20 @@ import {
 } from "@/lib/social-tool/slotLibrary";
 import type { PostLayout } from "@/lib/social-tool/postLayouts";
 import type { PlatformId } from "@/lib/social-tool/presets";
+
+function asIntent(intentOrPlan: CampaignIntent | CampaignPlan): CampaignIntent {
+  if ("campaign" in intentOrPlan && typeof intentOrPlan.campaign === "object") {
+    return campaignPlanToIntent(intentOrPlan as CampaignPlan);
+  }
+  return intentOrPlan as CampaignIntent;
+}
+
+function asPlan(intentOrPlan: CampaignIntent | CampaignPlan): CampaignPlan | null {
+  if ("campaign" in intentOrPlan && typeof intentOrPlan.campaign === "object") {
+    return intentOrPlan as CampaignPlan;
+  }
+  return null;
+}
 
 export type SlotWriteFailure = {
   ok: false;
@@ -176,7 +195,7 @@ export function validateSlotDraft(
 }
 
 export async function writeSlots(input: {
-  intent: CampaignIntent;
+  intent: CampaignIntent | CampaignPlan;
   layout: PostLayout;
   dynamicLayout: DynamicLayout;
   userMessage: string;
@@ -189,7 +208,10 @@ export async function writeSlots(input: {
   };
   retryReasons?: string[];
   themeAngle?: string;
+  recipe?: RecipeConfig;
 }): Promise<SlotDraft> {
+  const intent = asIntent(input.intent);
+  const plan = asPlan(input.intent);
   const slotPrompt = buildSlotPrompt(input.dynamicLayout, input.rulesProfile);
 
   try {
@@ -206,9 +228,15 @@ export async function writeSlots(input: {
         input.brandSummary
           ? `Brand colors: primary ${input.brandSummary.primary}, accent ${input.brandSummary.accent}`
           : "",
-        `Tone: ${input.intent.tone}`,
-        `Audience: ${input.intent.audience}`,
-        `Goal: ${input.intent.goal}`,
+        `Tone: ${plan?.brand.tone ?? intent.tone}`,
+        `Audience: ${plan?.audience.role ?? intent.audience}`,
+        `Goal: ${plan?.campaign.objective ?? intent.goal}`,
+        plan
+          ? `Communication pattern: ${plan.communication.pattern}; headline style: ${plan.communication.headlineStyle}`
+          : "",
+        input.recipe
+          ? `Recipe ${input.recipe.name}: attention on ${input.recipe.attention}; proof=${input.recipe.proof}`
+          : "",
         rulesProfilePrompt(input.rulesProfile),
         ...copyStructureInstructions(input.rulesProfile),
       ]
@@ -219,8 +247,8 @@ export async function writeSlots(input: {
         input.userMessage,
         input.themeAngle ? `Theme angle: ${input.themeAngle}` : "",
         "",
-        "Intent:",
-        JSON.stringify(input.intent, null, 2),
+        plan ? "Campaign plan:" : "Intent:",
+        JSON.stringify(plan ?? intent, null, 2),
         "",
         input.retryReasons?.length
           ? `Previous attempt failed — rewrite SHORTER:\n${input.retryReasons.map((r) => `- ${r}`).join("\n")}`
@@ -250,7 +278,7 @@ export async function writeSlots(input: {
 }
 
 export async function writeSlotsWithRetries(input: {
-  intent: CampaignIntent;
+  intent: CampaignIntent | CampaignPlan;
   layout: PostLayout;
   dynamicLayout: DynamicLayout;
   userMessage: string;
@@ -262,6 +290,7 @@ export async function writeSlotsWithRetries(input: {
     accent?: string;
   };
   themeAngle?: string;
+  recipe?: RecipeConfig;
 }): Promise<{ draft: SlotDraft; retries: number; validationReasons: string[] }> {
   let retryReasons: string[] | undefined;
   let retries = 0;

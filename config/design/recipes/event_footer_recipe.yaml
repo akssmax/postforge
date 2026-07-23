@@ -1,0 +1,20 @@
+id: event_footer_recipe
+name: Event Footer
+pattern: announcement_hero
+slots:
+  - logo
+  - headline
+  - subheading
+  - cta
+attention: event
+proof: none
+density: medium
+readingPattern: F
+campaigns:
+  - event
+  - webinar
+preferredLayouts:
+  - event-footer
+  - footer-mark
+  - logo-footer-bar
+  - centered-announcement

@@ -74,6 +74,7 @@ import type { ProductPageId } from "@/lib/social-tool/presets";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
 import { validatedPlanFromBriefResult } from "@/lib/llm/briefResultAdapter";
+import { buildCopyVariantsForBrief } from "@/lib/llm/stages/copyVariantWriter";
 import { applyDesignPlanToSession } from "@/lib/llm/services/applyDesignPlan";
 import { applyCanvasPatchToSession, repairDesignDocument } from "@/lib/llm/services/applyCanvasPatch";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
@@ -194,6 +195,7 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const featuredBlobUrlRef = useRef<string | null>(null);
   const logoBlobUrlsRef = useRef<string[]>([]);
+  const sessionRef = useRef<DesignSessionPersisted | null>(null);
 
   const revokeLogoBlob = useCallback(() => {
     for (const url of logoBlobUrlsRef.current) {
@@ -285,6 +287,10 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
     },
     [schedulePersist],
   );
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   const patchDocument = useCallback(
     (partial: Partial<DesignDocument>) => {
@@ -688,7 +694,8 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       if (!needsFeaturedLibrary) return;
 
       void (async () => {
-        if (!session) return;
+        const currentSession = sessionRef.current;
+        if (!currentSession) return;
         setGeneratingVisualBlocks(true);
         setFeaturedError(null);
         try {
@@ -696,7 +703,7 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              ...visualBlockPickPayload(session, {
+              ...visualBlockPickPayload(currentSession, {
                 headline: plan.copy.heading,
                 subheading: plan.copy.subheading,
                 theme: plan.rationale,
@@ -716,21 +723,9 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
           const payload = (await response.json()) as { blocks: VisualBlockRecord[] };
           const block = payload.blocks[0];
           if (!block) {
-            updateSession((prev) => ({
-              ...prev,
-              featured: {
-                ...prev.featured,
-                mode: "placeholder",
-              },
-              document: {
-                ...prev.document,
-                featuredSlots: (prev.document.featuredSlots ?? []).map((slot) => ({
-                  ...slot,
-                  mode: "placeholder" as const,
-                })),
-              },
-              updatedAt: Date.now(),
-            }));
+            setFeaturedError(
+              "No matching visual found in the library. Try Shuffle or browse visuals.",
+            );
             return;
           }
           updateSession((prev) =>
@@ -754,7 +749,7 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
         }
       })();
     },
-    [session, syncComposedFeaturedSlots, updateSession],
+    [syncComposedFeaturedSlots, updateSession],
   );
 
   const applyCanvasPatch = useCallback(
@@ -784,6 +779,15 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
         document: {
           ...prev.document,
           copy: result.copy,
+          copyVariants: buildCopyVariantsForBrief(
+            result.sourceBrief,
+            {
+              heading: result.copy.heading,
+              subheading: result.copy.subheading,
+            },
+            platformId,
+          ),
+          copyVariantIndex: 0,
           layoutId: result.layoutId,
           logoPlacement: result.logoPlacement,
           logoAlign: result.logoAlign,
@@ -880,7 +884,8 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       pickFeatured?: boolean;
       preferredKind?: "ui" | "illustration";
     }) => {
-      if (!session) return;
+      const currentSession = sessionRef.current;
+      if (!currentSession) return;
       setGeneratingVisualBlocks(true);
       setFeaturedError(null);
       try {
@@ -889,7 +894,7 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            ...visualBlockPickPayload(session, {
+            ...visualBlockPickPayload(currentSession, {
               theme: input?.theme,
               brief: input?.brief,
               preferredKind: input?.preferredKind,
@@ -950,7 +955,7 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
         setGeneratingVisualBlocks(false);
       }
     },
-    [session, syncComposedFeaturedSlots, updateSession],
+    [syncComposedFeaturedSlots, updateSession],
   );
 
   const selectVisualBlock = useCallback(

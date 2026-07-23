@@ -42,6 +42,8 @@ export type BriefGenerationResult = {
   featuredTransform: FeaturedImageTransform;
   /** Short line for UI feedback after generate */
   rationale: string;
+  /** Original brief text — used for copy variant pools and offline parity. */
+  sourceBrief: string;
 };
 
 const STOP_WORDS = new Set([
@@ -446,6 +448,11 @@ function generateCopyFromBrief(brief: string, layout: PostLayout): PostCopy {
   return seeded;
 }
 
+/**
+ * Legacy offline brief → layout/copy helper.
+ * Prefer `runDesignPipelineOffline()` for full v2 campaign-first flow.
+ * Still used internally by `writeSlotsOffline` as a copy seed.
+ */
 export function generateFromBrief(
   brief: string,
   platformId: PlatformId,
@@ -502,5 +509,6 @@ export function generateFromBrief(
     logoScale: hierarchy.logoScale,
     featuredTransform: hierarchy.featuredTransform,
     rationale,
+    sourceBrief: brief.trim(),
   };
 }

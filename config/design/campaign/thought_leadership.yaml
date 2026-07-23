@@ -1,0 +1,22 @@
+campaign: thought_leadership
+label: Thought Leadership
+designSystem: default
+headline:
+  maxWords: 12
+  emphasis: insight
+subheading:
+  optional: true
+  maxWords: 24
+cta:
+  optional: true
+copy:
+  density: high
+  maxTotalWords: 60
+spacing: relaxed
+patterns:
+  - monogram
+requiredSlots:
+  - headline
+defaultPattern: narrative
+defaultRecipes:
+  - narrative_statement

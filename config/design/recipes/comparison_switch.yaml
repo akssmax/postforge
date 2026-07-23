@@ -1,0 +1,23 @@
+id: comparison_switch
+name: Comparison Switch
+pattern: comparison
+slots:
+  - logo
+  - headline
+  - subheading
+  - product_image
+  - cta
+attention: new_way
+proof: screenshot
+density: low
+readingPattern: Z
+campaigns:
+  - product_launch
+  - feature_release
+  - advertisement
+  - promotion
+preferredLayouts:
+  - balanced-split
+  - split-feature-right
+  - professional-left
+  - product-focus

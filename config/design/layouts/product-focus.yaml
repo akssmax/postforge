@@ -1,0 +1,33 @@
+id: product-focus
+platforms: [all]
+campaigns:
+  - product_launch
+  - advertisement
+  - feature_release
+recipes:
+  - offer_hero
+  - comparison_switch
+  - problem_solution_flow
+visualPriority: high
+contentDensity: low
+readingPattern: F
+visualWeight: heavy
+densityClass: visualFirst
+supports:
+  - logo
+  - headline
+  - subheading
+  - product_image
+  - badge
+  - offer_badge
+score:
+  promotion: 0.78
+  announcement: 0.6
+  product_launch: 0.95
+  advertisement: 0.9
+  thought_leadership: 0.4
+  event: 0.45
+  case_study: 0.55
+  feature_release: 0.92
+  webinar: 0.42
+  hiring: 0.4

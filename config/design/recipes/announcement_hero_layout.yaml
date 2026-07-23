@@ -1,0 +1,19 @@
+id: announcement_hero_layout
+name: Announcement Hero Layout
+pattern: announcement_hero
+slots:
+  - logo
+  - headline
+  - product_image
+  - cta
+attention: message
+proof: screenshot
+density: low
+readingPattern: F
+campaigns:
+  - announcement
+  - product_launch
+preferredLayouts:
+  - classic-hero
+  - visual-first
+  - product-focus

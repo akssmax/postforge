@@ -22,6 +22,7 @@ export async function POST(req: Request) {
       messages: parsed.data.messages,
       platformId,
       brandSummary: parsed.data.brandSummary,
+      designSnapshot: parsed.data.designSnapshot,
     });
   } catch (err) {
     return new Response(

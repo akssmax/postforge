@@ -1,0 +1,37 @@
+id: offer
+label: Offer Design System
+campaigns:
+  - promotion
+  - advertisement
+layouts:
+  - classic-hero
+  - centered-announcement
+  - product-focus
+  - balanced-split
+  - visual-first
+  - brand-stack
+  - professional-left
+  - split-feature-right
+  - split-feature-left
+spacingPreset: compact
+typographyPreset: bold
+badgeStyles:
+  - offer
+  - default
+ctaStyles:
+  - primary
+  - default
+patterns:
+  - grid
+  - dots
+  - topography
+illustrationStyles:
+  - default
+decorationLevels:
+  - offer
+  - mesh
+  - minimal
+colorMoods:
+  - warm
+  - bold
+  - neutral

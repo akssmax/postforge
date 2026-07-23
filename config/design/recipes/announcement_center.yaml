@@ -1,0 +1,21 @@
+id: announcement_center
+name: Announcement Center
+pattern: announcement_hero
+slots:
+  - logo
+  - badge
+  - headline
+  - subheading
+  - cta
+attention: message
+proof: badge
+density: medium
+readingPattern: center
+campaigns:
+  - announcement
+  - hiring
+  - webinar
+preferredLayouts:
+  - centered-announcement
+  - brand-stack
+  - classic-hero

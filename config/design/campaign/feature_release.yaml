@@ -1,0 +1,28 @@
+campaign: feature_release
+label: Feature Release
+designSystem: enterprise_saas
+headline:
+  maxWords: 8
+  emphasis: feature
+subheading:
+  optional: true
+  maxWords: 16
+cta:
+  required: true
+featured:
+  required: true
+copy:
+  density: low
+  maxTotalWords: 40
+spacing: default
+patterns:
+  - grid
+  - topography
+requiredSlots:
+  - headline
+  - product_image
+  - cta
+defaultPattern: problem_solution
+defaultRecipes:
+  - problem_solution_flow
+  - offer_hero

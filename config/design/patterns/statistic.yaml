@@ -1,0 +1,13 @@
+id: statistic
+label: Statistic
+description: Lead with a bold metric, explain, then CTA.
+flow:
+  - Metric
+  - Explanation
+  - CTA
+recipes:
+  - statistic_hero
+campaigns:
+  - case_study
+  - thought_leadership
+  - product_launch

@@ -1,0 +1,31 @@
+campaign: case_study
+label: Case Study
+designSystem: enterprise_saas
+headline:
+  maxWords: 10
+  emphasis: outcome
+customerLogo:
+  required: true
+quote:
+  required: true
+metric:
+  required: true
+cta:
+  required: true
+  type: learn_more
+copy:
+  density: medium
+  maxTotalWords: 55
+spacing: relaxed
+patterns:
+  - grid
+requiredSlots:
+  - headline
+  - quote
+  - metric
+  - customer_logo
+  - cta
+defaultPattern: social_proof
+defaultRecipes:
+  - social_proof_strip
+  - statistic_hero

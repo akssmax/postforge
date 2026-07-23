@@ -1,0 +1,21 @@
+campaign: hiring
+label: Hiring
+designSystem: default
+headline:
+  maxWords: 8
+  emphasis: role
+cta:
+  required: true
+  type: apply
+copy:
+  density: medium
+  maxTotalWords: 45
+spacing: default
+patterns:
+  - dots
+requiredSlots:
+  - headline
+  - cta
+defaultPattern: announcement_hero
+defaultRecipes:
+  - announcement_center

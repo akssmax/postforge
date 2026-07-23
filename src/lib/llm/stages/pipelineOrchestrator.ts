@@ -1,12 +1,8 @@
-import type { UIMessage } from "ai";
-import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
-import type { DesignPlan } from "@/lib/llm/schemas/designPlan";
 import {
   extractThemesFromBrief,
-  resolveDesignRulesForBrief,
-  rulesProfilePrompt,
+  resolveDesignRulesForPlan,
 } from "@/lib/llm/rules";
-import { analyzeIntent } from "@/lib/llm/stages/intentAnalyzer";
+import { planCampaign } from "@/lib/llm/stages/creativePlanner";
 import { rankLayout } from "@/lib/llm/stages/layoutRanker";
 import { writeSlotsWithRetries } from "@/lib/llm/stages/slotWriter";
 import { writeSlotsOffline } from "@/lib/llm/stages/slotWriterOffline";
@@ -19,24 +15,31 @@ import {
 import type {
   DesignVariant,
   PipelineResult,
+  PipelineTrace,
   PipelineVariantsResult,
 } from "@/lib/llm/stages/pipelineTypes";
-import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
 import { validateDesignPlan } from "@/lib/llm/services/layoutValidator";
 import { assembleDesignPlan } from "@/lib/social-tool/engine/assembleDesignPlan";
-import { intentFromBrief } from "@/lib/social-tool/engine/intentFromBrief";
-import { applyLayoutVariants } from "@/lib/social-tool/engine/layoutVariants";
+import { campaignPlanFromBrief } from "@/lib/social-tool/engine/campaignPlanFromBrief";
+import { retrieveDesignSystem } from "@/lib/social-tool/engine/designSystemRetriever";
+import { resolveRecipe } from "@/lib/social-tool/engine/recipeResolver";
+import { applyRecipeAdaptation } from "@/lib/social-tool/engine/layoutVariants";
 import {
   getLayoutById,
   retrieveLayouts,
   type LayoutCandidate,
 } from "@/lib/social-tool/engine/layoutRetriever";
 import { getLayoutRetrievalMeta } from "@/lib/social-tool/engine/layoutRetrievalMeta";
-import { scoreDesign } from "@/lib/social-tool/engine/scoringEngine";
-import { applyVisualPolicy } from "@/lib/social-tool/engine/visualPolicy";
+import { scoreDesign, repairPlanCopyForBalance, repairPlanDropOptionalSlots } from "@/lib/social-tool/engine/scoringEngine";
+import { resolveVisualStrategy } from "@/lib/social-tool/engine/visual/resolveVisualStrategy";
 import { catalogLayoutToDynamic } from "@/lib/social-tool/layoutAdapter";
 import type { PlatformId } from "@/lib/social-tool/presets";
 import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
+import {
+  campaignPlanToIntent,
+  type CampaignPlan,
+} from "@/lib/llm/schemas/campaignPlan";
+import type { UIMessage } from "ai";
 
 export type PipelineInput = {
   userMessage: string;
@@ -70,20 +73,22 @@ export function getLatestUserMessage(messages: UIMessage[]): string {
 }
 
 function buildSummary(input: {
-  intent: CampaignIntent;
+  plan: CampaignPlan;
   layoutName: string;
   rationale: string;
   score: { total: number };
   theme?: string;
   rulesLabel: string;
+  recipeName?: string;
+  systemLabel?: string;
 }): string {
   return [
-    input.theme
-      ? `Theme **${input.theme}** — `
-      : "",
-    `I analyzed your brief as a ${input.intent.campaignType.replace("_", " ")} (${input.rulesLabel}) aimed at ${input.intent.audience.replace("_", " ")}.`,
-    `I chose **${input.layoutName}** — ${input.rationale}`,
-    `Design quality score: ${input.score.total}/100.`,
+    input.theme ? `Theme **${input.theme}** — ` : "",
+    `I planned this as a **${input.plan.campaign.type.replace(/_/g, " ")}** (${input.rulesLabel}) for ${input.plan.audience.role.replace(/_/g, " ")}, using the **${input.plan.communication.pattern.replace(/_/g, " ")}** pattern`,
+    input.recipeName ? ` / **${input.recipeName}** recipe` : "",
+    input.systemLabel ? ` in the **${input.systemLabel}** system` : "",
+    `. Chose **${input.layoutName}** — ${input.rationale}`,
+    ` Design quality score: ${input.score.total}/100.`,
   ].join("");
 }
 
@@ -104,44 +109,70 @@ async function runPipelineAttempt(input: {
   recentBackgroundPresetIds?: string[];
   offline?: boolean;
   themeAngle?: string;
-  intent: CampaignIntent;
-  rulesProfile: ReturnType<typeof resolveDesignRulesForBrief>;
+  plan: CampaignPlan;
+  rulesProfile: ReturnType<typeof resolveDesignRulesForPlan>;
   layoutRetry?: boolean;
+  repairSteps?: string[];
 }): Promise<PipelineResult> {
+  const repairSteps = [...(input.repairSteps ?? [])];
+  const system = retrieveDesignSystem(input.plan);
+  const { recipe, pattern, rationale: recipeRationale } = resolveRecipe(
+    input.plan,
+    system,
+  );
+
   const candidates = retrieveLayouts(
-    input.intent,
+    input.plan,
     input.platformId,
     undefined,
     6,
     input.rulesProfile,
     input.userMessage,
+    recipe,
+    system,
   );
 
   let ranked = input.offline
     ? {
         layoutId: candidates[0]?.layout.id ?? ("classic-hero" as PostLayoutId),
-        rationale: `${candidates[0]?.layout.name ?? "Classic Hero"} matched ${input.intent.primaryIntent}.`,
+        rationale: `${candidates[0]?.layout.name ?? "Classic Hero"} matched ${recipe.name} / ${input.plan.communication.pattern}.`,
       }
-    : await rankLayout(input.intent, candidates, input.userMessage, input.rulesProfile);
+    : await rankLayout(
+        input.plan,
+        candidates,
+        input.userMessage,
+        input.rulesProfile,
+        recipe,
+      );
 
   if (input.layoutRetry) {
     ranked = {
       layoutId: pickVisualFallbackLayout(candidates),
       rationale: "Switched to a visual-first layout for better balance.",
     };
+    repairSteps.push("layout_swap_visual_first");
   }
 
-  const { layoutId } = applyLayoutVariants(ranked.layoutId, input.intent, input.rulesProfile);
+  const adapted = applyRecipeAdaptation(
+    ranked.layoutId,
+    input.plan,
+    recipe,
+    input.rulesProfile,
+  );
+  const layoutId = adapted.layoutId;
   const layout = getLayoutById(layoutId);
   const dynamicLayout = catalogLayoutToDynamic(layout);
-  const visual = applyVisualPolicy(
-    input.intent,
+
+  const visual = resolveVisualStrategy({
+    plan: input.plan,
     layout,
-    input.userMessage,
-    input.rulesProfile,
-    input.backgroundCatalog,
-    input.recentBackgroundPresetIds,
-  );
+    system,
+    rulesProfile: input.rulesProfile,
+    brief: input.userMessage,
+    recipe,
+    backgroundCatalog: input.backgroundCatalog,
+    recentBackgroundPresetIds: input.recentBackgroundPresetIds,
+  });
 
   const slotResult = input.offline
     ? {
@@ -155,7 +186,7 @@ async function runPipelineAttempt(input: {
         validationReasons: [] as string[],
       }
     : await writeSlotsWithRetries({
-        intent: input.intent,
+        intent: input.plan,
         layout,
         dynamicLayout,
         userMessage: input.userMessage,
@@ -163,6 +194,7 @@ async function runPipelineAttempt(input: {
         brandSummary: input.brandSummary,
         rulesProfile: input.rulesProfile,
         themeAngle: input.themeAngle,
+        recipe,
       });
 
   const primaryCopy = primaryCopyFromTextSlots(slotResult.draft.textSlots);
@@ -172,7 +204,7 @@ async function runPipelineAttempt(input: {
         rulesProfile: input.rulesProfile,
       })
     : await writeCopyVariants({
-        intent: input.intent,
+        intent: input.plan,
         userMessage: input.userMessage,
         platformId: input.platformId,
         brandSummary: input.brandSummary,
@@ -186,11 +218,15 @@ async function runPipelineAttempt(input: {
     input.rulesProfile,
   );
 
+  const rationale = [ranked.rationale, recipeRationale, ...adapted.variantNotes]
+    .filter(Boolean)
+    .join(" · ");
+
   const planInput = assembleDesignPlan({
-    intent: input.intent,
+    intent: input.plan,
     layout,
     layoutId,
-    rationale: ranked.rationale,
+    rationale,
     slotDraft: slotResult.draft,
     visual,
     brief: input.userMessage,
@@ -198,6 +234,7 @@ async function runPipelineAttempt(input: {
     theme: input.themeAngle,
     copyVariants,
     copyVariantIndex: 0,
+    recipe,
   });
 
   const validated = validateDesignPlan(planInput, input.platformId, input.rulesProfile);
@@ -205,68 +242,103 @@ async function runPipelineAttempt(input: {
     throw new Error(validated.error);
   }
 
-  const score = scoreDesign(validated.plan, input.intent, input.rulesProfile);
+  const score = scoreDesign(validated.plan, input.plan, input.rulesProfile);
+  const intent = campaignPlanToIntent(input.plan);
+
+  const pipelineTrace: PipelineTrace = {
+    campaignType: input.plan.campaign.type,
+    pattern: pattern.id,
+    recipeId: recipe.id,
+    designSystemId: system.id,
+    layoutId,
+    visualReason: visual.reason,
+    scoreTotal: score.total,
+    repairSteps,
+  };
 
   return {
-    intent: input.intent,
+    intent,
+    campaignPlan: input.plan,
     layoutId,
-    rationale: ranked.rationale,
+    rationale,
     planInput,
     validatedPlan: validated.plan,
     summary: buildSummary({
-      intent: input.intent,
+      plan: input.plan,
       layoutName: layout.name,
       rationale: ranked.rationale,
       score,
       theme: input.themeAngle,
       rulesLabel: input.rulesProfile.label,
+      recipeName: recipe.name,
+      systemLabel: system.label,
     }),
     score,
     rulesProfile: input.rulesProfile,
     theme: input.themeAngle,
     copyRetries: slotResult.retries,
+    recipeId: recipe.id,
+    designSystemId: system.id,
+    visualStrategy: visual.reason,
+    pipelineTrace,
   };
 }
 
 export async function runDesignPipeline(input: PipelineInput): Promise<PipelineResult> {
   const userMessage = input.userMessage || getLatestUserMessage(input.messages);
 
-  const intent = input.offline
-    ? intentFromBrief(userMessage, input.platformId)
-    : await analyzeIntent({
+  const plan = input.offline
+    ? campaignPlanFromBrief(userMessage, input.platformId, input.themeAngle)
+    : await planCampaign({
         userMessage,
         messages: input.messages,
         platformId: input.platformId,
+        themeAngle: input.themeAngle,
       });
 
-  const rulesProfile = resolveDesignRulesForBrief(intent, userMessage);
+  const rulesProfile = resolveDesignRulesForPlan(plan, userMessage);
 
   let result = await runPipelineAttempt({
     ...input,
     userMessage,
-    intent,
+    plan,
     rulesProfile,
   });
 
   if (!result.score.visualBalancePassed) {
-    if ((result.copyRetries ?? 0) < rulesProfile.maxCopyRetries) {
-      result = await runPipelineAttempt({
-        ...input,
-        userMessage,
-        intent,
-        rulesProfile,
-      });
+    let repairedPlan = repairPlanCopyForBalance(result.validatedPlan, rulesProfile);
+    let repairedScore = scoreDesign(repairedPlan, plan, rulesProfile);
+    const steps = ["copy_truncate"];
+
+    if (!repairedScore.visualBalancePassed) {
+      repairedPlan = repairPlanDropOptionalSlots(repairedPlan, rulesProfile);
+      repairedScore = scoreDesign(repairedPlan, plan, rulesProfile);
+      steps.push("drop_optional_slots");
     }
 
-    if (!result.score.visualBalancePassed) {
+    if (repairedScore.visualBalancePassed) {
+      result = {
+        ...result,
+        validatedPlan: repairedPlan,
+        score: repairedScore,
+        pipelineTrace: result.pipelineTrace
+          ? {
+              ...result.pipelineTrace,
+              scoreTotal: repairedScore.total,
+              repairSteps: [...(result.pipelineTrace.repairSteps ?? []), ...steps],
+            }
+          : result.pipelineTrace,
+      };
+    } else {
       const meta = getLayoutRetrievalMeta(getLayoutById(result.layoutId));
       if (meta.densityClass === "copyHeavy") {
         result = await runPipelineAttempt({
           ...input,
           userMessage,
-          intent,
+          plan,
           rulesProfile,
           layoutRetry: true,
+          repairSteps: [...steps, "layout_retry"],
         });
       }
     }
@@ -279,75 +351,83 @@ export async function runDesignPipelineVariants(
   input: PipelineInput,
 ): Promise<PipelineVariantsResult> {
   const userMessage = input.userMessage || getLatestUserMessage(input.messages);
-  const themes = extractThemesFromBrief(userMessage);
+  const themes = extractThemesFromBrief(userMessage).slice(0, 3);
 
-  const intent = input.offline
-    ? intentFromBrief(userMessage, input.platformId)
-    : await analyzeIntent({
+  const basePlan = input.offline
+    ? campaignPlanFromBrief(userMessage, input.platformId)
+    : await planCampaign({
         userMessage,
         messages: input.messages,
         platformId: input.platformId,
       });
 
-  const rulesProfile = resolveDesignRulesForBrief(intent, userMessage);
-  const themeList = themes.length > 0 ? themes : [intent.primaryIntent];
-
+  const rulesProfile = resolveDesignRulesForPlan(basePlan, userMessage);
+  const angles = themes.length > 0 ? themes : [undefined];
   const variants: DesignVariant[] = [];
-  for (const theme of themeList.slice(0, 3)) {
-    const themedIntent: CampaignIntent = {
-      ...intent,
-      primaryIntent: theme,
-      keywords: [...new Set([...intent.keywords, theme])],
-    };
+
+  for (const theme of angles) {
+    const plan = theme
+      ? {
+          ...basePlan,
+          primaryMessage: `${basePlan.primaryMessage} — ${theme}`,
+          themes: [...new Set([...basePlan.themes, theme])],
+        }
+      : basePlan;
 
     const result = await runPipelineAttempt({
       ...input,
       userMessage,
-      intent: themedIntent,
+      plan,
       rulesProfile,
       themeAngle: theme,
     });
 
     if (!result.score.visualBalancePassed) {
-      const retried = await runPipelineAttempt({
-        ...input,
-        userMessage,
-        intent: themedIntent,
-        rulesProfile,
-        themeAngle: theme,
-        layoutRetry: true,
-      });
-      variants.push({
-        theme,
-        planInput: retried.planInput,
-        validatedPlan: retried.validatedPlan,
-        score: retried.score,
-        summary: retried.summary,
-        layoutId: retried.layoutId,
-        rationale: retried.rationale,
-      });
-      continue;
+      const meta = getLayoutRetrievalMeta(getLayoutById(result.layoutId));
+      if (meta.densityClass === "copyHeavy") {
+        const retried = await runPipelineAttempt({
+          ...input,
+          userMessage,
+          plan,
+          rulesProfile,
+          themeAngle: theme,
+          layoutRetry: true,
+        });
+        variants.push({
+          theme: theme ?? "default",
+          planInput: retried.planInput,
+          validatedPlan: retried.validatedPlan,
+          score: retried.score,
+          summary: retried.summary,
+          layoutId: retried.layoutId,
+          rationale: retried.rationale,
+          campaignPlan: retried.campaignPlan,
+          recipeId: retried.recipeId,
+          designSystemId: retried.designSystemId,
+        });
+        continue;
+      }
     }
 
     variants.push({
-      theme,
+      theme: theme ?? "default",
       planInput: result.planInput,
       validatedPlan: result.validatedPlan,
       score: result.score,
       summary: result.summary,
       layoutId: result.layoutId,
       rationale: result.rationale,
+      campaignPlan: result.campaignPlan,
+      recipeId: result.recipeId,
+      designSystemId: result.designSystemId,
     });
   }
 
   return {
-    intent,
+    intent: campaignPlanToIntent(basePlan),
+    campaignPlan: basePlan,
     rulesProfile,
     variants,
-    summary: `Generated ${variants.length} variant${variants.length === 1 ? "" : "s"} using ${rulesProfile.label} rules.`,
+    summary: `Generated ${variants.length} design variants from your brief.`,
   };
-}
-
-export function rulesPromptForPipeline(rulesProfile: ReturnType<typeof resolveDesignRulesForBrief>): string {
-  return rulesProfilePrompt(rulesProfile);
 }

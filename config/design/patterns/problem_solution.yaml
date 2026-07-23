@@ -1,0 +1,13 @@
+id: problem_solution
+label: Problem to Solution
+description: Surface pain, present the solution, drive action.
+flow:
+  - Pain
+  - Solution
+  - Action
+recipes:
+  - problem_solution_flow
+campaigns:
+  - product_launch
+  - feature_release
+  - advertisement

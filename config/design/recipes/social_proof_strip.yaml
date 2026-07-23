@@ -1,0 +1,21 @@
+id: social_proof_strip
+name: Social Proof Strip
+pattern: social_proof
+slots:
+  - logo
+  - headline
+  - customer_logo
+  - quote
+  - cta
+attention: trust
+proof: logos
+density: medium
+readingPattern: F
+campaigns:
+  - case_study
+  - product_launch
+preferredLayouts:
+  - professional-left
+  - logo-footer-bar
+  - brand-stack
+  - deck-sidebar

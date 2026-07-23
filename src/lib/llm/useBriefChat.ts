@@ -15,6 +15,7 @@ import { runCanvasAgentOffline } from "@/lib/llm/stages/canvasAgentOffline";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
+/** @deprecated Internal helper for slotWriterOffline only — prefer runDesignPipelineOffline. */
 import { generateFromBrief } from "@/lib/social-tool/briefGeneration";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
 import type { PlatformId } from "@/lib/social-tool/presets";
@@ -151,6 +152,8 @@ export function useBriefChat({
           return true;
         }
 
+        // Last-resort legacy helper if offline pipeline validation fails.
+        console.warn("[brief-chat] Offline pipeline failed; using generateFromBrief helper");
         const fallback = generateFromBrief(trimmed, platformId);
         const plan = validatedPlanFromBriefResult(fallback, platformId);
         if (plan) onApplyPlan(plan);

@@ -1,9 +1,16 @@
+import {
+  intentToCampaignPlan,
+  type CampaignPlan,
+} from "@/lib/llm/schemas/campaignPlan";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
+import type { DesignSystemConfig, RecipeConfig } from "@/lib/design-config/registry";
+import { designSystemAllowsLayout } from "@/lib/social-tool/engine/designSystemRetriever";
 import {
   getLayoutRetrievalMeta,
-  layoutSupportsIntent,
+  layoutSupportsCampaign,
   type LayoutRetrievalMeta,
+  type SlotNeed,
 } from "@/lib/social-tool/engine/layoutRetrievalMeta";
 import {
   getApprovedShuffleLayouts,
@@ -33,57 +40,50 @@ function tokenize(text: string): string[] {
     .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
 }
 
-function scoreLayoutForIntent(
-  layout: PostLayout,
-  meta: LayoutRetrievalMeta,
-  intent: CampaignIntent,
-  keywords: string[],
-  rulesProfile?: DesignRulesProfile,
-  brief?: string,
-): number {
-  let score = 0;
-
-  if (layoutSupportsIntent(meta, intent.primaryIntent)) score += 12;
-  if (meta.contentDensity === intent.contentDensity) score += 6;
-
-  if (intent.visualPriority === "product" && meta.visualWeight === "heavy") score += 5;
-  if (intent.visualPriority === "copy" && meta.visualWeight === "light") score += 5;
-  if (intent.visualPriority === "brand" && layout.tags.includes("brand")) score += 4;
-
-  if (intent.ctaRequired && meta.supportedSlots.includes("cta")) score += 4;
-  if (intent.proofStrategy === "product_ui" && meta.supportedSlots.includes("product_image")) {
-    score += 5;
+function mapRecipeSlot(slot: string): SlotNeed | null {
+  if (slot === "product") return "product_image";
+  if (
+    slot === "logo" ||
+    slot === "headline" ||
+    slot === "subheading" ||
+    slot === "body" ||
+    slot === "caption" ||
+    slot === "cta" ||
+    slot === "product_image" ||
+    slot === "badge" ||
+    slot === "offer_badge" ||
+    slot === "quote" ||
+    slot === "metric" ||
+    slot === "customer_logo"
+  ) {
+    return slot;
   }
+  return null;
+}
 
-  if (layout.bestFor !== "all" && layout.bestFor.includes(intent.platform as PlatformId)) {
-    score += 4;
+function requiredSlotsFromPlan(
+  plan: CampaignPlan,
+  recipe?: RecipeConfig,
+): SlotNeed[] {
+  const slots = new Set<SlotNeed>(["headline", "logo"]);
+  if (plan.cta.required) slots.add("cta");
+  if (
+    plan.visual.proof === "screenshot" ||
+    plan.visual.focus === "product_ui" ||
+    plan.visual.focus === "product_photo"
+  ) {
+    slots.add("product_image");
   }
-
-  if (rulesProfile) {
-    score += scoreDensityRouting(meta, rulesProfile, brief);
+  if (recipe) {
+    for (const slot of recipe.slots) {
+      const mapped = mapRecipeSlot(slot);
+      // Soft requirements from recipe — layout should support core visual/text slots
+      if (mapped === "headline" || mapped === "cta" || mapped === "product_image") {
+        slots.add(mapped);
+      }
+    }
   }
-
-  const haystack = [
-    ...layout.promptHints,
-    ...layout.tags,
-    layout.name,
-    layout.summary,
-    intent.primaryIntent,
-    intent.audience,
-    ...intent.keywords,
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  for (const keyword of keywords) {
-    if (haystack.includes(keyword)) score += 2;
-  }
-
-  for (const keyword of intent.keywords) {
-    if (haystack.includes(keyword.toLowerCase())) score += 3;
-  }
-
-  return score;
+  return [...slots];
 }
 
 function scoreDensityRouting(
@@ -112,63 +112,155 @@ function scoreDensityRouting(
     if (meta.densityClass === "visualFirst") delta -= 4;
   }
 
-  const intentLower = lower;
-  if (intentLower.includes("salesforce") || intentLower.includes("replacement")) {
-    if (meta.densityClass === "visualFirst" || meta.densityClass === "balanced") delta += 5;
-  }
-  if (intentLower.includes("launch") || intentLower.includes("product")) {
-    if (meta.densityClass === "visualFirst") delta += 3;
-  }
-
   return delta;
 }
 
-function densityRationale(meta: LayoutRetrievalMeta): string {
-  return `density=${meta.densityClass}`;
+function scoreLayoutForPlan(
+  layout: PostLayout,
+  meta: LayoutRetrievalMeta,
+  plan: CampaignPlan,
+  keywords: string[],
+  rulesProfile?: DesignRulesProfile,
+  brief?: string,
+  recipe?: RecipeConfig,
+  system?: DesignSystemConfig,
+): number {
+  let score = 0;
+
+  const campaignScore = meta.campaignScores[plan.campaign.type];
+  if (typeof campaignScore === "number") {
+    score += Math.round(campaignScore * 40);
+  } else if (layoutSupportsCampaign(meta, plan.campaign.type)) {
+    score += 12;
+  }
+
+  if (meta.contentDensity === plan.communication.contentDensity) score += 6;
+  if (meta.readingPattern === plan.communication.readingPattern) score += 5;
+
+  if (recipe) {
+    if (meta.recipes.includes(recipe.id)) score += 18;
+    if (recipe.preferredLayouts.includes(layout.id)) score += 14;
+    if (recipe.density === meta.contentDensity) score += 4;
+  }
+
+  if (system && designSystemAllowsLayout(system, layout.id)) score += 8;
+
+  if (
+    (plan.visual.focus === "product_ui" || plan.visual.focus === "product_photo") &&
+    meta.visualWeight === "heavy"
+  ) {
+    score += 5;
+  }
+  if (plan.communication.contentDensity === "high" && meta.visualWeight === "light") {
+    score += 5;
+  }
+  if (plan.visual.focus === "brand" && layout.tags.includes("brand")) score += 4;
+
+  if (plan.cta.required && meta.supportedSlots.includes("cta")) score += 4;
+  if (
+    plan.visual.proof === "screenshot" &&
+    meta.supportedSlots.includes("product_image")
+  ) {
+    score += 5;
+  }
+
+  if (layout.bestFor !== "all" && layout.bestFor.includes(plan.platform as PlatformId)) {
+    score += 4;
+  }
+
+  if (rulesProfile) {
+    score += scoreDensityRouting(meta, rulesProfile, brief);
+  }
+
+  const haystack = [
+    ...layout.promptHints,
+    ...layout.tags,
+    layout.name,
+    layout.summary,
+    plan.primaryMessage,
+    plan.audience.role,
+    ...plan.keywords,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  for (const keyword of keywords) {
+    if (haystack.includes(keyword)) score += 2;
+  }
+
+  for (const keyword of plan.keywords) {
+    if (haystack.includes(keyword.toLowerCase())) score += 3;
+  }
+
+  return score;
 }
 
-function requiredSlots(intent: CampaignIntent): string[] {
-  const slots = ["headline", "logo"];
-  if (intent.proofStrategy === "product_ui") slots.push("product_image");
-  if (intent.ctaRequired) slots.push("cta");
-  return slots;
-}
-
-function layoutMeetsRequirements(meta: LayoutRetrievalMeta, intent: CampaignIntent): boolean {
-  return requiredSlots(intent).every((slot) => meta.supportedSlots.includes(slot as never));
+function layoutMeetsRequirements(
+  meta: LayoutRetrievalMeta,
+  plan: CampaignPlan,
+  recipe?: RecipeConfig,
+): boolean {
+  const required = requiredSlotsFromPlan(plan, recipe);
+  const softOk = required.every((slot) => {
+    if (slot === "badge" || slot === "offer_badge" || slot === "quote" || slot === "metric" || slot === "customer_logo") {
+      return true; // adapted via recipe notes / extras
+    }
+    return meta.supportedSlots.includes(slot);
+  });
+  return softOk || layoutSupportsCampaign(meta, plan.campaign.type);
 }
 
 export function retrieveLayouts(
-  intent: CampaignIntent,
+  plan: CampaignPlan,
   platformId: PlatformId,
   record: LayoutReviewRecord = loadLayoutReviews(),
   limit = 6,
   rulesProfile?: DesignRulesProfile,
   brief?: string,
+  recipe?: RecipeConfig,
+  system?: DesignSystemConfig,
 ): LayoutCandidate[] {
-  const pool = getApprovedShuffleLayouts(record, platformId);
-  const keywords = tokenize(intent.keywords.join(" "));
+  const pool = getApprovedShuffleLayouts(record, platformId).filter((layout) =>
+    system ? designSystemAllowsLayout(system, layout.id) : true,
+  );
+  const effectivePool = pool.length > 0
+    ? pool
+    : getApprovedShuffleLayouts(record, platformId);
 
-  const scored = pool
+  const keywords = tokenize(plan.keywords.join(" "));
+
+  const scored = effectivePool
     .map((layout) => {
       const meta = getLayoutRetrievalMeta(layout);
-      if (!layoutMeetsRequirements(meta, intent) && !layoutSupportsIntent(meta, intent.primaryIntent)) {
+      if (!layoutMeetsRequirements(meta, plan, recipe)) {
         return null;
       }
       return {
         layout,
         meta,
-        score: scoreLayoutForIntent(layout, meta, intent, keywords, rulesProfile, brief),
+        score: scoreLayoutForPlan(
+          layout,
+          meta,
+          plan,
+          keywords,
+          rulesProfile,
+          brief,
+          recipe,
+          system,
+        ),
       };
     })
     .filter((entry): entry is LayoutCandidate => entry !== null)
     .sort((a, b) => b.score - a.score);
 
   if (scored.length === 0) {
+    const preferred = recipe?.preferredLayouts[0] as PostLayoutId | undefined;
     const fallback = getPostLayout(
-      platformId === "instagram-square" || platformId === "instagram-story"
-        ? "visual-first"
-        : "classic-hero",
+      preferred && POST_LAYOUTS.some((l) => l.id === preferred)
+        ? preferred
+        : platformId === "instagram-square" || platformId === "instagram-story"
+          ? "visual-first"
+          : "classic-hero",
     );
     return [
       {
@@ -182,11 +274,30 @@ export function retrieveLayouts(
   return scored.slice(0, limit);
 }
 
+/** @deprecated Legacy signature — converts intent via CampaignPlan adapter. */
+export function retrieveLayoutsForIntent(
+  intent: CampaignIntent,
+  platformId: PlatformId,
+  record?: LayoutReviewRecord,
+  limit?: number,
+  rulesProfile?: DesignRulesProfile,
+  brief?: string,
+): LayoutCandidate[] {
+  return retrieveLayouts(
+    intentToCampaignPlan(intent),
+    platformId,
+    record,
+    limit,
+    rulesProfile,
+    brief,
+  );
+}
+
 export function formatCandidatesForPrompt(candidates: LayoutCandidate[]): string {
   return candidates
     .map(
       ({ layout, meta, score }) =>
-        `- ${layout.id}: ${layout.name} — ${layout.summary}. Intents: ${meta.supportedIntents.join(", ")}. ${densityRationale(meta)}. Score: ${score}`,
+        `- ${layout.id}: ${layout.name} — ${layout.summary}. Campaigns: ${meta.campaigns.join(", ") || meta.supportedIntents.join(", ")}. density=${meta.densityClass}. Score: ${score}`,
     )
     .join("\n");
 }

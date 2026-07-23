@@ -1,0 +1,33 @@
+campaign: promotion
+label: Promotion
+designSystem: offer
+headline:
+  maxWords: 6
+  emphasis: offer
+subheading:
+  optional: true
+  maxWords: 12
+offerBadge:
+  required: true
+cta:
+  required: true
+featured:
+  required: true
+copy:
+  density: low
+  maxTotalWords: 35
+spacing: compact
+patterns:
+  - gradient_blob
+  - dots
+  - mesh
+requiredSlots:
+  - headline
+  - cta
+  - product_image
+bannedSlots:
+  - body
+defaultPattern: offer
+defaultRecipes:
+  - offer_hero
+  - discount_focus

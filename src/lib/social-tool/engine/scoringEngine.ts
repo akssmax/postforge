@@ -1,11 +1,31 @@
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
+import {
+  campaignPlanToIntent,
+  type CampaignPlan,
+} from "@/lib/llm/schemas/campaignPlan";
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
+import { tryGetCampaignRules } from "@/lib/design-config/registry";
 import {
   countWords,
   getSlotConstraint,
   totalCopyWords,
 } from "@/lib/social-tool/slotLibrary";
+import { copyFromTextSlots } from "@/lib/social-tool/layoutAdapter";
+
+function asIntent(intentOrPlan: CampaignIntent | CampaignPlan): CampaignIntent {
+  if ("campaign" in intentOrPlan && typeof intentOrPlan.campaign === "object") {
+    return campaignPlanToIntent(intentOrPlan as CampaignPlan);
+  }
+  return intentOrPlan as CampaignIntent;
+}
+
+function asPlan(intentOrPlan: CampaignIntent | CampaignPlan): CampaignPlan | null {
+  if ("campaign" in intentOrPlan && typeof intentOrPlan.campaign === "object") {
+    return intentOrPlan as CampaignPlan;
+  }
+  return null;
+}
 
 export type DesignScore = {
   total: number;
@@ -34,11 +54,16 @@ function headlineClippingRisk(plan: ValidatedDesignPlan, rulesProfile?: DesignRu
 
 export function scoreDesign(
   plan: ValidatedDesignPlan,
-  intent: CampaignIntent,
+  intentOrPlan: CampaignIntent | CampaignPlan,
   rulesProfile?: DesignRulesProfile,
 ): DesignScore {
+  const intent = asIntent(intentOrPlan);
+  const campaignPlan = asPlan(intentOrPlan);
   const checks: DesignScore["checks"] = [];
   const balance = rulesProfile?.visualBalance;
+  const campaignRules = campaignPlan
+    ? tryGetCampaignRules(campaignPlan.campaign.type)
+    : undefined;
 
   for (const slot of plan.textSlots) {
     const constraint = getSlotConstraint(slot.role, rulesProfile);
@@ -142,10 +167,109 @@ export function scoreDesign(
     passed: plan.showBackground,
   });
 
+  if (campaignRules?.headline?.maxWords) {
+    const headline = plan.textSlots.find((s) => s.role === "headline");
+    const words = countWords(headline?.text ?? "");
+    checks.push({
+      label: "Campaign headline max words",
+      passed: words <= campaignRules.headline.maxWords,
+      detail: `${words}/${campaignRules.headline.maxWords}`,
+    });
+  }
+
+  if (campaignRules?.cta?.required || campaignPlan?.cta.required) {
+    const ctaText =
+      plan.copy.extraFields.find((f) => f.value.trim())?.value ??
+      plan.textSlots.find((s) => s.role === "caption")?.text ??
+      "";
+    checks.push({
+      label: "Campaign CTA required",
+      passed: ctaText.trim().length > 0,
+      detail: ctaText ? "present" : "missing",
+    });
+  }
+
+  if (campaignRules?.featured?.required) {
+    checks.push({
+      label: "Campaign featured required",
+      passed: plan.showFeaturedImage,
+    });
+  }
+
+  if (campaignPlan?.communication.contentDensity === "low") {
+    const totalWords = totalCopyWords(plan.textSlots, rulesProfile);
+    const max = campaignRules?.copy?.maxTotalWords ?? rulesProfile?.copyBudget.maxTotalWords ?? 40;
+    checks.push({
+      label: "Low-density copy budget",
+      passed: totalWords <= max,
+      detail: `${totalWords}/${max}`,
+    });
+  }
+
   const passedCount = checks.filter((check) => check.passed).length;
   const total = checks.length === 0 ? 100 : Math.round((passedCount / checks.length) * 100);
   const threshold = balance?.passThreshold ?? 80;
   const visualBalancePassed = total >= threshold;
 
   return { total, checks, visualBalancePassed };
+}
+
+function truncateToWords(text: string, maxWords: number): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return text.trim();
+  return words.slice(0, maxWords).join(" ");
+}
+
+function truncateToChars(text: string, maxChars: number): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  return trimmed.slice(0, maxChars).trim();
+}
+
+/** Trim slot copy in-place when visual balance fails before a full pipeline rerun. */
+export function repairPlanCopyForBalance(
+  plan: ValidatedDesignPlan,
+  rulesProfile?: DesignRulesProfile,
+): ValidatedDesignPlan {
+  const textSlots = plan.textSlots.map((slot) => {
+    const constraint = getSlotConstraint(slot.role, rulesProfile);
+    let text = slot.text.trim();
+    if (constraint.maxWords != null) {
+      text = truncateToWords(text, constraint.maxWords);
+    }
+    text = truncateToChars(text, constraint.maxCharacters);
+    return { ...slot, text };
+  });
+
+  return {
+    ...plan,
+    textSlots,
+    copy: copyFromTextSlots(textSlots, plan.layout),
+  };
+}
+
+/**
+ * Drop optional dense slots (body) when campaign density is low / body banned.
+ */
+export function repairPlanDropOptionalSlots(
+  plan: ValidatedDesignPlan,
+  rulesProfile?: DesignRulesProfile,
+): ValidatedDesignPlan {
+  const banned = new Set(rulesProfile?.bannedSlots ?? []);
+  if (!banned.has("body") && (rulesProfile?.copyBudget.maxTotalWords ?? 60) > 40) {
+    return plan;
+  }
+
+  const textSlots = plan.textSlots.map((slot) => {
+    if (slot.role === "body" || banned.has(slot.role)) {
+      return { ...slot, text: "" };
+    }
+    return slot;
+  });
+
+  return {
+    ...plan,
+    textSlots,
+    copy: copyFromTextSlots(textSlots, plan.layout),
+  };
 }

@@ -1,0 +1,35 @@
+id: enterprise_saas
+label: Enterprise SaaS Design System
+campaigns:
+  - product_launch
+  - feature_release
+  - case_study
+layouts:
+  - classic-hero
+  - product-focus
+  - balanced-split
+  - visual-first
+  - professional-left
+  - split-feature-right
+  - split-feature-left
+  - deck-sidebar
+  - logo-footer-bar
+spacingPreset: default
+typographyPreset: enterprise
+badgeStyles:
+  - default
+ctaStyles:
+  - primary
+  - default
+patterns:
+  - grid
+  - topography
+illustrationStyles:
+  - ui
+  - default
+decorationLevels:
+  - minimal
+colorMoods:
+  - enterprise
+  - cool
+  - neutral

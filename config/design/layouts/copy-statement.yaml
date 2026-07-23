@@ -1,0 +1,31 @@
+id: copy-statement
+platforms: [all]
+campaigns:
+  - thought_leadership
+recipes:
+  - narrative_statement
+  - statistic_hero
+visualPriority: low
+contentDensity: high
+readingPattern: center
+visualWeight: light
+densityClass: copyHeavy
+supports:
+  - logo
+  - headline
+  - subheading
+  - body
+  - cta
+  - quote
+  - metric
+score:
+  promotion: 0.42
+  announcement: 0.58
+  product_launch: 0.45
+  advertisement: 0.48
+  thought_leadership: 0.95
+  event: 0.5
+  case_study: 0.72
+  feature_release: 0.5
+  webinar: 0.55
+  hiring: 0.62

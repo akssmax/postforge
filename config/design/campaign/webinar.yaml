@@ -1,0 +1,25 @@
+campaign: webinar
+label: Webinar
+designSystem: default
+headline:
+  maxWords: 10
+  emphasis: topic
+cta:
+  required: true
+  type: register
+featured:
+  required: true
+copy:
+  density: medium
+  maxTotalWords: 45
+spacing: default
+patterns:
+  - grid
+requiredSlots:
+  - headline
+  - cta
+  - product_image
+defaultPattern: announcement_hero
+defaultRecipes:
+  - announcement_center
+  - event_footer_recipe

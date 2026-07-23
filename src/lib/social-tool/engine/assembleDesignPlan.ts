@@ -1,7 +1,12 @@
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
+import {
+  campaignPlanToIntent,
+  type CampaignPlan,
+} from "@/lib/llm/schemas/campaignPlan";
 import type { DesignPlan } from "@/lib/llm/schemas/designPlan";
 import type { SlotDraft } from "@/lib/llm/schemas/slotDraft";
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
+import type { RecipeConfig } from "@/lib/design-config/registry";
 import type { CopyVariant } from "@/lib/social-tool/presets";
 import { variantNotesForLayout } from "@/lib/social-tool/engine/layoutVariants";
 import type { VisualPolicy } from "@/lib/social-tool/engine/visualPolicy";
@@ -9,6 +14,13 @@ import { catalogLayoutToDynamic } from "@/lib/social-tool/layoutAdapter";
 import type { PostLayout, PostLayoutId } from "@/lib/social-tool/postLayouts";
 import { normalizeProductPage } from "@/lib/social-tool/presets";
 import type { ProductPageId } from "@/lib/social-tool/presets";
+
+function asIntent(intentOrPlan: CampaignIntent | CampaignPlan): CampaignIntent {
+  if ("campaign" in intentOrPlan && typeof intentOrPlan.campaign === "object") {
+    return campaignPlanToIntent(intentOrPlan as CampaignPlan);
+  }
+  return intentOrPlan as CampaignIntent;
+}
 
 function inferProductPage(intent: CampaignIntent, brief: string): ProductPageId {
   const lower = brief.toLowerCase();
@@ -22,7 +34,7 @@ function inferProductPage(intent: CampaignIntent, brief: string): ProductPageId 
 }
 
 export function assembleDesignPlan(input: {
-  intent: CampaignIntent;
+  intent: CampaignIntent | CampaignPlan;
   layout: PostLayout;
   layoutId: PostLayoutId;
   rationale: string;
@@ -33,15 +45,18 @@ export function assembleDesignPlan(input: {
   theme?: string;
   copyVariants?: CopyVariant[];
   copyVariantIndex?: number;
+  recipe?: RecipeConfig;
 }): DesignPlan {
+  const intent = asIntent(input.intent);
   const dynamicLayout = catalogLayoutToDynamic(input.layout);
   const variantNotes = variantNotesForLayout(
     input.layout,
     input.intent,
     input.rulesProfile,
+    input.recipe,
   );
   const featuredPolicy = input.rulesProfile?.featuredPolicy ?? "library";
-  const productPage = inferProductPage(input.intent, input.brief);
+  const productPage = inferProductPage(intent, input.brief);
 
   let featuredSlots = input.slotDraft.featuredSlots;
   let showFeaturedImage = input.slotDraft.showFeaturedImage;
@@ -94,7 +109,7 @@ export function assembleDesignPlan(input: {
     input.rulesProfile ? `Rules: ${input.rulesProfile.label}` : "",
     input.theme ? `Theme: ${input.theme}` : "",
     ...variantNotes,
-    `Intent: ${input.intent.primaryIntent} · Goal: ${input.intent.goal} · Featured: ${input.intent.featuredVisualKind}`,
+    `Intent: ${intent.primaryIntent} · Goal: ${intent.goal} · Featured: ${intent.featuredVisualKind}`,
   ]
     .filter(Boolean)
     .join(" · ");

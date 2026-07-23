@@ -1,0 +1,22 @@
+campaign: event
+label: Event
+designSystem: default
+headline:
+  maxWords: 10
+  emphasis: event
+cta:
+  required: true
+  type: register
+copy:
+  density: medium
+  maxTotalWords: 45
+spacing: default
+patterns:
+  - grid
+requiredSlots:
+  - headline
+  - cta
+defaultPattern: announcement_hero
+defaultRecipes:
+  - announcement_center
+  - event_footer_recipe

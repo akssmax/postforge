@@ -1,0 +1,22 @@
+id: offer_hero
+name: Offer Hero
+pattern: offer
+slots:
+  - logo
+  - offer_badge
+  - headline
+  - product_image
+  - cta
+attention: offer
+proof: badge
+density: low
+readingPattern: F
+campaigns:
+  - promotion
+  - advertisement
+  - product_launch
+preferredLayouts:
+  - classic-hero
+  - visual-first
+  - product-focus
+  - balanced-split

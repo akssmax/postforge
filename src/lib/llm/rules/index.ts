@@ -1,8 +1,21 @@
+import type { TextSlotRole } from "@/lib/social-tool/dynamicLayout";
+import type { CampaignPlan } from "@/lib/llm/schemas/campaignPlan";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
-import { defaultRulesProfile } from "@/lib/llm/rules/profiles/default";
-import { linkedinAdRulesProfile } from "@/lib/llm/rules/profiles/linkedin-ad";
-import { linkedinPostRulesProfile } from "@/lib/llm/rules/profiles/linkedin-post";
-import type { DesignRulesIntent, DesignRulesProfile } from "@/lib/llm/rules/types";
+import {
+  getCampaignRules,
+  getFormatOverlay,
+  listFormatOverlays,
+  tryGetCampaignRules,
+  type FormatOverlay,
+} from "@/lib/design-config/registry";
+import type {
+  DesignRulesIntent,
+  DesignRulesProfile,
+  FeaturedPolicy,
+  LayoutPolicy,
+  PatternPolicy,
+  BackgroundPolicy,
+} from "@/lib/llm/rules/types";
 import type { PlatformId } from "@/lib/social-tool/presets";
 
 export type { DesignRulesProfile, DesignRulesIntent } from "@/lib/llm/rules/types";
@@ -14,31 +27,107 @@ function isLinkedIn(platform: string): boolean {
 
 function isAdIntent(intent: DesignRulesIntent): boolean {
   if (intent.format === "ad") return true;
-  return intent.campaignType === "advertisement";
+  return (
+    intent.campaignType === "advertisement" ||
+    intent.campaignType === "promotion"
+  );
 }
 
-export function resolveDesignRules(
-  intent: DesignRulesIntent | CampaignIntent,
+function overlayToProfile(overlay: FormatOverlay): DesignRulesProfile {
+  return {
+    id: overlay.id,
+    label: overlay.label,
+    copyBudget: overlay.copyBudget,
+    slotLimits: overlay.slotLimits as DesignRulesProfile["slotLimits"],
+    layoutPolicy: overlay.layoutPolicy as LayoutPolicy,
+    featuredPolicy: overlay.featuredPolicy as FeaturedPolicy,
+    patternPolicy: overlay.patternPolicy as PatternPolicy,
+    backgroundPolicy: overlay.backgroundPolicy as BackgroundPolicy,
+    visualBalance: overlay.visualBalance,
+    requiredSlots: overlay.requiredSlots as TextSlotRole[],
+    bannedSlots: overlay.bannedSlots as TextSlotRole[],
+    maxCopyRetries: overlay.maxCopyRetries,
+  };
+}
+
+function pickFormatOverlay(input: {
+  platform: string;
+  format?: "ad" | "post";
+  campaignType: string;
+}): FormatOverlay {
+  const overlays = listFormatOverlays();
+
+  if (isLinkedIn(input.platform) && isAdIntent(input)) {
+    return getFormatOverlay("linkedin-ad");
+  }
+  if (isLinkedIn(input.platform)) {
+    return getFormatOverlay("linkedin-post");
+  }
+  if (input.campaignType === "advertisement" || input.campaignType === "promotion") {
+    return getFormatOverlay("advertisement");
+  }
+
+  const formatMatch = overlays.find(
+    (o) =>
+      o.id !== "default" &&
+      (input.format ? o.formats.includes(input.format) : false) &&
+      (o.platforms.length === 0 ||
+        o.platforms.some((p) => input.platform === p || input.platform.startsWith(`${p}-`))),
+  );
+  if (formatMatch) return formatMatch;
+
+  return getFormatOverlay("default");
+}
+
+function mergeCampaignIntoProfile(
+  profile: DesignRulesProfile,
+  campaignType: string,
 ): DesignRulesProfile {
-  const platform = intent.platform;
-  const campaignType = intent.campaignType;
+  const rules = tryGetCampaignRules(campaignType);
+  if (!rules) return profile;
 
-  if (isLinkedIn(platform)) {
-    if (isAdIntent(intent)) {
-      return linkedinAdRulesProfile;
-    }
-    return linkedinPostRulesProfile;
-  }
+  const requiredFromCampaign = rules.requiredSlots.filter(
+    (s): s is TextSlotRole =>
+      s === "headline" || s === "subheading" || s === "body" || s === "caption",
+  );
+  const bannedFromCampaign = rules.bannedSlots.filter(
+    (s): s is TextSlotRole =>
+      s === "headline" || s === "subheading" || s === "body" || s === "caption",
+  );
 
-  if (campaignType === "advertisement") {
-    return {
-      ...linkedinAdRulesProfile,
-      id: "advertisement",
-      label: "Advertisement",
-    };
-  }
+  return {
+    ...profile,
+    copyBudget: {
+      ...profile.copyBudget,
+      headlineWords: rules.headline?.maxWords ?? profile.copyBudget.headlineWords,
+      subheadingWords: rules.subheading?.maxWords ?? profile.copyBudget.subheadingWords,
+      maxTotalWords: rules.copy?.maxTotalWords ?? profile.copyBudget.maxTotalWords,
+    },
+    requiredSlots: [
+      ...new Set([...profile.requiredSlots, ...requiredFromCampaign]),
+    ],
+    bannedSlots: [...new Set([...profile.bannedSlots, ...bannedFromCampaign])],
+  };
+}
 
-  return defaultRulesProfile;
+/** Compile DesignRulesProfile from YAML overlays + campaign rules. */
+export function resolveDesignRules(
+  intent: DesignRulesIntent | CampaignIntent | CampaignPlan,
+): DesignRulesProfile {
+  const isPlan = "campaign" in intent && typeof intent.campaign === "object";
+  const platform = isPlan
+    ? (intent as CampaignPlan).platform
+    : (intent as DesignRulesIntent).platform;
+  const campaignType = isPlan
+    ? (intent as CampaignPlan).campaign.type
+    : (intent as DesignRulesIntent).campaignType;
+  const format = isPlan
+    ? (intent as CampaignPlan).format
+    : (intent as DesignRulesIntent).format;
+
+  const overlay = pickFormatOverlay({ platform, format, campaignType });
+  const profile = overlayToProfile(overlay);
+  return mergeCampaignIntoProfile(profile, campaignType);
 }
 
 export function detectFormatFromBrief(brief: string): "ad" | "post" | undefined {
@@ -71,18 +160,31 @@ export function rulesProfilePrompt(profile: DesignRulesProfile): string {
 }
 
 export function resolveDesignRulesForBrief(
-  intent: CampaignIntent,
+  intent: CampaignIntent | CampaignPlan,
   brief: string,
 ): DesignRulesProfile {
   const format = detectFormatFromBrief(brief);
-  return resolveDesignRules({ ...intent, format });
+  if ("campaign" in intent && typeof intent.campaign === "object") {
+    return resolveDesignRules({ ...(intent as CampaignPlan), format: format ?? intent.format });
+  }
+  return resolveDesignRules({ ...(intent as CampaignIntent), format });
 }
 
 export function resolveDesignRulesForPlatform(
-  campaignType: CampaignIntent["campaignType"],
+  campaignType: string,
   platformId: PlatformId,
   brief: string,
 ): DesignRulesProfile {
   const format = detectFormatFromBrief(brief);
   return resolveDesignRules({ campaignType, platform: platformId, format });
 }
+
+export function resolveDesignRulesForPlan(
+  plan: CampaignPlan,
+  brief: string,
+): DesignRulesProfile {
+  return resolveDesignRulesForBrief(plan, brief);
+}
+
+/** Expose campaign YAML for validation stages. */
+export { getCampaignRules };

@@ -1,0 +1,29 @@
+campaign: product_launch
+label: Product Launch
+designSystem: enterprise_saas
+headline:
+  maxWords: 8
+  emphasis: product
+subheading:
+  optional: true
+  maxWords: 16
+cta:
+  required: true
+featured:
+  required: true
+copy:
+  density: low
+  maxTotalWords: 40
+spacing: default
+patterns:
+  - grid
+  - topography
+requiredSlots:
+  - headline
+  - product_image
+  - cta
+defaultPattern: comparison
+defaultRecipes:
+  - comparison_switch
+  - offer_hero
+  - problem_solution_flow

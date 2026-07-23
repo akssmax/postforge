@@ -1,0 +1,21 @@
+id: statistic_hero
+name: Statistic Hero
+pattern: statistic
+slots:
+  - logo
+  - metric
+  - headline
+  - subheading
+  - cta
+attention: metric
+proof: stat
+density: low
+readingPattern: center
+campaigns:
+  - case_study
+  - thought_leadership
+  - product_launch
+preferredLayouts:
+  - centered-announcement
+  - copy-statement
+  - professional-left

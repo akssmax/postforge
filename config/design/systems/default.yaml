@@ -1,0 +1,43 @@
+id: default
+label: Default Design System
+campaigns:
+  - announcement
+  - thought_leadership
+  - event
+  - webinar
+  - hiring
+layouts:
+  - classic-hero
+  - centered-announcement
+  - logo-footer-bar
+  - product-focus
+  - copy-statement
+  - balanced-split
+  - visual-first
+  - professional-left
+  - footer-mark
+  - brand-stack
+  - event-footer
+  - split-feature-right
+  - split-feature-left
+  - deck-sidebar
+spacingPreset: default
+typographyPreset: default
+badgeStyles:
+  - default
+ctaStyles:
+  - default
+patterns:
+  - grid
+  - dots
+  - topography
+  - monogram-soft
+illustrationStyles:
+  - default
+decorationLevels:
+  - minimal
+  - brand
+colorMoods:
+  - neutral
+  - enterprise
+  - cool

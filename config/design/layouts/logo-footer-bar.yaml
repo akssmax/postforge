@@ -1,0 +1,33 @@
+id: logo-footer-bar
+platforms: [all]
+campaigns:
+  - case_study
+  - thought_leadership
+recipes:
+  - social_proof_strip
+  - event_footer_recipe
+visualPriority: medium
+contentDensity: medium
+readingPattern: F
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - caption
+  - product_image
+  - customer_logo
+  - quote
+  - metric
+score:
+  promotion: 0.48
+  announcement: 0.65
+  product_launch: 0.5
+  advertisement: 0.52
+  thought_leadership: 0.78
+  event: 0.72
+  case_study: 0.9
+  feature_release: 0.55
+  webinar: 0.68
+  hiring: 0.58

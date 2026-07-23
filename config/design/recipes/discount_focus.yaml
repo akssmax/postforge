@@ -1,0 +1,20 @@
+id: discount_focus
+name: Discount Focus
+pattern: offer
+slots:
+  - logo
+  - offer_badge
+  - headline
+  - subheading
+  - cta
+attention: offer
+proof: badge
+density: low
+readingPattern: center
+campaigns:
+  - promotion
+  - advertisement
+preferredLayouts:
+  - centered-announcement
+  - brand-stack
+  - classic-hero

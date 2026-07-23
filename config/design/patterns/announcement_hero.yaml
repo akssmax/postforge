@@ -1,0 +1,17 @@
+id: announcement_hero
+label: Announcement Hero
+description: Centered message-first announcement.
+flow:
+  - Message
+  - Support
+  - Optional CTA
+recipes:
+  - announcement_center
+  - announcement_hero_layout
+  - event_footer_recipe
+campaigns:
+  - announcement
+  - event
+  - webinar
+  - hiring
+  - product_launch

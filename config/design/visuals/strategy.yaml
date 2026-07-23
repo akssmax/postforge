@@ -1,0 +1,47 @@
+featured:
+  promotion: product_photo
+  advertisement: product_ui
+  product_launch: product_ui
+  feature_release: product_ui
+  case_study: metric
+  announcement: illustration
+  thought_leadership: illustration
+  event: people
+  webinar: product_ui
+  hiring: people
+  enterprise: product_ui
+pattern:
+  promotion: blob
+  advertisement: grid
+  product_launch: grid
+  feature_release: topography
+  case_study: grid
+  announcement: monogram
+  thought_leadership: monogram
+  event: grid
+  webinar: grid
+  hiring: dots
+  enterprise_saas: grid
+decoration:
+  promotion: offer
+  advertisement: offer
+  product_launch: minimal
+  feature_release: minimal
+  case_study: minimal
+  announcement: brand
+  thought_leadership: minimal
+  event: minimal
+  webinar: minimal
+  hiring: minimal
+color:
+  promotion: warm
+  advertisement: bold
+  product_launch: enterprise
+  feature_release: cool
+  case_study: enterprise
+  announcement: neutral
+  thought_leadership: neutral
+  event: cool
+  webinar: cool
+  hiring: warm
+  enterprise_saas: enterprise

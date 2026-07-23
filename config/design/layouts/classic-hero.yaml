@@ -1,0 +1,33 @@
+id: classic-hero
+platforms: [all]
+campaigns:
+  - announcement
+  - product_launch
+  - promotion
+recipes:
+  - offer_hero
+  - announcement_hero_layout
+visualPriority: high
+contentDensity: medium
+readingPattern: F
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - cta
+  - product_image
+  - badge
+  - offer_badge
+score:
+  promotion: 0.88
+  announcement: 0.9
+  product_launch: 0.92
+  advertisement: 0.72
+  thought_leadership: 0.45
+  event: 0.5
+  case_study: 0.55
+  feature_release: 0.85
+  webinar: 0.48
+  hiring: 0.52

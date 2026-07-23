@@ -1,0 +1,31 @@
+id: split-feature-left
+platforms: [all]
+campaigns:
+  - product_launch
+  - advertisement
+  - feature_release
+recipes:
+  - problem_solution_flow
+  - comparison_switch
+visualPriority: high
+contentDensity: low
+readingPattern: Z
+visualWeight: heavy
+densityClass: visualFirst
+supports:
+  - logo
+  - headline
+  - subheading
+  - product_image
+  - badge
+score:
+  promotion: 0.7
+  announcement: 0.55
+  product_launch: 0.9
+  advertisement: 0.88
+  thought_leadership: 0.45
+  event: 0.48
+  case_study: 0.62
+  feature_release: 0.85
+  webinar: 0.5
+  hiring: 0.42

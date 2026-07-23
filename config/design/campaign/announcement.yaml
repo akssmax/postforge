@@ -1,0 +1,28 @@
+campaign: announcement
+label: Announcement
+designSystem: default
+headline:
+  maxWords: 10
+  emphasis: message
+subheading:
+  optional: true
+  maxWords: 18
+image:
+  optional: true
+cta:
+  optional: true
+badge:
+  optional: true
+copy:
+  density: medium
+  maxTotalWords: 50
+spacing: relaxed
+patterns:
+  - grid
+  - monogram
+requiredSlots:
+  - headline
+defaultPattern: announcement_hero
+defaultRecipes:
+  - announcement_center
+  - announcement_hero_layout

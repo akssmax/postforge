@@ -13,6 +13,11 @@ import {
   isParametricPattern,
   type VisualLibraryPattern,
 } from "./catalog";
+import {
+  countDeployedIllustrationsBySource,
+  getDeployableVisualLibrary,
+  isDeployableVisualPattern,
+} from "./deployableLibrary";
 import { resolveIllustrationSvg } from "./illustrations/resolver";
 import { ILLUSTRATION_LIBRARY } from "./illustrations/manifest";
 import {
@@ -89,7 +94,9 @@ export function pickShuffleFeaturedVisual(
 ): VisualBlockRecord | null {
   const excluded = new Set(excludeLibraryIds.filter(Boolean));
   const preferredKind = resolvePreferredVisualKind(input);
-  let candidates = VISUAL_LIBRARY.filter(
+  const deployableLibrary = getDeployableVisualLibrary();
+
+  let candidates = deployableLibrary.filter(
     (pattern) =>
       FEATURED_SLOT_KINDS.includes(pattern.kind) && !excluded.has(pattern.id),
   );
@@ -98,21 +105,45 @@ export function pickShuffleFeaturedVisual(
     if (kindMatches.length > 0) candidates = kindMatches;
   }
   if (candidates.length === 0) {
-    candidates = VISUAL_LIBRARY.filter((pattern) =>
+    candidates = deployableLibrary.filter((pattern) =>
       FEATURED_SLOT_KINDS.includes(pattern.kind),
     );
   }
   if (candidates.length === 0) return null;
 
   const ranked = rankVisualPatterns(candidates, input);
-  const topScore = ranked[0] ? scoreVisualPattern(ranked[0], input) : 0;
+  return instantiateFirstAvailable(ranked, input, options);
+}
+
+function instantiateFirstAvailable(
+  ranked: VisualLibraryPattern[],
+  input: VisualBlockGenerateInput,
+  options?: { randomize?: boolean },
+): VisualBlockRecord | null {
+  const deployable = ranked.filter(isDeployableVisualPattern);
+  if (deployable.length === 0) return null;
+
+  if (options?.randomize === false) {
+    for (const pattern of deployable) {
+      const block = instantiateLibraryPattern(pattern, input);
+      if (block) return block;
+    }
+    return null;
+  }
+
+  const topScore = scoreVisualPattern(deployable[0]!, input);
   const poolSize =
-    topScore > 0 ? Math.min(12, ranked.length) : Math.min(5, ranked.length);
-  const pattern =
-    options?.randomize === false
-      ? ranked[0]!
-      : ranked[Math.floor(Math.random() * poolSize)]!;
-  return instantiateLibraryPattern(pattern, input);
+    topScore > 0 ? Math.min(12, deployable.length) : Math.min(5, deployable.length);
+  const pool = deployable.slice(0, poolSize);
+  const start = Math.floor(Math.random() * pool.length);
+
+  for (let offset = 0; offset < pool.length; offset += 1) {
+    const pattern = pool[(start + offset) % pool.length]!;
+    const block = instantiateLibraryPattern(pattern, input);
+    if (block) return block;
+  }
+
+  return null;
 }
 
 export function pickFromLibrary(
@@ -120,7 +151,7 @@ export function pickFromLibrary(
   count = 3,
 ): VisualLibraryPattern[] {
   const limit = Math.min(3, Math.max(1, count));
-  const ranked = rankVisualPatterns(VISUAL_LIBRARY, input);
+  const ranked = rankVisualPatterns(getDeployableVisualLibrary(), input);
   return pickWithKindDiversity(ranked, limit);
 }
 
@@ -170,16 +201,35 @@ export function composeVisualBlocksFromLibrary(
     ? options.libraryIds
         .map((id) => getLibraryPattern(id))
         .filter((entry): entry is VisualLibraryPattern => Boolean(entry))
+        .filter(isDeployableVisualPattern)
     : pickFromLibrary(input, count);
 
-  return patterns
-    .slice(0, count)
-    .map((pattern) => instantiateLibraryPattern(pattern, input))
-    .filter((block): block is VisualBlockRecord => block !== null);
+  const blocks: VisualBlockRecord[] = [];
+  for (const pattern of patterns) {
+    const block = instantiateLibraryPattern(pattern, input);
+    if (block) blocks.push(block);
+    if (blocks.length >= count) break;
+  }
+
+  if (blocks.length >= count) {
+    return blocks.slice(0, count);
+  }
+
+  const ranked = rankVisualPatterns(getDeployableVisualLibrary(), input);
+  for (const pattern of ranked) {
+    if (blocks.some((block) => block.libraryId === pattern.id)) continue;
+    const block = instantiateLibraryPattern(pattern, input);
+    if (!block) continue;
+    blocks.push(block);
+    if (blocks.length >= count) break;
+  }
+
+  return blocks.slice(0, count);
 }
 
 export function libraryPatternSummaryForPrompt(limit = 40): string {
-  const parametric = VISUAL_LIBRARY.filter((pattern) => isParametricPattern(pattern));
+  const deployable = getDeployableVisualLibrary();
+  const parametric = deployable.filter((pattern) => isParametricPattern(pattern));
   const parametricLines = parametric.slice(0, limit).map((pattern) => {
     const source = isUiReactPattern(pattern.id)
       ? "HeroUI react template — edit content fields only"
@@ -187,18 +237,18 @@ export function libraryPatternSummaryForPrompt(limit = 40): string {
     return `- ${pattern.id}: ${pattern.label} (${pattern.kind}, ${source}) — ${pattern.description}; tags: ${pattern.tags.join(", ")}`;
   });
 
-  const illustrationCount = ILLUSTRATION_LIBRARY.length;
-  const storysetCount = ILLUSTRATION_LIBRARY.filter((e) => e.source === "storyset").length;
+  const deployedBySource = countDeployedIllustrationsBySource();
+  const illustrationCount = Object.values(deployedBySource).reduce((sum, n) => sum + n, 0);
 
   return [
     "Parametric UI + diagram patterns (instant, brand-themed):",
     parametricLines.join("\n"),
     "",
-    `Illustration library: ${illustrationCount} bundled SVGs (${storysetCount} Storyset, plus unDraw + Open Doodles).`,
+    `Illustration library: ${illustrationCount} deployed SVGs (${deployedBySource.storyset} Storyset, ${deployedBySource.undraw} unDraw, ${deployedBySource["open-doodles"]} Open Doodles).`,
     "Do NOT enumerate all illustrations — pick by libraryId using tag/intent overlap with the brief.",
-    "Use intent.featuredVisualKind: ui → HeroUI stat/pricing/comparison cards; illustration → storyset/undraw/open-doodles scenes.",
-    "Match brief keywords to illustration tags (examples: sync/integration→storyset-sync, team→collaboration tags, growth/sales→revenue tags, chat→support tags).",
-    "Prefer storyset-* for narrative/brand visuals, undraw-* for SaaS/tech scenes, open-doodles for playful tone.",
+    "Use intent.featuredVisualKind: ui → HeroUI stat/pricing/comparison cards; illustration → undraw/open-doodles/storyset scenes.",
+    "Match brief keywords to illustration tags (examples: sync/integration→undraw-data-transfer, team→collaboration tags, growth/sales→revenue tags, chat→support tags).",
+    "Prefer storyset-* when deployed for narrative/brand visuals, undraw-* for SaaS/tech scenes, open-doodles for playful tone.",
     "Use proofStrategy: product_ui → UI patterns; stats → diagrams; social_proof/awareness → illustrations.",
     "Pass libraryIds with the best tag match when you know the exact asset id.",
   ].join("\n");

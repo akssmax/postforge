@@ -1,0 +1,14 @@
+id: offer
+label: Offer
+description: Lead with the offer, create urgency, drive CTA.
+flow:
+  - Offer
+  - Urgency
+  - CTA
+recipes:
+  - offer_hero
+  - discount_focus
+campaigns:
+  - promotion
+  - advertisement
+  - product_launch

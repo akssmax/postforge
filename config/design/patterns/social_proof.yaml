@@ -1,0 +1,13 @@
+id: social_proof
+label: Social Proof
+description: Trust signals via logos, quotes, and outcomes.
+flow:
+  - Trusted By
+  - Customer Logos
+  - CTA
+recipes:
+  - social_proof_strip
+campaigns:
+  - case_study
+  - product_launch
+  - advertisement

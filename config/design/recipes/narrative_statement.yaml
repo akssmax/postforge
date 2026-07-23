@@ -1,0 +1,19 @@
+id: narrative_statement
+name: Narrative Statement
+pattern: narrative
+slots:
+  - logo
+  - headline
+  - body
+  - caption
+attention: insight
+proof: none
+density: high
+readingPattern: F
+campaigns:
+  - thought_leadership
+  - announcement
+preferredLayouts:
+  - copy-statement
+  - deck-sidebar
+  - professional-left

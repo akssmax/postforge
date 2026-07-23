@@ -1,0 +1,34 @@
+id: deck-sidebar
+platforms: [all]
+campaigns:
+  - thought_leadership
+  - case_study
+  - webinar
+  - event
+recipes:
+  - narrative_statement
+  - social_proof_strip
+visualPriority: medium
+contentDensity: medium
+readingPattern: Z
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - product_image
+  - metric
+  - quote
+  - customer_logo
+score:
+  promotion: 0.45
+  announcement: 0.58
+  product_launch: 0.55
+  advertisement: 0.52
+  thought_leadership: 0.9
+  event: 0.82
+  case_study: 0.88
+  feature_release: 0.6
+  webinar: 0.85
+  hiring: 0.5

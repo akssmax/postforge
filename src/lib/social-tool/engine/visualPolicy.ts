@@ -1,10 +1,17 @@
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
+import {
+  intentToCampaignPlan,
+  type CampaignPlan,
+} from "@/lib/llm/schemas/campaignPlan";
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
+import { getDesignSystem } from "@/lib/design-config/registry";
+import { resolveVisualStrategy } from "@/lib/social-tool/engine/visual/resolveVisualStrategy";
 import { getLayoutRetrievalMeta } from "@/lib/social-tool/engine/layoutRetrievalMeta";
 import { libraryPatternRef } from "@/lib/social-tool/patterns/library";
 import { legacyPatternRef } from "@/lib/social-tool/patterns/resolvePattern";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import type { PostLayout } from "@/lib/social-tool/postLayouts";
+import { resolveDesignRulesForPlan } from "@/lib/llm/rules";
 
 export type VisualPolicy = {
   showPattern: boolean;
@@ -19,6 +26,27 @@ export type VisualPolicy = {
 
 function normalizeBrief(brief: string): string {
   return brief.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function asPlan(intent: CampaignIntent | CampaignPlan): CampaignPlan {
+  if ("campaign" in intent && typeof intent.campaign === "object") {
+    return intent as CampaignPlan;
+  }
+  return intentToCampaignPlan(intent as CampaignIntent);
+}
+
+function systemForPlan(plan: CampaignPlan) {
+  if (plan.campaign.type === "promotion" || plan.campaign.type === "advertisement") {
+    return getDesignSystem("offer");
+  }
+  if (
+    plan.campaign.type === "product_launch" ||
+    plan.campaign.type === "feature_release" ||
+    plan.campaign.type === "case_study"
+  ) {
+    return getDesignSystem("enterprise_saas");
+  }
+  return getDesignSystem("default");
 }
 
 const VISUAL_LAYOUTS = new Set([
@@ -89,69 +117,47 @@ export function resolvePatternForLayout(
 }
 
 export function pickBackgroundPreset(input: {
-  intent: CampaignIntent;
+  intent: CampaignIntent | CampaignPlan;
   rulesProfile?: DesignRulesProfile;
   catalog: { id: string; label?: string }[];
   recentPresetIds?: string[];
   brief?: string;
 }): string | undefined {
   if (!input.catalog.length) return undefined;
-  if (input.rulesProfile?.backgroundPolicy !== "catalog_pick") {
-    return input.catalog[0]?.id;
-  }
-
-  const recent = new Set(input.recentPresetIds ?? []);
-  const lower = normalizeBrief(input.brief ?? "");
-  const scored = input.catalog.map((preset) => {
-    let score = Math.random() * 0.5;
-    if (recent.has(preset.id)) score -= 3;
-    const idLower = preset.id.toLowerCase();
-    if (input.intent.tone === "minimal" && idLower.includes("solid")) score += 1;
-    if (input.intent.tone === "bold" && idLower.includes("gradient")) score += 1;
-    if (input.intent.campaignType === "product_launch" && idLower.includes("hero")) score += 1;
-    if (lower.includes("dark") && idLower.includes("dark")) score += 1;
-    if (lower.includes("light") && idLower.includes("light")) score += 1;
-    return { preset, score };
-  });
-
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0]?.preset.id ?? input.catalog[0]?.id;
+  const plan = asPlan(input.intent);
+  const rules =
+    input.rulesProfile ?? resolveDesignRulesForPlan(plan, input.brief ?? "");
+  return resolveVisualStrategy({
+    plan,
+    layout: { id: "classic-hero" } as PostLayout,
+    system: systemForPlan(plan),
+    rulesProfile: rules,
+    brief: input.brief ?? "",
+    backgroundCatalog: input.catalog,
+    recentBackgroundPresetIds: input.recentPresetIds,
+  }).backgroundPresetId;
 }
 
+/** @deprecated Prefer resolveVisualStrategy — kept for legacy callers. */
 export function applyVisualPolicy(
-  intent: CampaignIntent,
+  intent: CampaignIntent | CampaignPlan,
   layout: PostLayout,
   brief: string,
   rulesProfile?: DesignRulesProfile,
   backgroundCatalog?: { id: string; label?: string }[],
   recentPresetIds?: string[],
 ): VisualPolicy {
-  const pattern = resolvePatternForLayout(layout, rulesProfile, brief);
-  const backgroundPresetId =
-    backgroundCatalog && backgroundCatalog.length > 0
-      ? pickBackgroundPreset({
-          intent,
-          rulesProfile,
-          catalog: backgroundCatalog,
-          recentPresetIds,
-          brief,
-        })
-      : undefined;
-
-  const reason = pattern.showPattern
-    ? `Layout-based pattern (${pattern.patternRef})`
-    : "Copy-heavy or minimal layout — pattern off";
-
-  return {
-    showPattern: pattern.showPattern,
-    showBackground: true,
-    patternOpacity: pattern.patternOpacity,
-    patternScale: 1,
-    patternAnimated: false,
-    patternRef: pattern.patternRef,
-    backgroundPresetId,
-    reason,
-  };
+  const plan = asPlan(intent);
+  const rules = rulesProfile ?? resolveDesignRulesForPlan(plan, brief);
+  return resolveVisualStrategy({
+    plan,
+    layout,
+    system: systemForPlan(plan),
+    rulesProfile: rules,
+    brief,
+    backgroundCatalog,
+    recentBackgroundPresetIds: recentPresetIds,
+  });
 }
 
 export function resolvePatternRef(

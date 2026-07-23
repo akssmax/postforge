@@ -1,0 +1,22 @@
+id: problem_solution_flow
+name: Problem Solution Flow
+pattern: problem_solution
+slots:
+  - logo
+  - headline
+  - subheading
+  - product_image
+  - cta
+attention: solution
+proof: screenshot
+density: low
+readingPattern: Z
+campaigns:
+  - product_launch
+  - feature_release
+  - advertisement
+preferredLayouts:
+  - balanced-split
+  - split-feature-right
+  - split-feature-left
+  - product-focus

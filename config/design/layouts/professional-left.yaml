@@ -1,0 +1,37 @@
+id: professional-left
+platforms: [all]
+campaigns:
+  - case_study
+  - thought_leadership
+  - feature_release
+recipes:
+  - social_proof_strip
+  - statistic_hero
+  - comparison_switch
+  - narrative_statement
+visualPriority: medium
+contentDensity: medium
+readingPattern: F
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - body
+  - cta
+  - product_image
+  - metric
+  - customer_logo
+  - quote
+score:
+  promotion: 0.5
+  announcement: 0.7
+  product_launch: 0.65
+  advertisement: 0.58
+  thought_leadership: 0.88
+  event: 0.52
+  case_study: 0.9
+  feature_release: 0.78
+  webinar: 0.55
+  hiring: 0.68

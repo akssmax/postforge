@@ -1,0 +1,12 @@
+id: narrative
+label: Narrative
+description: Copy-led storytelling and thought leadership.
+flow:
+  - Insight
+  - Context
+  - Soft CTA
+recipes:
+  - narrative_statement
+campaigns:
+  - thought_leadership
+  - announcement

@@ -1,0 +1,31 @@
+campaign: advertisement
+label: Advertisement
+designSystem: offer
+headline:
+  maxWords: 8
+  emphasis: offer
+subheading:
+  optional: false
+  maxWords: 15
+cta:
+  required: true
+featured:
+  required: true
+copy:
+  density: low
+  maxTotalWords: 35
+spacing: compact
+patterns:
+  - grid
+  - dots
+requiredSlots:
+  - headline
+  - subheading
+  - cta
+  - product_image
+bannedSlots:
+  - body
+defaultPattern: offer
+defaultRecipes:
+  - offer_hero
+  - discount_focus

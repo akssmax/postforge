@@ -1,0 +1,31 @@
+id: footer-mark
+platforms: [all]
+campaigns:
+  - event
+  - webinar
+recipes:
+  - event_footer_recipe
+visualPriority: medium
+contentDensity: medium
+readingPattern: center
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - caption
+  - product_image
+  - cta
+  - badge
+score:
+  promotion: 0.45
+  announcement: 0.6
+  product_launch: 0.48
+  advertisement: 0.5
+  thought_leadership: 0.52
+  event: 0.95
+  case_study: 0.5
+  feature_release: 0.45
+  webinar: 0.9
+  hiring: 0.48
