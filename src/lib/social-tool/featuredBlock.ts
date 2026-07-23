@@ -9,7 +9,9 @@ import {
   type ProductPageId,
 } from "@/lib/social-tool/presets";
 
-export type FeaturedBlockMode = "image" | "genui";
+import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
+
+export type FeaturedBlockMode = "image" | "genui" | "placeholder" | "composed";
 
 export type FeaturedImageMime =
   | "image/svg+xml"
@@ -26,10 +28,22 @@ export type FeaturedImageRecord = {
   blobKey?: string;
 };
 
+export type FeaturedSlotPersisted = {
+  slotId: string;
+  mode: FeaturedBlockMode;
+  productPage?: ProductPageId;
+  activeBlockId?: string | null;
+  transform?: import("@/components/social-tool/templates/ProductShotPost").FeaturedImageTransform;
+  visible: boolean;
+};
+
 export type FeaturedBlockPersisted = {
   mode: FeaturedBlockMode;
   productPage: ProductPageId;
   image: FeaturedImageRecord | null;
+  activeBlockId?: string | null;
+  visualBlocks?: VisualBlockRecord[];
+  slots?: FeaturedSlotPersisted[];
 };
 
 export const FEATURED_BLOCK_STORAGE_KEY = "postforge-featured-block";
@@ -100,9 +114,11 @@ export function createFeaturedImageRecord(
 
 export function defaultFeaturedBlock(): FeaturedBlockPersisted {
   return {
-    mode: "genui",
+    mode: "placeholder",
     productPage: "leads",
     image: null,
+    activeBlockId: null,
+    visualBlocks: [],
   };
 }
 
@@ -120,10 +136,20 @@ export function loadFeaturedBlockPersisted(
     const raw = localStorage.getItem(featuredBlockStorageKey(storageScope));
     if (!raw) return defaultFeaturedBlock();
     const parsed = JSON.parse(raw) as FeaturedBlockPersisted;
+    const mode =
+      parsed.mode === "image"
+        ? "image"
+        : parsed.mode === "composed"
+          ? "composed"
+          : parsed.mode === "placeholder"
+            ? "placeholder"
+            : "placeholder";
     return {
-      mode: parsed.mode === "image" ? "image" : "genui",
+      mode,
       productPage: normalizeProductPage(parsed.productPage),
       image: parsed.image ?? null,
+      activeBlockId: parsed.activeBlockId ?? null,
+      visualBlocks: parsed.visualBlocks ?? [],
     };
   } catch {
     return defaultFeaturedBlock();

@@ -1,16 +1,27 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
 import { Move } from "lucide-react";
 import { BrandLogoSlot } from "@/components/social-tool/BrandLogoSlot";
 import { CanvasSlot, isEmptyCopyField } from "@/components/social-tool/CanvasSlot";
 import { FeaturedImageContent } from "@/components/social-tool/FeaturedImageContent";
 import { PostPattern } from "@/components/social-tool/PostPattern";
 import { ProductPreview, getProductPageNativeWidth } from "@/components/social-tool/ProductPreview";
+import { VisualBlocksLibraryPicker } from "@/components/social-tool/VisualBlocksLibraryPicker";
+import { VisualBlockRenderer } from "@/components/social-tool/visualBlocks/VisualBlockRenderer";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
+import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 import type { BackgroundPreset } from "@/lib/brand/types";
 import type { DesignBlockId } from "@/lib/brand/contrast";
 import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
+import type {
+  DynamicLayout,
+  FeaturedSlotContent,
+  TextSlotContent,
+  TextSlotRole,
+} from "@/lib/social-tool/dynamicLayout";
+import { dynamicLayoutAsPostLayout } from "@/lib/social-tool/layoutRegistry";
+import { textSlotsForLayout } from "@/lib/social-tool/dynamicLayout";
 import {
   DEFAULT_POST_LAYOUT_ID,
   getLayoutTextSide,
@@ -122,6 +133,18 @@ type Props = {
   emptyStatePreview?: boolean;
   /** True while capturing export — transparent no-bg for PNG */
   exporting?: boolean;
+  /** Composed visual block SVG for featured slot */
+  composedSvgMarkup?: string | null;
+  composedBlock?: VisualBlockRecord | null;
+  brandColors?: { primary?: string; accent?: string };
+  visualBlocks?: import("@/lib/social-tool/visualBlocks/types").VisualBlockRecord[];
+  activeVisualBlockId?: string | null;
+  generatingVisualBlocks?: boolean;
+  onGenerateVisualBlocks?: (source?: "library" | "generate") => void;
+  onSelectVisualBlock?: (blockId: string) => void;
+  dynamicLayout?: DynamicLayout;
+  textSlots?: TextSlotContent[];
+  featuredSlots?: FeaturedSlotContent[];
 };
 
 function scale(base: number, width: number, height: number) {
@@ -222,8 +245,22 @@ export function ProductShotPost({
   showSpacingControls = false,
   emptyStatePreview = false,
   exporting = false,
+  dynamicLayout,
+  textSlots,
+  featuredSlots,
+  composedSvgMarkup = null,
+  composedBlock = null,
+  brandColors,
+  visualBlocks = [],
+  activeVisualBlockId = null,
+  generatingVisualBlocks = false,
+  onGenerateVisualBlocks,
+  onSelectVisualBlock,
 }: Props) {
-  const layout = getPostLayout(layoutId);
+  const layout = dynamicLayout
+    ? dynamicLayoutAsPostLayout(dynamicLayout)
+    : getPostLayout(layoutId);
+  const layoutSlotDefs = dynamicLayout ? textSlotsForLayout(dynamicLayout) : [];
   const canvasScale = canvasScaleFactor(width, height);
   const aspect = height / width;
   const isTallPrint = aspect >= 1.8;
@@ -255,15 +292,23 @@ export function ProductShotPost({
   const showFooterExtras =
     layout.extrasPlacement === "footer" &&
     layout.footerBlocks.includes("extras");
-  const footerBlocks = resolveFooterBlocks(layout, showFooterLogo);
-  const hasFooterStrip = showFooterLogo || showFooterExtras;
+  const filledExtraFields = copy.extraFields.filter((field) => field.value.trim());
+  const showFooterExtrasStrip =
+    showFooterExtras &&
+    (emptyStatePreview || filledExtraFields.length > 0);
+  const footerBlocks = resolveFooterBlocks(layout, showFooterLogo).filter(
+    (block) => block !== "extras" || showFooterExtrasStrip,
+  );
+  const hasFooterStrip = showFooterLogo || showFooterExtrasStrip;
 
   let footerH = 0;
   if (hasFooterStrip) {
     footerH = footerPadPx;
     if (showFooterLogo) footerH += logoH + footerPadPx / 2;
-    if (showFooterExtras) {
-      const lineCount = Math.max(copy.extraFields.length, 1);
+    if (showFooterExtrasStrip) {
+      const lineCount = emptyStatePreview
+        ? Math.max(copy.extraFields.length, 1)
+        : filledExtraFields.length;
       footerH += scale(lineCount * 24 + 8, width, height);
       if (showFooterLogo) footerH += footerBlockGapPx;
     }
@@ -340,9 +385,11 @@ export function ProductShotPost({
     isSplit && splitZones ? splitZones.rowHeight : productZone;
   metricsRef.current = {
     frameWidth:
-      featuredMode === "genui" ? featuredDragZoneWidth : frameWidth,
+      featuredMode === "genui" || featuredMode === "composed"
+        ? featuredDragZoneWidth
+        : frameWidth,
     productZone:
-      featuredMode === "genui"
+      featuredMode === "genui" || featuredMode === "composed"
         ? featuredDragZoneHeight
         : isSplit && splitZones
           ? splitZones.rowHeight
@@ -362,7 +409,32 @@ export function ProductShotPost({
     }
   }, [interactive]);
 
-  const featuredSelected = canvasSelection === "featured";
+  const featuredSelected =
+    canvasSelection === "featured" ||
+    (typeof canvasSelection === "string" && canvasSelection.startsWith("featured:"));
+
+  function featuredSelectId(slotId: string): CanvasSelectionId {
+    return slotId === "featured-primary" ? "featured" : `featured:${slotId}`;
+  }
+
+  function isFeaturedSlotSelected(slotId: string): boolean {
+    if (canvasSelection === "featured" && slotId === "featured-primary") return true;
+    return canvasSelection === `featured:${slotId}`;
+  }
+
+  function selectableClassForFeatured(slotId: string) {
+    if (!interactive || !onCanvasSelect) return "";
+    return `canvas-selectable${isFeaturedSlotSelected(slotId) ? " is-canvas-selected" : ""}`;
+  }
+
+  function textForRole(role: TextSlotRole, slotId: string): string {
+    const fromSlot = textSlots?.find((slot) => slot.slotId === slotId);
+    if (fromSlot) return fromSlot.text;
+    if (role === "headline") return copy.heading;
+    if (role === "subheading") return copy.subheading;
+    const extra = copy.extraFields.find((f) => f.id === slotId);
+    return extra?.value ?? copy.extraFields[0]?.value ?? "";
+  }
 
   function selectableClass(id: CanvasSelectionId) {
     if (!interactive || !onCanvasSelect) return "";
@@ -496,44 +568,57 @@ export function ProductShotPost({
     maxWidth: isTallPrint ? "22em" : "28em",
   };
 
+  function renderEmptyTextSlot(
+    key: string,
+    variant: "headline" | "subheading" | "extra",
+    style: CSSProperties,
+    options?: { className?: string; designBlock?: "headline" | "subheading" },
+  ) {
+    if (!emptyStatePreview) return null;
+    return (
+      <CanvasSlot
+        key={key}
+        variant={variant}
+        className={options?.className}
+        style={style}
+        designBlock={options?.designBlock}
+      />
+    );
+  }
+
   function renderExtras(zone: "main" | "footer") {
     const fields =
       zone === "footer"
         ? copy.extraFields
         : copy.extraFields.filter((field) => field.value.trim());
 
-    if (fields.length === 0) {
-      if (zone === "footer" && showFooterExtras) {
-        return (
-          <CanvasSlot
-            key="extra-footer-slot"
-            variant="extra"
-            className={zone === "footer" ? "social-post-extra--footer" : undefined}
-            style={extraSlotStyle}
-          />
-        );
-      }
-      return null;
+    const nodes = fields
+      .map((field) =>
+        field.value.trim() ? (
+          <p
+            key={field.id}
+            className={`social-post-extra${zone === "footer" ? " social-post-extra--footer" : ""}`}
+            style={{ maxWidth: isTallPrint ? "22em" : "28em" }}
+          >
+            {field.value}
+          </p>
+        ) : (
+          renderEmptyTextSlot(field.id, "extra", extraSlotStyle, {
+            className: zone === "footer" ? "social-post-extra--footer" : undefined,
+          })
+        ),
+      )
+      .filter(Boolean);
+
+    if (nodes.length > 0) return nodes;
+
+    if (zone === "footer" && showFooterExtras && emptyStatePreview) {
+      return renderEmptyTextSlot("extra-footer-slot", "extra", extraSlotStyle, {
+        className: "social-post-extra--footer",
+      });
     }
 
-    return fields.map((field) =>
-      field.value.trim() ? (
-        <p
-          key={field.id}
-          className={`social-post-extra${zone === "footer" ? " social-post-extra--footer" : ""}`}
-          style={{ maxWidth: isTallPrint ? "22em" : "28em" }}
-        >
-          {field.value}
-        </p>
-      ) : zone === "footer" ? (
-        <CanvasSlot
-          key={field.id}
-          variant="extra"
-          className="social-post-extra--footer"
-          style={extraSlotStyle}
-        />
-      ) : null,
-    );
+    return null;
   }
 
   function renderMainBlock(block: PostContentBlock) {
@@ -559,12 +644,9 @@ export function ProductShotPost({
             })}
           </h1>
         ) : (
-          <CanvasSlot
-            key="headline-slot"
-            variant="headline"
-            designBlock="headline"
-            style={headlineSlotStyle}
-          />
+          renderEmptyTextSlot("headline-slot", "headline", headlineSlotStyle, {
+            designBlock: "headline",
+          })
         );
       case "subheading":
         return hasSubheading ? (
@@ -577,20 +659,21 @@ export function ProductShotPost({
             {copy.subheading}
           </p>
         ) : (
-          <CanvasSlot
-            key="subheading-slot"
-            variant="subheading"
-            designBlock="subheading"
-            style={subheadingSlotStyle}
-          />
+          renderEmptyTextSlot("subheading-slot", "subheading", subheadingSlotStyle, {
+            designBlock: "subheading",
+          })
         );
       case "extras":
         if (layout.extrasPlacement !== "main") return null;
-        return (
-          <div key="extras-main" className="social-post-extras-main">
-            {renderExtras("main")}
-          </div>
-        );
+        {
+          const extras = renderExtras("main");
+          if (!extras) return null;
+          return (
+            <div key="extras-main" className="social-post-extras-main">
+              {extras}
+            </div>
+          );
+        }
       default:
         return null;
     }
@@ -629,30 +712,73 @@ export function ProductShotPost({
       .map((block) => ({ block, node: renderMainBlock(block) }))
       .filter((entry) => entry.node != null);
 
-    return entries.flatMap((entry, index) => {
-      const items: React.ReactNode[] = [];
-      if (index > 0) {
-        items.push(
-          renderGapZone(
-            `copy-gap-${index}`,
-            copyBlockGapPx,
-            spacing.copyBlockGap,
-            "copyBlockGap",
-            "Space between copy blocks",
-          ),
+    const dynamicBodySlots =
+      textSlots?.filter(
+        (slot) =>
+          (slot.role === "body" || slot.role === "caption") &&
+          !entries.some((entry) => entry.block === "headline" && slot.role === "headline"),
+      ) ?? [];
+
+    const bodyNodes = dynamicBodySlots
+      .map((slot) => {
+        const text = textForRole(slot.role, slot.slotId);
+        if (isEmptyCopyField(text)) {
+          return renderEmptyTextSlot(slot.slotId, "extra", subheadingSlotStyle);
+        }
+        return (
+          <p key={slot.slotId} className="social-post-sub" style={subStyle}>
+            {text}
+          </p>
         );
-      }
-      items.push(<Fragment key={entry.block}>{entry.node}</Fragment>);
-      return items;
-    });
+      })
+      .filter(Boolean);
+
+    const allEntries = [
+      ...entries.flatMap((entry, index) => {
+        const items: React.ReactNode[] = [];
+        if (index > 0) {
+          items.push(
+            renderGapZone(
+              `copy-gap-${index}`,
+              copyBlockGapPx,
+              spacing.copyBlockGap,
+              "copyBlockGap",
+              "Space between copy blocks",
+            ),
+          );
+        }
+        items.push(<Fragment key={entry.block}>{entry.node}</Fragment>);
+        return items;
+      }),
+      ...bodyNodes.flatMap((node, index) => {
+        const items: React.ReactNode[] = [];
+        if (entries.length > 0 || index > 0) {
+          items.push(
+            renderGapZone(
+              `copy-extra-gap-${index}`,
+              copyBlockGapPx,
+              spacing.copyBlockGap,
+              "copyBlockGap",
+              "Space between copy blocks",
+            ),
+          );
+        }
+        items.push(node);
+        return items;
+      }),
+    ];
+
+    return allEntries;
   }
 
   function renderFooterBlock(block: "logo" | "extras") {
     if (block === "logo" && showFooterLogo) return logoEl;
-    if (block === "extras" && showFooterExtras) {
+    if (block === "extras" && showFooterExtrasStrip) {
+      const extras = renderExtras("footer");
+      if (!extras) return null;
       return (
         <div key="footer-extras" className="social-post-footer-extras">
-          {renderExtras("footer")}
+          {extras}
         </div>
       );
     }
@@ -754,36 +880,125 @@ export function ProductShotPost({
     );
   }
 
-  function renderFeaturedViewport(viewportHeight: number, viewportWidth?: number) {
-    const isGenuiFeatured = featuredMode === "genui" && showFeaturedFrame;
-    const viewportEditable = showFeaturedFrame && (interactive || canDrag);
+  function renderFeaturedViewport(
+    viewportHeight: number,
+    viewportWidth: number | undefined,
+    slot: FeaturedSlotContent = {
+      slotId: "featured-primary",
+      mode: featuredMode,
+      productPage,
+      visible: true,
+      transform: fi,
+    },
+  ) {
+    const slotTransform = fi;
+    const slotProductPage = slot.productPage ?? productPage;
+    const slotMode = slot.mode ?? featuredMode;
+    const slotNativeWidth = getProductPageNativeWidth(slotProductPage);
+    const slotFeaturedReady =
+      slotMode === "placeholder" ||
+      slotMode === "composed" ||
+      slotMode === "genui" ||
+      (slotMode === "image" &&
+        (hasFeaturedImage || !!featuredImageSrc || !!featuredSvgMarkup));
+    const slotShowFrame = showFeaturedImage && slot.visible && slotFeaturedReady && !emptyStatePreview;
+    const isGenuiFeatured = slotMode === "genui" && slotShowFrame;
+    const isPlaceholderFeatured = slotMode === "placeholder" && slotShowFrame;
+    const isComposedFeatured = slotMode === "composed" && slotShowFrame;
+    const composedMarkup = composedSvgMarkup;
+    const viewportEditable = slotShowFrame && (interactive || canDrag);
+    const selectId = featuredSelectId(slot.slotId);
 
     return (
       <div
-        className={`social-post-product-viewport${viewportEditable ? " is-editable" : ""}${isGenuiFeatured ? " social-post-product-viewport--genui" : ""} ${selectableClass("featured")}${viewportWidth != null ? " social-post-product-viewport--split" : ""}`}
-        data-canvas-select="featured"
-        onPointerDown={(ev) => handleCanvasSelect("featured", ev)}
+        className={`social-post-product-viewport${viewportEditable ? " is-editable" : ""}${isGenuiFeatured ? " social-post-product-viewport--genui" : ""} ${selectableClassForFeatured(slot.slotId)}${viewportWidth != null ? " social-post-product-viewport--split" : ""}`}
+        data-canvas-select={selectId}
+        onPointerDown={(ev) => handleCanvasSelect(selectId, ev)}
         style={
           {
             height: viewportHeight,
             ...(viewportWidth != null ? { width: viewportWidth, flexShrink: 0 } : {}),
-            ...(showFeaturedFrame
+            ...(slotShowFrame
               ? {
-                  "--fi-perspective": `${fi.perspective}px`,
-                  "--fi-x": `${fi.x}%`,
-                  "--fi-y": `${fi.y}%`,
-                  "--fi-z": `${fi.z}px`,
-                  "--fi-rx": `${fi.rotateX}deg`,
-                  "--fi-ry": `${fi.rotateY}deg`,
-                  "--fi-rz": `${fi.rotateZ}deg`,
-                  "--fi-scale": fi.scale,
+                  "--fi-perspective": `${slotTransform.perspective}px`,
+                  "--fi-x": `${slotTransform.x}%`,
+                  "--fi-y": `${slotTransform.y}%`,
+                  "--fi-z": `${slotTransform.z}px`,
+                  "--fi-rx": `${slotTransform.rotateX}deg`,
+                  "--fi-ry": `${slotTransform.rotateY}deg`,
+                  "--fi-rz": `${slotTransform.rotateZ}deg`,
+                  "--fi-scale": slotTransform.scale,
                 }
               : {}),
           } as React.CSSProperties
         }
       >
-        {showFeaturedFrame ? (
-          isGenuiFeatured ? (
+        {slotShowFrame ? (
+          isPlaceholderFeatured ? (
+            <div
+              className="social-post-product-frame social-post-product-frame--slot social-post-product-frame--placeholder"
+              style={featuredFrameRadius}
+            >
+              <div className="social-post-featured-placeholder">
+                {interactive && onGenerateVisualBlocks ? (
+                  <div className="social-post-featured-placeholder__actions">
+                    <VisualBlocksLibraryPicker
+                      blocks={visualBlocks}
+                      activeBlockId={activeVisualBlockId}
+                      generating={generatingVisualBlocks}
+                      brandColors={brandColors}
+                      onGenerate={onGenerateVisualBlocks}
+                      onSelect={(blockId) => onSelectVisualBlock?.(blockId)}
+                      triggerLabel="Generate UI"
+                      compact
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <span className="social-post-featured-placeholder__label">Visual slot</span>
+                    <span className="social-post-featured-placeholder__hint">
+                      Generate UI to add diagrams, cards, or illustrations
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : isComposedFeatured ? (
+            <div
+              className={`social-post-product-frame social-post-product-frame--composed${dragging ? " is-dragging" : ""}`}
+              style={featuredFrameRadius}
+              onPointerEnter={() => {
+                if (canDrag) setHovered(true);
+              }}
+              onPointerLeave={() => {
+                if (!dragging) setHovered(false);
+              }}
+            >
+              <div
+                className={`social-post-product-inner social-post-product-inner--composed${dragging ? " is-dragging" : ""}`}
+              >
+                {composedBlock ? (
+                  <VisualBlockRenderer block={composedBlock} brandColors={brandColors} />
+                ) : (
+                  <FeaturedImageContent imageSrc={null} svgMarkup={composedMarkup} />
+                )}
+              </div>
+              {interactive && onGenerateVisualBlocks ? (
+                <div className="social-post-featured-floating-actions">
+                  <VisualBlocksLibraryPicker
+                    blocks={visualBlocks}
+                    activeBlockId={activeVisualBlockId}
+                    generating={generatingVisualBlocks}
+                    onGenerate={onGenerateVisualBlocks}
+                    onSelect={(blockId) => onSelectVisualBlock?.(blockId)}
+                    triggerLabel="Visual blocks"
+                    compact
+                  />
+                </div>
+              ) : null}
+              {renderFeaturedDragHandle(chromeActive && isFeaturedSlotSelected(slot.slotId))}
+            </div>
+          ) : isGenuiFeatured ? (
             <div
               className={`social-post-product-inner social-post-product-inner--genui${dragging ? " is-dragging" : ""}`}
               style={featuredFrameRadius}
@@ -794,8 +1009,8 @@ export function ProductShotPost({
                 if (!dragging) setHovered(false);
               }}
             >
-              <ProductPreview page={productPage} frameWidth={nativeWidth} />
-              {renderFeaturedDragHandle(chromeActive)}
+              <ProductPreview page={slotProductPage} frameWidth={slotNativeWidth} />
+              {renderFeaturedDragHandle(chromeActive && isFeaturedSlotSelected(slot.slotId))}
             </div>
           ) : (
             <div
@@ -815,7 +1030,7 @@ export function ProductShotPost({
                 />
               </div>
 
-              {renderFeaturedDragHandle(chromeActive)}
+              {renderFeaturedDragHandle(chromeActive && isFeaturedSlotSelected(slot.slotId))}
             </div>
           )
         ) : (
@@ -825,6 +1040,38 @@ export function ProductShotPost({
           >
             <CanvasSlot variant="image" className="social-post-image-slot" />
           </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderAllFeaturedViewports(viewportHeight: number, viewportWidth?: number) {
+    const slots =
+      featuredSlots?.filter((slot) => slot.visible) ??
+      ([
+        {
+          slotId: "featured-primary",
+          mode: featuredMode,
+          productPage,
+          visible: showFeaturedImage,
+          transform: fi,
+        },
+      ] satisfies FeaturedSlotContent[]);
+
+    if (slots.length <= 1) {
+      return renderFeaturedViewport(viewportHeight, viewportWidth, slots[0]);
+    }
+
+    const gap = Math.max(6, Math.round(8 * canvasScale));
+    const eachHeight = (viewportHeight - gap * (slots.length - 1)) / slots.length;
+
+    return (
+      <div
+        className="flex w-full flex-col"
+        style={{ height: viewportHeight, gap, ...(viewportWidth != null ? { width: viewportWidth } : {}) }}
+      >
+        {slots.map((slot) =>
+          renderFeaturedViewport(eachHeight, viewportWidth, slot),
         )}
       </div>
     );
@@ -891,14 +1138,14 @@ export function ProductShotPost({
                   bandHeight: splitZones.rowHeight,
                   split: true,
                 })}
-                {renderFeaturedViewport(
+                {renderAllFeaturedViewports(
                   splitZones.rowHeight,
                   splitZones.featuredColumn,
                 )}
               </>
             ) : (
               <>
-                {renderFeaturedViewport(
+                {renderAllFeaturedViewports(
                   splitZones.rowHeight,
                   splitZones.featuredColumn,
                 )}
@@ -914,9 +1161,7 @@ export function ProductShotPost({
           <>
             {renderTextBand({ bandHeight: textZone - layoutPadPx })}
 
-            {showFeaturedImage
-              ? renderFeaturedViewport(productZone)
-              : null}
+            {showFeaturedImage ? renderAllFeaturedViewports(productZone) : null}
           </>
         )}
 
@@ -941,6 +1186,9 @@ export function ProductShotPost({
               />
             ) : null}
             {footerBlocks.flatMap((block, index) => {
+              const content = renderFooterBlock(block);
+              if (!content) return [];
+
               const items: React.ReactNode[] = [];
               if (index > 0) {
                 items.push(
@@ -962,7 +1210,7 @@ export function ProductShotPost({
                       : `social-post-footer-block flex w-full flex-col ${alignClass(textAlign)}`
                   }
                 >
-                  {renderFooterBlock(block)}
+                  {content}
                 </div>,
               );
               return items;

@@ -8,6 +8,7 @@ import {
   DEFAULT_POST_LAYOUT_ID,
 } from "@/lib/social-tool/postLayouts";
 import { defaultFeaturedBlock } from "@/lib/social-tool/featuredBlock";
+import type { FeaturedBlockPersisted } from "@/lib/social-tool/featuredBlock";
 import { DEFAULT_PATTERN_REF } from "@/lib/social-tool/patterns/types";
 import { migratePatternRef } from "@/lib/social-tool/patterns/migratePatternRef";
 import type { PostCopy } from "@/lib/social-tool/presets";
@@ -16,6 +17,7 @@ import type {
   DesignDocument,
   DesignSessionPersisted,
 } from "@/lib/design/types";
+import { migrateDocumentV1ToV2 } from "@/lib/social-tool/layoutAdapter";
 
 export const EMPTY_POST_COPY: PostCopy = {
   heading: "",
@@ -36,7 +38,7 @@ export function scopedBlobKey(
 }
 
 export function createBlankDocument(): DesignDocument {
-  return {
+  const base = migrateDocumentV1ToV2({
     version: 1,
     templateId: "product-shot",
     platformId: "linkedin-square",
@@ -68,7 +70,8 @@ export function createBlankDocument(): DesignDocument {
       phase: "needsLogo",
       briefSkipped: false,
     },
-  };
+  });
+  return base;
 }
 
 export function createBlankSession(designId: string): DesignSessionPersisted {
@@ -81,13 +84,16 @@ export function createBlankSession(designId: string): DesignSessionPersisted {
   };
 }
 
-function normalizeDocument(raw: Partial<DesignDocument> | undefined): DesignDocument {
+function normalizeDocument(
+  raw: Partial<DesignDocument> | undefined,
+  featured?: FeaturedBlockPersisted,
+): DesignDocument {
   const blank = createBlankDocument();
   if (!raw) return blank;
-  return {
+  const merged: DesignDocument = {
     ...blank,
     ...raw,
-    version: 1,
+    version: raw.version === 2 ? 2 : 1,
     copy: {
       ...EMPTY_POST_COPY,
       ...raw.copy,
@@ -109,6 +115,7 @@ function normalizeDocument(raw: Partial<DesignDocument> | undefined): DesignDocu
       typeof raw.pattern === "string" ? raw.pattern : undefined,
     ),
   };
+  return migrateDocumentV1ToV2(merged, featured);
 }
 
 export function loadDesignSession(designId: string): DesignSessionPersisted {
@@ -127,8 +134,14 @@ export function loadDesignSession(designId: string): DesignSessionPersisted {
         mode: parsed.featured?.mode === "image" ? "image" : "genui",
         productPage: normalizeProductPage(parsed.featured?.productPage),
         image: parsed.featured?.image ?? null,
+        slots: parsed.featured?.slots,
       },
-      document: normalizeDocument(parsed.document),
+      document: normalizeDocument(parsed.document, {
+        mode: parsed.featured?.mode === "image" ? "image" : "genui",
+        productPage: normalizeProductPage(parsed.featured?.productPage),
+        image: parsed.featured?.image ?? null,
+        slots: parsed.featured?.slots,
+      }),
     };
   } catch {
     return createBlankSession(designId);

@@ -66,6 +66,14 @@ import { useDesignSession } from "@/lib/design/useDesignSession";
 import { designRepository } from "@/lib/design/repository";
 import type { DesignDocument } from "@/lib/design/types";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
+import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
+import { resolveDocumentLayout } from "@/lib/social-tool/layoutRegistry";
+import { useBriefChat } from "@/lib/llm/useBriefChat";
+import { buildDesignSnapshot } from "@/lib/design/buildDesignSnapshot";
+import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
+import { FloatingBriefComposer } from "@/components/social-tool/FloatingBriefComposer";
+import { VariantPicker } from "@/components/social-tool/VariantPicker";
+import { activeVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
 
 type Props = {
   designId: string;
@@ -95,6 +103,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const isReady = doc.onboarding.phase === "ready";
   const isNeedsLogo = doc.onboarding.phase === "needsLogo";
   const isNeedsBrief = doc.onboarding.phase === "needsBrief";
+  const resolvedLayout = useMemo(
+    () => resolveDocumentLayout(doc),
+    [doc],
+  );
+
   const showCanvasBlocks = !isNeedsLogo;
   const template = getTemplate(doc.templateId);
   const platform = getPlatform(doc.platformId);
@@ -279,6 +292,17 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         : {}),
       ...(prefs.background ? { showBackground: true } : {}),
     });
+
+    if (
+      prefs.featuredPosition &&
+      session.featured.mode === "composed" &&
+      (session.featured.visualBlocks?.length ?? 0) > 0
+    ) {
+      void session.shuffleFeaturedVisualBlock({
+        headline: nextCopy.heading,
+        subheading: nextCopy.subheading,
+      });
+    }
   }
 
   useEffect(() => {
@@ -519,6 +543,75 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     session.applyBriefGeneration(result);
   }
 
+  function handleBriefApplyPlan(plan: ValidatedDesignPlan) {
+    session.applyDesignPlan(plan);
+  }
+
+  function handleApplyCanvasPatch(patch: CanvasPatchResult) {
+    return session.applyCanvasPatch(patch);
+  }
+
+  const brandSummary = useMemo(
+    () => ({
+      primary: session.kit.colors.primary,
+      secondary: session.kit.colors.secondary,
+      accent: session.kit.colors.accent,
+    }),
+    [
+      session.kit.colors.primary,
+      session.kit.colors.secondary,
+      session.kit.colors.accent,
+    ],
+  );
+
+  const designSnapshot = useMemo(() => {
+    if (!session.session) return null;
+    return buildDesignSnapshot({
+      session: session.session,
+      backgroundPresets: session.backgroundPresets,
+      selection: inspectorSelection,
+    });
+  }, [
+    session.session,
+    session.backgroundPresets,
+    inspectorSelection,
+    doc.copy,
+    doc.layoutId,
+    doc.textSlots,
+    doc.pattern,
+    doc.showPattern,
+    doc.showBackground,
+    doc.showFeaturedImage,
+    session.kit.activeBackgroundPresetId,
+    session.featured.mode,
+    session.featured.productPage,
+    session.featured.image,
+  ]);
+
+  const briefChat = useBriefChat({
+    platformId: doc.platformId,
+    brandSummary,
+    designSnapshot,
+    onApplyPlan: handleBriefApplyPlan,
+    onApplyCanvasPatch: handleApplyCanvasPatch,
+    onFallbackGenerate: handleBriefGenerate,
+    onOpenFeaturedUpload: () => {
+      patchDocument({ showFeaturedImage: true });
+      handleCanvasSelect("featured");
+    },
+  });
+
+  const showFloatingComposer = isReady && inspectorSelection === null;
+
+  const activeComposedBlock = useMemo(
+    () =>
+      activeVisualBlock(
+        session.featured.visualBlocks ?? [],
+        session.featured.activeBlockId,
+      ),
+    [session.featured.visualBlocks, session.featured.activeBlockId],
+  );
+
   function handlePlatformChange(next: PlatformId) {
     const patch: Partial<DesignDocument> = { platformId: next };
     if (next === "event-standee") {
@@ -529,7 +622,13 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   }
 
   function handleFeaturedTransformChange(value: FeaturedImageTransform) {
-    patchDocument({ featuredTransform: value });
+    patchDocument({
+      featuredTransform: value,
+      featuredSlots: (doc.featuredSlots ?? []).map((slot) => ({
+        ...slot,
+        transform: value,
+      })),
+    });
   }
 
   if (!session.ready) {
@@ -680,18 +779,27 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             }}
             featured={{
               mode: session.featured.mode,
-              setMode: session.setFeaturedMode,
-              productPage: session.featured.productPage,
-              setProductPage: session.setFeaturedProductPage,
+              visualBlocks: session.featured.visualBlocks ?? [],
+              activeBlockId: session.featured.activeBlockId,
+              generatingVisualBlocks: session.generatingVisualBlocks,
+              brandColors: {
+                primary: session.kit.colors.primary,
+                accent: session.kit.colors.accent,
+              },
+              onGenerateVisualBlocks: (source) => void session.generateVisualBlocks({ source }),
+              onSelectVisualBlock: session.selectVisualBlock,
               image: session.featured.image,
               imageSrc: session.featuredImageSrc,
               uploading: session.featuredUploading,
               error: session.featuredError,
-              uploadImage: session.uploadFeaturedImage,
-              removeImage: session.removeFeaturedImage,
+              onUploadImage: session.uploadFeaturedImage,
+              onRemoveImage: session.removeFeaturedImage,
             }}
             onBriefGenerate={handleBriefGenerate}
+            onBriefApplyPlan={handleBriefApplyPlan}
             onBriefSkip={session.skipBrief}
+            briefChat={briefChat}
+            brandSummary={brandSummary}
           />
         </aside>
 
@@ -754,6 +862,13 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                   </div>
                 </div>
               ) : null}
+              {briefChat.pendingVariants?.length ? (
+                <VariantPicker
+                  variants={briefChat.pendingVariants}
+                  activeTheme={briefChat.activeVariantTheme}
+                  onApply={briefChat.applyVariant}
+                />
+              ) : null}
               <div
                 ref={viewportRef}
                 className="relative overflow-hidden"
@@ -797,6 +912,25 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         patternAnimated={doc.patternAnimated && !exporting && isReady}
                         productPage={session.featured.productPage}
                         featuredMode={session.featured.mode}
+                        composedSvgMarkup={
+                          session.featured.mode === "composed"
+                            ? activeComposedBlock?.svgMarkup ?? null
+                            : null
+                        }
+                        composedBlock={
+                          session.featured.mode === "composed" ? activeComposedBlock ?? null : null
+                        }
+                        brandColors={{
+                          primary: session.kit.colors.primary,
+                          accent: session.kit.colors.accent,
+                        }}
+                        visualBlocks={session.featured.visualBlocks ?? []}
+                        activeVisualBlockId={session.featured.activeBlockId}
+                        generatingVisualBlocks={session.generatingVisualBlocks}
+                        onGenerateVisualBlocks={(source) =>
+                          void session.generateVisualBlocks({ source })
+                        }
+                        onSelectVisualBlock={session.selectVisualBlock}
                         featuredImageSrc={session.featuredImageSrc}
                         featuredSvgMarkup={session.featured.image?.svgMarkup ?? null}
                         hasFeaturedImage={!!session.featured.image}
@@ -834,6 +968,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         textColorOverride={textColor}
                         subTextColorOverride={subTextColor}
                         layoutId={doc.layoutId}
+                        dynamicLayout={resolvedLayout}
+                        textSlots={doc.textSlots}
+                        featuredSlots={doc.featuredSlots}
                         spacing={doc.layoutSpacing}
                         onSpacingChange={(v) => patchDocument({ layoutSpacing: v })}
                         showSpacingControls={adjustSpacing && isReady}
@@ -860,6 +997,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               </div>
             </div>
           </div>
+          {showFloatingComposer ? <FloatingBriefComposer {...briefChat} /> : null}
         </div>
       </div>
     </div>

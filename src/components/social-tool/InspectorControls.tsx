@@ -143,9 +143,10 @@ type InspectorTransformRowProps = {
 };
 
 function formatAxisValue(value: number, precision = 0) {
-  if (precision <= 0) return Math.round(value);
+  const safe = Number.isFinite(value) ? value : 0;
+  if (precision <= 0) return Math.round(safe);
   const factor = 10 ** precision;
-  return Math.round(value * factor) / factor;
+  return Math.round(safe * factor) / factor;
 }
 
 /** Figma-style X/Y/Z pill inputs for transform rows. */
@@ -218,12 +219,14 @@ export function InspectorSlider({
   format = defaultFormat,
   "aria-label": ariaLabel,
 }: InspectorSliderProps) {
+  const safeValue = Number.isFinite(value) ? value : min;
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
         <span className="social-tool-row-label">{label}</span>
         <span className="font-mono text-xs text-text-tertiary">
-          {format(value)}
+          {format(safeValue)}
         </span>
       </div>
       <Slider
@@ -232,7 +235,7 @@ export function InspectorSlider({
         minValue={min}
         maxValue={max}
         step={step}
-        value={value}
+        value={safeValue}
         onChange={(next) => {
           const n = Array.isArray(next) ? next[0] : next;
           if (typeof n === "number" && !Number.isNaN(n)) onChange(n);

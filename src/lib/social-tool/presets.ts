@@ -321,6 +321,15 @@ export function getPlatform(id: PlatformId): PlatformPreset {
   return PLATFORM_PRESETS.find((p) => p.id === id) ?? PLATFORM_PRESETS[0];
 }
 
+const PLATFORM_IDS = new Set<PlatformId>(
+  PLATFORM_PRESETS.map((p) => p.id as PlatformId),
+);
+
+export function normalizePlatformId(value: string): PlatformId {
+  if (PLATFORM_IDS.has(value as PlatformId)) return value as PlatformId;
+  return "linkedin-square";
+}
+
 export function getTemplate(id: TemplateId): TemplateMeta {
   return TEMPLATES.find((t) => t.id === id) ?? TEMPLATES[0];
 }

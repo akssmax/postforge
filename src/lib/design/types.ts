@@ -1,5 +1,10 @@
 import type { BrandKitPersisted } from "@/lib/brand/types";
 import type { FeaturedBlockPersisted } from "@/lib/social-tool/featuredBlock";
+import type {
+  FeaturedSlotContent,
+  LayoutRef,
+  TextSlotContent,
+} from "@/lib/social-tool/dynamicLayout";
 import type { PostLayoutSpacing } from "@/lib/social-tool/layoutSpacing";
 import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
@@ -22,11 +27,14 @@ export type DesignOnboardingState = {
 };
 
 export type DesignDocument = {
-  version: 1;
+  version: 1 | 2;
   templateId: "product-shot";
   platformId: PlatformId;
   theme: PostTheme;
   layoutId: PostLayoutId;
+  layoutRef?: LayoutRef;
+  textSlots?: TextSlotContent[];
+  featuredSlots?: FeaturedSlotContent[];
   layoutSpacing: PostLayoutSpacing;
   copy: PostCopy;
   pattern: PatternRef;

@@ -69,6 +69,17 @@ import type { PlatformId } from "@/lib/social-tool/presets";
 import type { ProductPageId } from "@/lib/social-tool/presets";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
+import { validatedPlanFromBriefResult } from "@/lib/llm/briefResultAdapter";
+import { applyDesignPlanToSession } from "@/lib/llm/services/applyDesignPlan";
+import { applyCanvasPatchToSession, repairDesignDocument } from "@/lib/llm/services/applyCanvasPatch";
+import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
+import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
+import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
+import {
+  activeVisualBlock,
+  appendVisualBlocks,
+  upsertVisualBlock,
+} from "@/lib/social-tool/visualBlocks/storage";
 
 const PERSIST_DEBOUNCE_MS = 300;
 
@@ -104,8 +115,20 @@ export type UseDesignSessionResult = {
   setFeaturedMode: (mode: FeaturedBlockMode) => void;
   setFeaturedProductPage: (productPage: ProductPageId) => void;
   applyBriefGeneration: (result: BriefGenerationResult) => void;
+  applyDesignPlan: (plan: ValidatedDesignPlan) => void;
+  applyCanvasPatch: (patch: CanvasPatchResult) => boolean;
   uploadFeaturedImage: (file: File) => Promise<void>;
   removeFeaturedImage: () => Promise<void>;
+  generateVisualBlocks: (input?: {
+    theme?: string;
+    brief?: string;
+    source?: "library" | "generate";
+    libraryIds?: string[];
+  }) => Promise<void>;
+  selectVisualBlock: (blockId: string) => void;
+  modifyVisualBlock: (blockId: string, instruction: string) => Promise<void>;
+  shuffleFeaturedVisualBlock: (copy?: { headline?: string; subheading?: string }) => Promise<void>;
+  generatingVisualBlocks: boolean;
   advanceOnboarding: (phase: DesignOnboardingPhase) => void;
   skipBrief: () => void;
 };
@@ -122,6 +145,7 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
   const [brandError, setBrandError] = useState<string | null>(null);
   const [featuredUploading, setFeaturedUploading] = useState(false);
   const [featuredError, setFeaturedError] = useState<string | null>(null);
+  const [generatingVisualBlocks, setGeneratingVisualBlocks] = useState(false);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const featuredBlobUrlRef = useRef<string | null>(null);
   const logoBlobUrlsRef = useRef<string[]>([]);
@@ -158,7 +182,11 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
 
     async function init() {
       const loaded = loadDesignSession(designId);
-      const next = loaded ?? createBlankSession(designId);
+      const base = loaded ?? createBlankSession(designId);
+      const next = {
+        ...base,
+        document: repairDesignDocument(base.document),
+      };
       const srcs = await hydrateAllLogoSrcs(next.brand);
 
       let resolvedFeatured: string | null = null;
@@ -524,8 +552,148 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
     [updateSession],
   );
 
+  const syncComposedFeaturedSlots = useCallback(
+    (prev: DesignSessionPersisted, activeBlockId: string | null) => ({
+      ...prev,
+      featured: {
+        ...prev.featured,
+        mode: "composed" as const,
+        activeBlockId,
+      },
+      document: {
+        ...prev.document,
+        showFeaturedImage: true,
+        featuredSlots: [
+          {
+            slotId: "featured-primary",
+            mode: "composed" as const,
+            visible: true,
+            transform: prev.document.featuredTransform,
+          },
+        ],
+      },
+      updatedAt: Date.now(),
+    }),
+    [],
+  );
+
+  const applyDesignPlan = useCallback(
+    (plan: ValidatedDesignPlan) => {
+      const needsFeaturedLibrary = plan.featuredSlots.some(
+        (slot) => slot.visible && slot.mode === "composed",
+      );
+
+      updateSession((prev) => {
+        const applied = applyDesignPlanToSession(plan, prev.document);
+        return {
+          ...prev,
+          brand: applied.brand
+            ? { ...prev.brand, ...applied.brand }
+            : prev.brand,
+          featured: {
+            ...prev.featured,
+            ...applied.featured,
+            image: prev.featured.image,
+            visualBlocks: needsFeaturedLibrary ? [] : prev.featured.visualBlocks,
+          },
+          document: {
+            ...prev.document,
+            ...applied.document,
+          },
+          updatedAt: Date.now(),
+        };
+      });
+
+      if (!needsFeaturedLibrary) return;
+
+      void (async () => {
+        setGeneratingVisualBlocks(true);
+        setFeaturedError(null);
+        try {
+          const brandColors = session
+            ? {
+                primary: session.brand.colors.primary,
+                accent: session.brand.colors.accent,
+              }
+            : undefined;
+          const response = await fetch("/api/visual-blocks/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              headline: plan.copy.heading,
+              subheading: plan.copy.subheading,
+              theme: plan.rationale,
+              brief: plan.copy.heading,
+              brandColors,
+              pickFeatured: true,
+              source: "library",
+            }),
+          });
+          if (!response.ok) {
+            const payload = (await response.json()) as { error?: string };
+            throw new Error(payload.error ?? "Featured visual pick failed");
+          }
+          const payload = (await response.json()) as { blocks: VisualBlockRecord[] };
+          const block = payload.blocks[0];
+          if (!block) {
+            updateSession((prev) => ({
+              ...prev,
+              featured: {
+                ...prev.featured,
+                mode: "placeholder",
+              },
+              document: {
+                ...prev.document,
+                featuredSlots: (prev.document.featuredSlots ?? []).map((slot) => ({
+                  ...slot,
+                  mode: "placeholder" as const,
+                })),
+              },
+              updatedAt: Date.now(),
+            }));
+            return;
+          }
+          updateSession((prev) =>
+            syncComposedFeaturedSlots(
+              {
+                ...prev,
+                featured: {
+                  ...prev.featured,
+                  visualBlocks: [block],
+                },
+              },
+              block.id,
+            ),
+          );
+        } catch (err) {
+          setFeaturedError(
+            err instanceof Error ? err.message : "Featured visual pick failed.",
+          );
+        } finally {
+          setGeneratingVisualBlocks(false);
+        }
+      })();
+    },
+    [session, syncComposedFeaturedSlots, updateSession],
+  );
+
+  const applyCanvasPatch = useCallback(
+    (patch: CanvasPatchResult) => {
+      if (!patch.success) return false;
+      updateSession((prev) => applyCanvasPatchToSession(prev, patch));
+      return true;
+    },
+    [updateSession],
+  );
+
   const applyBriefGeneration = useCallback(
     (result: BriefGenerationResult) => {
+      const platformId = session?.document.platformId ?? "linkedin-square";
+      const plan = validatedPlanFromBriefResult(result, platformId);
+      if (plan) {
+        applyDesignPlan(plan);
+        return;
+      }
       updateSession((prev) => ({
         ...prev,
         featured: {
@@ -556,7 +724,7 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
         updatedAt: Date.now(),
       }));
     },
-    [updateSession],
+    [applyDesignPlan, session?.document.platformId, updateSession],
   );
 
   const uploadFeaturedImage = useCallback(
@@ -609,12 +777,214 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
     if (blobKey) await deleteFeaturedImageBlob(blobKey);
     revokeFeaturedBlob();
     setFeaturedImageSrc(null);
-    updateSession((prev) => ({
-      ...prev,
-      featured: { ...prev.featured, image: null, mode: "genui" },
-      updatedAt: Date.now(),
-    }));
+    updateSession((prev) => {
+      const hasBlocks = (prev.featured.visualBlocks?.length ?? 0) > 0;
+      return {
+        ...prev,
+        featured: {
+          ...prev.featured,
+          image: null,
+          mode: hasBlocks ? "composed" : "placeholder",
+        },
+        updatedAt: Date.now(),
+      };
+    });
   }, [revokeFeaturedBlob, session?.featured.image?.blobKey, updateSession]);
+
+  const generateVisualBlocks = useCallback(
+    async (input?: {
+      theme?: string;
+      brief?: string;
+      source?: "library" | "generate";
+      libraryIds?: string[];
+    }) => {
+      if (!session) return;
+      setGeneratingVisualBlocks(true);
+      setFeaturedError(null);
+      try {
+        const doc = session.document;
+        const response = await fetch("/api/visual-blocks/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            headline: doc.copy.heading,
+            subheading: doc.copy.subheading,
+            theme: input?.theme,
+            brief: input?.brief,
+            brandColors: {
+              primary: session.brand.colors.primary,
+              accent: session.brand.colors.accent,
+            },
+            count: 3,
+            source: input?.source ?? "library",
+            libraryIds: input?.libraryIds,
+          }),
+        });
+        if (!response.ok) {
+          const payload = (await response.json()) as { error?: string };
+          throw new Error(payload.error ?? "Generation failed");
+        }
+        const payload = (await response.json()) as { blocks: VisualBlockRecord[] };
+        updateSession((prev) => {
+          const visualBlocks = appendVisualBlocks(
+            prev.featured.visualBlocks ?? [],
+            payload.blocks,
+          );
+          const activeBlockId = payload.blocks[0]?.id ?? visualBlocks[0]?.id ?? null;
+          return syncComposedFeaturedSlots(
+            {
+              ...prev,
+              featured: {
+                ...prev.featured,
+                visualBlocks,
+              },
+            },
+            activeBlockId,
+          );
+        });
+      } catch (err) {
+        setFeaturedError(err instanceof Error ? err.message : "Generation failed.");
+      } finally {
+        setGeneratingVisualBlocks(false);
+      }
+    },
+    [session, syncComposedFeaturedSlots, updateSession],
+  );
+
+  const selectVisualBlock = useCallback(
+    (blockId: string) => {
+      updateSession((prev) => syncComposedFeaturedSlots(prev, blockId));
+    },
+    [syncComposedFeaturedSlots, updateSession],
+  );
+
+  const modifyVisualBlock = useCallback(
+    async (blockId: string, instruction: string) => {
+      if (!session) return;
+      const block = session.featured.visualBlocks?.find((entry) => entry.id === blockId);
+      if (!block) {
+        setFeaturedError("Visual block not found.");
+        return;
+      }
+      setGeneratingVisualBlocks(true);
+      setFeaturedError(null);
+      try {
+        const response = await fetch("/api/visual-blocks/modify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            blockId,
+            instruction,
+            block,
+            brandColors: {
+              primary: session.brand.colors.primary,
+              accent: session.brand.colors.accent,
+            },
+          }),
+        });
+        if (!response.ok) {
+          const payload = (await response.json()) as { error?: string };
+          throw new Error(payload.error ?? "Modification failed");
+        }
+        const payload = (await response.json()) as { block: VisualBlockRecord };
+        updateSession((prev) =>
+          syncComposedFeaturedSlots(
+            {
+              ...prev,
+              featured: {
+                ...prev.featured,
+                visualBlocks: upsertVisualBlock(
+                  prev.featured.visualBlocks ?? [],
+                  payload.block,
+                ),
+              },
+            },
+            payload.block.id,
+          ),
+        );
+      } catch (err) {
+        setFeaturedError(err instanceof Error ? err.message : "Modification failed.");
+      } finally {
+        setGeneratingVisualBlocks(false);
+      }
+    },
+    [session, syncComposedFeaturedSlots, updateSession],
+  );
+
+  const shuffleFeaturedVisualBlock = useCallback(
+    async (copyOverride?: { headline?: string; subheading?: string }) => {
+      if (!session) return;
+      const { featured } = session;
+      if (featured.mode !== "composed") return;
+
+      const blocks = featured.visualBlocks ?? [];
+      if (blocks.length === 0) return;
+
+      const active = activeVisualBlock(blocks, featured.activeBlockId);
+      const activeId = active?.id ?? null;
+
+      if (blocks.length > 1 && activeId) {
+        const activeIndex = blocks.findIndex((block) => block.id === activeId);
+        const next = blocks[(activeIndex + 1) % blocks.length]!;
+        updateSession((prev) => syncComposedFeaturedSlots(prev, next.id));
+        return;
+      }
+
+      setGeneratingVisualBlocks(true);
+      setFeaturedError(null);
+      try {
+        const doc = session.document;
+        const headline = copyOverride?.headline ?? doc.copy.heading;
+        const subheading = copyOverride?.subheading ?? doc.copy.subheading;
+        const response = await fetch("/api/visual-blocks/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            headline,
+            subheading,
+            theme: headline,
+            brief: headline,
+            brandColors: {
+              primary: session.brand.colors.primary,
+              accent: session.brand.colors.accent,
+            },
+            pickFeatured: true,
+            excludeLibraryIds: active?.libraryId ? [active.libraryId] : [],
+            source: "library",
+          }),
+        });
+        if (!response.ok) {
+          const payload = (await response.json()) as { error?: string };
+          throw new Error(payload.error ?? "Shuffle visual failed");
+        }
+        const payload = (await response.json()) as { blocks: VisualBlockRecord[] };
+        const newBlock = payload.blocks[0];
+        if (!newBlock) return;
+
+        updateSession((prev) => {
+          const prevBlocks = prev.featured.visualBlocks ?? [];
+          const visualBlocks = activeId
+            ? prevBlocks.map((block) => (block.id === activeId ? newBlock : block))
+            : appendVisualBlocks(prevBlocks, [newBlock]);
+          return syncComposedFeaturedSlots(
+            {
+              ...prev,
+              featured: {
+                ...prev.featured,
+                visualBlocks,
+              },
+            },
+            newBlock.id,
+          );
+        });
+      } catch (err) {
+        setFeaturedError(err instanceof Error ? err.message : "Shuffle visual failed.");
+      } finally {
+        setGeneratingVisualBlocks(false);
+      }
+    },
+    [session, syncComposedFeaturedSlots, updateSession],
+  );
 
   const brand = session?.brand ?? defaultKit();
   const featured = session?.featured ?? defaultFeaturedBlock();
@@ -679,8 +1049,15 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       setFeaturedMode,
       setFeaturedProductPage,
       applyBriefGeneration,
+      applyDesignPlan,
+      applyCanvasPatch,
       uploadFeaturedImage,
       removeFeaturedImage,
+      generateVisualBlocks,
+      selectVisualBlock,
+      modifyVisualBlock,
+      shuffleFeaturedVisualBlock,
+      generatingVisualBlocks,
       advanceOnboarding,
       skipBrief,
     }),
@@ -715,8 +1092,15 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       setFeaturedMode,
       setFeaturedProductPage,
       applyBriefGeneration,
+      applyDesignPlan,
+      applyCanvasPatch,
       uploadFeaturedImage,
       removeFeaturedImage,
+      generateVisualBlocks,
+      selectVisualBlock,
+      modifyVisualBlock,
+      shuffleFeaturedVisualBlock,
+      generatingVisualBlocks,
       advanceOnboarding,
       skipBrief,
     ],

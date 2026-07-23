@@ -452,8 +452,18 @@ Edit `DEFAULT_POST_LAYOUT_SPACING` in `layoutSpacing.ts` and the **Spacing token
 
 ---
 
+## LLM design plans (implemented)
+
+Creative brief chat calls Mistral with an `updateDesign` tool. Each validated plan includes:
+
+- `layoutRef`: `{ source: "catalog", id }` or `{ source: "generated", layout: DynamicLayout }`
+- `textSlots[]`: `{ slotId, text, role }` for headline / subheading / body / caption
+- `featuredSlots[]`: `{ slotId, mode, productPage?, visible, transform? }` — multiple GenUI/image blocks supported
+- Pattern/background flags + hierarchy scales (`typeScale`, `logoScale`)
+
+Schema lives in `src/lib/llm/schemas/designPlan.ts`. Validation in `src/lib/llm/services/layoutValidator.ts`.
+
 ## Future
 
-- AI layout generation outputs the same `PostLayout` schema + optional spacing overrides.
 - Layout picker in inspector (beyond shuffle).
 - Optional freeform / break-layout mode for advanced users.

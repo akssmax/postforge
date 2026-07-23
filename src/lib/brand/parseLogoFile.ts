@@ -1,3 +1,5 @@
+import { sanitizeSvgMarkupServer } from "@/lib/social-tool/visualBlocks/sanitizeSvgServer";
+
 const ALLOWED_TAGS = new Set([
   "svg",
   "g",
@@ -72,6 +74,10 @@ function inlineSvgClassStyles(root: Element): void {
 }
 
 export function sanitizeSvgMarkup(raw: string): string | null {
+  if (typeof DOMParser === "undefined") {
+    return sanitizeSvgMarkupServer(raw);
+  }
+
   if (BLOCKED.test(raw)) return null;
 
   const doc = new DOMParser().parseFromString(raw, "image/svg+xml");

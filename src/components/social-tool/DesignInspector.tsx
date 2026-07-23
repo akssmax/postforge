@@ -16,8 +16,11 @@ import { getMonogramMarkup } from "@/lib/brand/logoVariants";
 import type { UseBrandKitReturn } from "@/lib/brand/useBrandKit";
 import type { UseFeaturedBlockReturn } from "@/lib/social-tool/useFeaturedBlock";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
+import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
+import type { BriefChatState } from "@/lib/llm/useBriefChat";
 import type { DesignOnboardingPhase } from "@/lib/design/types";
 import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
+import { canvasSelectionKind } from "@/lib/social-tool/canvasSelection";
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import {
@@ -47,19 +50,21 @@ type BrandPanelProps = Pick<
   | "setBackgroundPreset"
 >;
 
-type FeaturedPanelProps = Pick<
-  UseFeaturedBlockReturn,
-  | "mode"
-  | "setMode"
-  | "productPage"
-  | "setProductPage"
-  | "image"
-  | "imageSrc"
-  | "uploading"
-  | "error"
-  | "uploadImage"
-  | "removeImage"
->;
+type FeaturedPanelProps = {
+  mode: import("@/lib/social-tool/featuredBlock").FeaturedBlockMode;
+  visualBlocks: import("@/lib/social-tool/visualBlocks/types").VisualBlockRecord[];
+  activeBlockId?: string | null;
+  generatingVisualBlocks?: boolean;
+  brandColors?: { primary?: string; accent?: string };
+  onGenerateVisualBlocks: (source?: "library" | "generate") => void;
+  onSelectVisualBlock: (blockId: string) => void;
+  image: import("@/lib/social-tool/featuredBlock").FeaturedImageRecord | null;
+  imageSrc: string | null;
+  uploading: boolean;
+  error: string | null;
+  onUploadImage: (file: File) => Promise<void>;
+  onRemoveImage: () => Promise<void>;
+};
 
 type Props = {
   phase: DesignOnboardingPhase;
@@ -109,7 +114,14 @@ type Props = {
   brand: BrandPanelProps;
   featured: FeaturedPanelProps;
   onBriefGenerate: (result: BriefGenerationResult) => void;
+  onBriefApplyPlan: (plan: ValidatedDesignPlan) => void;
   onBriefSkip: () => void;
+  briefChat?: BriefChatState;
+  brandSummary?: {
+    primary?: string;
+    secondary?: string;
+    accent?: string;
+  };
 };
 
 function PatternSection({
@@ -224,15 +236,18 @@ function BlockPanelsOverview(props: Props) {
       showFeaturedBlock={props.showFeaturedImage}
       onShowFeaturedBlockChange={props.onShowFeaturedImageChange}
       mode={props.featured.mode}
-      setMode={props.featured.setMode}
-      productPage={props.featured.productPage}
-      setProductPage={props.featured.setProductPage}
+      visualBlocks={props.featured.visualBlocks}
+      activeBlockId={props.featured.activeBlockId}
+      generatingVisualBlocks={props.featured.generatingVisualBlocks}
+      brandColors={props.featured.brandColors}
+      onGenerateVisualBlocks={props.featured.onGenerateVisualBlocks}
+      onSelectVisualBlock={props.featured.onSelectVisualBlock}
       image={props.featured.image}
       imageSrc={props.featured.imageSrc}
       uploading={props.featured.uploading}
       error={props.featured.error}
-      uploadImage={props.featured.uploadImage}
-      removeImage={props.featured.removeImage}
+      onUploadImage={props.featured.onUploadImage}
+      onRemoveImage={props.featured.onRemoveImage}
       featuredTransform={props.featuredTransform}
       onFeaturedTransformChange={props.onFeaturedTransformChange}
     />
@@ -352,12 +367,13 @@ export function DesignInspector(props: Props) {
   }
 
   if (phase === "needsBrief") {
+    if (!props.briefChat) return null;
+
     return (
       <>
         <BrandInspectorSection {...props} defaultExpanded={false} />
         <BriefChatPanel
-          platformId={props.platformId}
-          onGenerate={props.onBriefGenerate}
+          {...props.briefChat}
           onSkip={props.onBriefSkip}
           autoFocus
         />
@@ -371,7 +387,9 @@ export function DesignInspector(props: Props) {
     return <InspectorOverview {...props} />;
   }
 
-  if (inspectorSelection === "copy") {
+  const selectionKind = canvasSelectionKind(inspectorSelection);
+
+  if (selectionKind === "copy") {
     return (
       <>
         <ContentPanel
@@ -396,7 +414,7 @@ export function DesignInspector(props: Props) {
     );
   }
 
-  if (inspectorSelection === "logo") {
+  if (selectionKind === "logo") {
     return (
       <>
         <BrandInspectorSection {...props} defaultExpanded />
@@ -405,22 +423,25 @@ export function DesignInspector(props: Props) {
     );
   }
 
-  if (inspectorSelection === "featured") {
+  if (selectionKind === "featured") {
     return (
       <>
         <FeaturedBlockPanel
           showFeaturedBlock={props.showFeaturedImage}
           onShowFeaturedBlockChange={props.onShowFeaturedImageChange}
           mode={featured.mode}
-          setMode={featured.setMode}
-          productPage={featured.productPage}
-          setProductPage={featured.setProductPage}
+          visualBlocks={featured.visualBlocks}
+          activeBlockId={featured.activeBlockId}
+          generatingVisualBlocks={featured.generatingVisualBlocks}
+          brandColors={featured.brandColors}
+          onGenerateVisualBlocks={featured.onGenerateVisualBlocks}
+          onSelectVisualBlock={featured.onSelectVisualBlock}
           image={featured.image}
           imageSrc={featured.imageSrc}
           uploading={featured.uploading}
           error={featured.error}
-          uploadImage={featured.uploadImage}
-          removeImage={featured.removeImage}
+          onUploadImage={featured.onUploadImage}
+          onRemoveImage={featured.onRemoveImage}
           featuredTransform={props.featuredTransform}
           onFeaturedTransformChange={props.onFeaturedTransformChange}
         />

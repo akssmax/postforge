@@ -103,7 +103,8 @@ export function LayoutShuffleButton({ layoutName, onShuffle }: Props) {
           <Tooltip.Content placement="bottom" offset={8}>
             <p className="layout-shuffle-tooltip-title">Shuffle</p>
             <p className="layout-shuffle-tooltip-body">
-              Cycle layout plus any enabled options in the menu.
+              Cycle layout plus any enabled options in the menu. Swaps the featured
+              UI block or illustration when one is on the canvas.
             </p>
           </Tooltip.Content>
         </Tooltip>

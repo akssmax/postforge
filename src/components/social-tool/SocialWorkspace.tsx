@@ -689,18 +689,21 @@ function ToolSocialWorkspace() {
               setBackgroundPreset: brand.setBackgroundPreset,
             }}
             featured={{
-              mode: featured.mode,
-              setMode: featured.setMode,
-              productPage: featured.productPage,
-              setProductPage: handleFeaturedProductPage,
+              mode: featured.mode === "genui" ? "placeholder" : featured.mode,
+              visualBlocks: [],
+              activeBlockId: null,
+              generatingVisualBlocks: false,
+              onGenerateVisualBlocks: () => {},
+              onSelectVisualBlock: () => {},
               image: featured.image,
               imageSrc: featured.imageSrc,
               uploading: featured.uploading,
               error: featured.error,
-              uploadImage: featured.uploadImage,
-              removeImage: featured.removeImage,
+              onUploadImage: featured.uploadImage,
+              onRemoveImage: featured.removeImage,
             }}
             onBriefGenerate={() => {}}
+            onBriefApplyPlan={() => {}}
             onBriefSkip={() => {}}
           />
         </aside>

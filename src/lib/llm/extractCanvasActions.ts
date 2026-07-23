@@ -1,0 +1,59 @@
+import type { UIMessage } from "ai";
+import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
+import { mergeCanvasPatches } from "@/lib/llm/services/computeCanvasPatch";
+import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
+
+type ToolOutput = CanvasPatchResult & {
+  plan?: ValidatedDesignPlan;
+  score?: number;
+};
+
+const CANVAS_TOOL_TYPES = [
+  "tool-updateCopy",
+  "tool-updateBackground",
+  "tool-updatePattern",
+  "tool-updateFeatured",
+  "tool-updateLayout",
+  "tool-updateBrand",
+  "tool-updateTypography",
+  "tool-updateVisibility",
+  "tool-updateSpacing",
+] as const;
+
+export function extractLatestCanvasPatch(messages: UIMessage[]): CanvasPatchResult | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.role !== "assistant") continue;
+
+    const patches: CanvasPatchResult[] = [];
+
+    for (const part of message.parts) {
+      if (
+        CANVAS_TOOL_TYPES.includes(part.type as (typeof CANVAS_TOOL_TYPES)[number]) &&
+        "state" in part &&
+        part.state === "output-available" &&
+        "output" in part
+      ) {
+        const output = part.output as ToolOutput;
+        if (output?.success !== false) {
+          if (output.document || output.brand || output.featured || output.clientAction) {
+            patches.push(output);
+          }
+        }
+      }
+    }
+
+    if (patches.length > 0) {
+      return mergeCanvasPatches(patches);
+    }
+  }
+
+  return null;
+}
+
+export function extractLatestClientAction(
+  messages: UIMessage[],
+): CanvasPatchResult["clientAction"] | null {
+  const patch = extractLatestCanvasPatch(messages);
+  return patch?.clientAction ?? null;
+}

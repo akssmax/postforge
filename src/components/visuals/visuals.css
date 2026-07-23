@@ -1,0 +1,245 @@
+.visuals-page {
+  min-height: 100vh;
+  padding: 32px clamp(20px, 4vw, 48px) 64px;
+  background: color-mix(in oklab, var(--surface-primary) 96%, var(--gray-950) 4%);
+}
+
+.visuals-page__header {
+  max-width: 960px;
+  margin: 0 auto 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.visuals-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  font-size: 0.875rem;
+  opacity: 0.72;
+  text-decoration: none;
+}
+
+.visuals-page__back:hover {
+  opacity: 1;
+}
+
+.visuals-page__eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.visuals-page__title {
+  margin: 0 0 10px;
+  font-family: var(--font-social-display, inherit);
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.visuals-page__subtitle {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  opacity: 0.72;
+}
+
+.visuals-page__toolbar {
+  max-width: 1280px;
+  margin: 0 auto 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.visuals-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.visuals-filters__label {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+
+.visuals-filters__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.visuals-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, currentColor 12%, transparent);
+  background: color-mix(in oklab, currentColor 3%, transparent);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+}
+
+.visuals-filter-chip:hover {
+  border-color: color-mix(in oklab, currentColor 22%, transparent);
+}
+
+.visuals-filter-chip.is-active {
+  border-color: color-mix(in oklab, var(--color-accent, #7c9a92) 50%, transparent);
+  background: color-mix(in oklab, var(--color-accent, #7c9a92) 12%, transparent);
+}
+
+.visuals-filter-chip__count {
+  font-size: 0.6875rem;
+  opacity: 0.6;
+}
+
+.visuals-search {
+  position: relative;
+  max-width: 360px;
+}
+
+.visuals-search__icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.visuals-search__input {
+  width: 100%;
+  padding: 8px 12px 8px 36px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, currentColor 12%, transparent);
+  background: var(--surface-primary);
+  font-size: 0.875rem;
+}
+
+.visuals-page__results {
+  max-width: 1280px;
+  margin: 0 auto 16px;
+  font-size: 0.8125rem;
+  opacity: 0.55;
+}
+
+.visuals-page__empty {
+  max-width: 1280px;
+  margin: 32px auto 0;
+  text-align: center;
+  opacity: 0.6;
+}
+
+.visuals-page__grid {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.visuals-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, currentColor 10%, transparent);
+  background: var(--surface-primary);
+}
+
+.visuals-card__preview {
+  aspect-ratio: 480 / 280;
+  background-color: color-mix(in oklab, currentColor 4%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.visuals-card__preview-svg {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.visuals-card__preview-img {
+  width: 88%;
+  height: 88%;
+  object-fit: contain;
+}
+
+.visuals-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+}
+
+.visuals-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.visuals-card__label {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.visuals-card__kind {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.55;
+}
+
+.visuals-card__source {
+  margin: 0;
+  font-size: 0.6875rem;
+  opacity: 0.55;
+}
+
+.visuals-card__description {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  opacity: 0.72;
+}
+
+.visuals-card__id {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.6875rem;
+  opacity: 0.45;
+}
+
+.visuals-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.visuals-card__tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  background: color-mix(in oklab, currentColor 6%, transparent);
+}

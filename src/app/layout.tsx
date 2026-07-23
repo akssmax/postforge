@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
-import { Inter, Syne, DM_Sans } from "next/font/google";
+import { Inter, Syne, DM_Sans, Geist } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeScript } from "@/components/theme-script";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const inter = Inter({
   variable: "--font-inter",
@@ -42,14 +46,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${socialDisplay.variable} ${socialBody.variable} h-full antialiased`}
+      className={cn("h-full", "antialiased", inter.variable, socialDisplay.variable, socialBody.variable, "font-sans", geist.variable)}
       suppressHydrationWarning
     >
       <head>
         <ThemeScript />
       </head>
       <body className="min-h-full bg-leap-bg text-leap-fg font-sans antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

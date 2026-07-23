@@ -28,6 +28,7 @@ import {
   type LayoutReviewRecord,
 } from "@/lib/social-tool/layoutReviews";
 import { getPostLayout, POST_LAYOUTS } from "@/lib/social-tool/postLayouts";
+import { catalogLayoutToDynamic } from "@/lib/social-tool/layoutAdapter";
 import { getPlatform, type PlatformId } from "@/lib/social-tool/presets";
 import { PATTERN_NONE_REF } from "@/lib/social-tool/patterns/types";
 import "@/components/social-tool/social-tool.css";
@@ -58,6 +59,7 @@ export function LayoutPlayground() {
   const [reviews, setReviews] = useState<LayoutReviewRecord>(getCommittedLayoutReviews);
   const [spacing, setSpacing] = useState<PostLayoutSpacing>(DEFAULT_POST_LAYOUT_SPACING);
   const [copied, setCopied] = useState(false);
+  const [copiedDynamic, setCopiedDynamic] = useState(false);
   const [showSpacingOverlays, setShowSpacingOverlays] = useState(true);
 
   const platform = getPlatform(platformId);
@@ -110,6 +112,18 @@ export function LayoutPlayground() {
       window.prompt("Copy layout playground JSON:", text);
     }
   }, [reviews]);
+
+  const exportDynamicLayout = useCallback(async () => {
+    if (!layoutMeta) return;
+    const text = JSON.stringify(catalogLayoutToDynamic(layoutMeta), null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedDynamic(true);
+      window.setTimeout(() => setCopiedDynamic(false), 2000);
+    } catch {
+      window.prompt("Copy dynamic layout JSON:", text);
+    }
+  }, [layoutMeta]);
 
   useEffect(() => {
     setReviews(loadLayoutReviews());
@@ -176,6 +190,10 @@ export function LayoutPlayground() {
           <Button variant="outline" size="sm" onPress={() => void exportReviews()}>
             <Copy className="size-3.5" />
             {copied ? "Copied" : "Export JSON"}
+          </Button>
+          <Button variant="outline" size="sm" onPress={() => void exportDynamicLayout()}>
+            <Copy className="size-3.5" />
+            {copiedDynamic ? "Copied" : "Dynamic layout"}
           </Button>
         </div>
       </header>
