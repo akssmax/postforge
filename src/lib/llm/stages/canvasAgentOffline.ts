@@ -88,5 +88,18 @@ export function runCanvasAgentOffline(
   }
 
   if (patches.length === 0) return null;
-  return mergeCanvasPatches(patches);
+
+  const merged = mergeCanvasPatches(patches);
+  const wantsAllBoards =
+    lower.includes("all artboard") ||
+    lower.includes("all boards") ||
+    lower.includes("every artboard") ||
+    lower.includes("every board") ||
+    lower.includes("all variants") ||
+    lower.includes("every variant");
+
+  return {
+    ...merged,
+    targetArtboards: wantsAllBoards ? "all" : "active",
+  };
 }

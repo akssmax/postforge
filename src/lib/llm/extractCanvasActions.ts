@@ -14,6 +14,9 @@ const CANVAS_TOOL_TYPES = [
   "tool-updateBackground",
   "tool-updatePattern",
   "tool-updateFeatured",
+  "tool-generateVisualBlock",
+  "tool-modifyVisualBlock",
+  "tool-selectVisualBlock",
   "tool-updateLayout",
   "tool-updateBrand",
   "tool-updateTypography",
@@ -21,34 +24,37 @@ const CANVAS_TOOL_TYPES = [
   "tool-updateSpacing",
 ] as const;
 
-export function extractLatestCanvasPatch(messages: UIMessage[]): CanvasPatchResult | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message.role !== "assistant") continue;
+export function extractCanvasPatchFromMessage(
+  message: UIMessage,
+): CanvasPatchResult | null {
+  if (message.role !== "assistant") return null;
 
-    const patches: CanvasPatchResult[] = [];
+  const patches: CanvasPatchResult[] = [];
 
-    for (const part of message.parts) {
-      if (
-        CANVAS_TOOL_TYPES.includes(part.type as (typeof CANVAS_TOOL_TYPES)[number]) &&
-        "state" in part &&
-        part.state === "output-available" &&
-        "output" in part
-      ) {
-        const output = part.output as ToolOutput;
-        if (output?.success !== false) {
-          if (output.document || output.brand || output.featured || output.clientAction) {
-            patches.push(output);
-          }
+  for (const part of message.parts) {
+    if (
+      CANVAS_TOOL_TYPES.includes(part.type as (typeof CANVAS_TOOL_TYPES)[number]) &&
+      "state" in part &&
+      part.state === "output-available" &&
+      "output" in part
+    ) {
+      const output = part.output as ToolOutput;
+      if (output?.success !== false) {
+        if (output.document || output.brand || output.featured || output.clientAction) {
+          patches.push(output);
         }
       }
     }
-
-    if (patches.length > 0) {
-      return mergeCanvasPatches(patches);
-    }
   }
 
+  return patches.length > 0 ? mergeCanvasPatches(patches) : null;
+}
+
+export function extractLatestCanvasPatch(messages: UIMessage[]): CanvasPatchResult | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const patch = extractCanvasPatchFromMessage(messages[i]!);
+    if (patch) return patch;
+  }
   return null;
 }
 

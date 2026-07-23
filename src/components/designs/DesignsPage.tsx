@@ -7,6 +7,7 @@ import { Button } from "@heroui/react";
 import { DesignToolHeader } from "@/components/social-tool/DesignToolHeader";
 import { DesignCard } from "@/components/designs/DesignCard";
 import { DesignsEmptyState } from "@/components/designs/DesignsEmptyState";
+import { ThemeControls } from "@/components/ThemeControls";
 import { designRepository } from "@/lib/design/repository";
 import type { DesignSummary } from "@/lib/design/repository";
 import { createDesignId } from "@/lib/design/ids";
@@ -67,6 +68,7 @@ export function DesignsPage() {
   return (
     <div className="flex min-h-svh flex-col bg-surface-primary text-text-primary">
       <DesignToolHeader showQuickNew={false}>
+        <ThemeControls compact />
         <Button
           variant="primary"
           size="sm"

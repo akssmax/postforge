@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ProductShotPost,
@@ -10,6 +10,7 @@ import { LayoutShuffleButton } from "@/components/social-tool/LayoutShuffleButto
 import { LayoutSpacingToggle } from "@/components/social-tool/LayoutSpacingToggle";
 import { GenerateVariantsButton } from "@/components/social-tool/GenerateVariantsButton";
 import type { DesignSessionPersisted } from "@/lib/design/types";
+import { artboardIndexLabel } from "@/lib/design/variantGroup";
 import { useBoardAssets } from "@/lib/design/useBoardAssets";
 import {
   buildBackgroundPresets,
@@ -43,6 +44,9 @@ type Props = {
   adjustSpacing: boolean;
   onToggleSpacing: () => void;
   onActivate: () => void;
+  /** Custom artboard name; empty/undefined falls back to index label */
+  artboardName?: string;
+  onRenameArtboard?: (name: string) => void;
   onShuffle: (prefs: ShufflePreferences) => void;
   onGenerateVariants: () => void;
   generatingVariants: boolean;
@@ -56,6 +60,8 @@ type Props = {
   canvasSelection?: CanvasSelectionId | null;
   onCanvasSelect?: (id: CanvasSelectionId | null) => void;
   onFeaturedTransformChange?: (t: FeaturedImageTransform) => void;
+  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing") => void;
+  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing") => void;
   onSpacingChange?: (v: PostLayoutSpacing) => void;
   onSelectVisualBlock?: (blockId: string) => void;
   onGenerateVisualBlocks?: (
@@ -82,6 +88,8 @@ export function CanvasVariantArtboard({
   adjustSpacing,
   onToggleSpacing,
   onActivate,
+  artboardName,
+  onRenameArtboard,
   onShuffle,
   onGenerateVariants,
   generatingVariants,
@@ -94,6 +102,8 @@ export function CanvasVariantArtboard({
   canvasSelection = null,
   onCanvasSelect,
   onFeaturedTransformChange,
+  onHistoryCoalesceBegin,
+  onHistoryCoalesceEnd,
   onSpacingChange,
   onSelectVisualBlock,
   onGenerateVisualBlocks,
@@ -106,6 +116,10 @@ export function CanvasVariantArtboard({
   handActive = false,
 }: Props) {
   const reduceMotion = useReducedMotion();
+  const [renaming, setRenaming] = useState(false);
+  const [renameDraft, setRenameDraft] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameCanceledRef = useRef(false);
   const doc = board.document;
   const { logoSrc: hydratedLogoSrc, logoSrcs, featuredImageSrc: hydratedFeatured } =
     useBoardAssets(board.brand, board.featured);
@@ -168,7 +182,38 @@ export function CanvasVariantArtboard({
         : bgCss.subText
       : undefined;
 
-  const label = isOrigin ? "Original" : `Option ${index}`;
+  const indexLabel = artboardIndexLabel(index);
+  const customName = artboardName?.trim() || "";
+  const displayLabel = customName || indexLabel;
+
+  useEffect(() => {
+    if (!renaming) return;
+    const input = renameInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, [renaming]);
+
+  function startRename() {
+    if (!onRenameArtboard) return;
+    renameCanceledRef.current = false;
+    setRenameDraft(displayLabel);
+    setRenaming(true);
+  }
+
+  function commitRename() {
+    if (renameCanceledRef.current) {
+      renameCanceledRef.current = false;
+      return;
+    }
+    setRenaming(false);
+    onRenameArtboard?.(renameDraft);
+  }
+
+  function cancelRename() {
+    renameCanceledRef.current = true;
+    setRenaming(false);
+  }
 
   return (
     <motion.div
@@ -193,22 +238,58 @@ export function CanvasVariantArtboard({
         }
       }}
     >
-      <button
-        type="button"
-        className={`canvas-artboard-label canvas-artboard-label-btn${isActive ? " is-active" : ""}`}
-        aria-label={`Focus ${label}`}
-        aria-pressed={isActive}
-        onClick={(e) => {
-          e.stopPropagation();
-          onActivate();
-        }}
-      >
-        {label}
-      </button>
+      {renaming ? (
+        <input
+          ref={renameInputRef}
+          type="text"
+          className="canvas-artboard-label canvas-artboard-label-input"
+          value={renameDraft}
+          aria-label={`Rename artboard ${indexLabel}`}
+          maxLength={40}
+          onChange={(e) => setRenameDraft(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitRename();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              cancelRename();
+            }
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          className={`canvas-artboard-label canvas-artboard-label-btn${isActive ? " is-active" : ""}`}
+          aria-label={
+            customName
+              ? `Focus ${customName} (artboard ${indexLabel}). Double-click to rename`
+              : `Focus artboard ${indexLabel}. Double-click to rename`
+          }
+          aria-pressed={isActive}
+          onClick={(e) => {
+            e.stopPropagation();
+            onActivate();
+          }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onActivate();
+            startRename();
+          }}
+        >
+          {displayLabel}
+        </button>
+      )}
       <div className="canvas-preview-toolbar">
         <LayoutShuffleButton
           layoutName={activeLayout.name}
           onShuffle={onShuffle}
+          preferenceScopeId={board.designId}
         />
         <div className="canvas-preview-toolbar-end">
           {showGenerateButton ? (
@@ -299,6 +380,12 @@ export function CanvasVariantArtboard({
                 onFeaturedTransformChange={
                   isActive ? onFeaturedTransformChange : undefined
                 }
+                onHistoryCoalesceBegin={
+                  isActive ? onHistoryCoalesceBegin : undefined
+                }
+                onHistoryCoalesceEnd={
+                  isActive ? onHistoryCoalesceEnd : undefined
+                }
                 previewScale={previewScale}
                 interactive={interactive && isActive}
                 textAlign={doc.textAlign}
@@ -366,7 +453,7 @@ export function CanvasVariantSkeleton({
           : { delay: index * 0.1, duration: 0.35 }
       }
     >
-      <div className="canvas-artboard-label">Option {index}</div>
+      <div className="canvas-artboard-label">{index + 1}</div>
       <div
         className="canvas-variant-skeleton-frame"
         style={{

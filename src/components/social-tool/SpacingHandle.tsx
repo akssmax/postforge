@@ -29,6 +29,9 @@ type Props = {
   variant: HandleVariant;
   ariaLabel: string;
   className?: string;
+  /** Coalesce pointer-drag token changes into one undo step */
+  onHistoryCoalesceBegin?: () => void;
+  onHistoryCoalesceEnd?: () => void;
 };
 
 function isHorizontalVariant(variant: HandleVariant): boolean {
@@ -43,6 +46,8 @@ export function SpacingHandle({
   variant,
   ariaLabel,
   className = "",
+  onHistoryCoalesceBegin,
+  onHistoryCoalesceEnd,
 }: Props) {
   const [active, setActive] = useState(false);
   const dragRef = useRef<{
@@ -56,6 +61,7 @@ export function SpacingHandle({
     ev.preventDefault();
     ev.stopPropagation();
     setActive(true);
+    onHistoryCoalesceBegin?.();
     dragRef.current = {
       startX: ev.clientX,
       startY: ev.clientY,
@@ -99,6 +105,7 @@ export function SpacingHandle({
   const endDrag = (ev: React.PointerEvent) => {
     dragRef.current = null;
     setActive(false);
+    onHistoryCoalesceEnd?.();
     try {
       (ev.target as HTMLElement).releasePointerCapture(ev.pointerId);
     } catch {

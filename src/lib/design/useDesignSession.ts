@@ -78,6 +78,7 @@ import { buildCopyVariantsForBrief } from "@/lib/llm/stages/copyVariantWriter";
 import { applyDesignPlanToSession } from "@/lib/llm/services/applyDesignPlan";
 import { applyCanvasPatchToSession, repairDesignDocument } from "@/lib/llm/services/applyCanvasPatch";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
+import { useDesignHistory } from "@/lib/design/useDesignHistory";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
 import type { VisualBlockRecord, VisualBlockGenerateInput } from "@/lib/social-tool/visualBlocks/types";
 import { buildVisualPickIntentFromText } from "@/lib/social-tool/visualBlocks/library/scoring";
@@ -211,9 +212,30 @@ export type UseDesignSessionResult = {
   generatingVisualBlocks: boolean;
   advanceOnboarding: (phase: DesignOnboardingPhase) => void;
   skipBrief: () => void;
+  /** Replace the in-memory session from a board snapshot (multi-artboard shuffle). */
+  adoptSession: (next: DesignSessionPersisted) => void;
+  undo: () => boolean;
+  redo: () => boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  /** True briefly when a new edit exceeds the 11-step undo cap. */
+  historyLimitToast: boolean;
+  beginHistoryCoalesce: (key: string) => void;
+  endHistoryCoalesce: (key?: string) => void;
 };
 
-export function useDesignSession(designId: string): UseDesignSessionResult {
+export type UseDesignSessionOptions = {
+  /**
+   * Prefer this in-memory snapshot when `designId` matches (multi-artboard cache).
+   * Read via ref so board switches don't re-init on every sync.
+   */
+  getSeedSession?: () => DesignSessionPersisted | null | undefined;
+};
+
+export function useDesignSession(
+  designId: string,
+  options?: UseDesignSessionOptions,
+): UseDesignSessionResult {
   const [session, setSession] = useState<DesignSessionPersisted | null>(null);
   const [ready, setReady] = useState(false);
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
@@ -230,6 +252,19 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
   const featuredBlobUrlRef = useRef<string | null>(null);
   const logoBlobUrlsRef = useRef<string[]>([]);
   const sessionRef = useRef<DesignSessionPersisted | null>(null);
+  const getSeedSessionRef = useRef(options?.getSeedSession);
+  getSeedSessionRef.current = options?.getSeedSession;
+  const {
+    canUndo,
+    canRedo,
+    historyLimitToast,
+    pushBeforeChange,
+    beginCoalesce,
+    endCoalesce,
+    undo: popUndo,
+    redo: popRedo,
+    runWithoutRecording,
+  } = useDesignHistory(designId);
 
   const revokeLogoBlob = useCallback(() => {
     for (const url of logoBlobUrlsRef.current) {
@@ -258,16 +293,42 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
     [revokeLogoBlob],
   );
 
+  const flushPersist = useCallback((next: DesignSessionPersisted) => {
+    if (persistTimer.current) {
+      clearTimeout(persistTimer.current);
+      persistTimer.current = null;
+    }
+    saveDesignSession(next);
+    if (isMeaningfulSession(next)) {
+      void designRepository.upsert(next).catch((err) => {
+        console.warn("[postforge] design index upsert failed", err);
+      });
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
+    // Flush the board we're leaving so featured/shuffle edits aren't lost
+    const previous = sessionRef.current;
+    if (previous && previous.designId !== designId) {
+      flushPersist(previous);
+    }
+
     async function init() {
-      const loaded = loadDesignSession(designId);
-      const base = loaded ?? createBlankSession(designId);
+      const seed = getSeedSessionRef.current?.();
+      const loaded =
+        seed?.designId === designId
+          ? seed
+          : (loadDesignSession(designId) ?? createBlankSession(designId));
       const next = {
-        ...base,
-        document: repairDesignDocument(base.document),
+        ...loaded,
+        designId,
+        document: repairDesignDocument(loaded.document),
       };
+      // Keep storage aligned with the hydrated snapshot
+      saveDesignSession(next);
+
       const srcs = await hydrateAllLogoSrcs(next.brand);
 
       let resolvedFeatured: string | null = null;
@@ -296,30 +357,59 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       revokeLogoBlob();
       revokeFeaturedBlob();
     };
-  }, [designId, revokeFeaturedBlob, revokeLogoBlob]);
+  }, [designId, flushPersist, revokeFeaturedBlob, revokeLogoBlob]);
 
   const schedulePersist = useCallback((next: DesignSessionPersisted) => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
     persistTimer.current = setTimeout(() => {
-      saveDesignSession(next);
-      if (isMeaningfulSession(next)) {
-        void designRepository.upsert(next).catch((err) => {
-          console.warn("[postforge] design index upsert failed", err);
-        });
-      }
+      flushPersist(next);
     }, PERSIST_DEBOUNCE_MS);
+  }, [flushPersist]);
+
+  const hydrateSessionMedia = useCallback(async (snapshot: DesignSessionPersisted) => {
+    const srcs = await hydrateAllLogoSrcs(snapshot.brand);
+    setLogoSrcs(srcs);
+    setLogoSrc(srcs.primary ?? null);
+    if (snapshot.featured.image) {
+      const src = await resolveFeaturedImageSrc(snapshot.featured.image);
+      setFeaturedImageSrc(src);
+    } else {
+      setFeaturedImageSrc(null);
+    }
   }, []);
+
+  const applySessionSnapshot = useCallback(
+    (next: DesignSessionPersisted, options?: { persistImmediate?: boolean }) => {
+      const snapshot = {
+        ...next,
+        designId,
+        document: repairDesignDocument(next.document),
+        updatedAt: Date.now(),
+      };
+      sessionRef.current = snapshot;
+      if (options?.persistImmediate) {
+        flushPersist(snapshot);
+      } else {
+        schedulePersist(snapshot);
+      }
+      setSession(snapshot);
+      void hydrateSessionMedia(snapshot);
+      return snapshot;
+    },
+    [designId, flushPersist, hydrateSessionMedia, schedulePersist],
+  );
 
   const updateSession = useCallback(
     (updater: (prev: DesignSessionPersisted) => DesignSessionPersisted) => {
-      setSession((prev) => {
-        if (!prev) return prev;
-        const next = updater(prev);
-        schedulePersist(next);
-        return next;
-      });
+      const prev = sessionRef.current;
+      if (!prev) return;
+      const next = updater(prev);
+      pushBeforeChange(prev);
+      sessionRef.current = next;
+      schedulePersist(next);
+      setSession(next);
     },
-    [schedulePersist],
+    [pushBeforeChange, schedulePersist],
   );
 
   useEffect(() => {
@@ -336,6 +426,36 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
     },
     [updateSession],
   );
+
+  const adoptSession = useCallback(
+    (next: DesignSessionPersisted) => {
+      if (next.designId !== designId) return;
+      const prev = sessionRef.current;
+      if (prev) pushBeforeChange(prev);
+      applySessionSnapshot(next, { persistImmediate: true });
+    },
+    [applySessionSnapshot, designId, pushBeforeChange],
+  );
+
+  const undo = useCallback(() => {
+    const current = sessionRef.current;
+    const previous = popUndo(current);
+    if (!previous) return false;
+    runWithoutRecording(() => {
+      applySessionSnapshot(previous, { persistImmediate: true });
+    });
+    return true;
+  }, [applySessionSnapshot, popUndo, runWithoutRecording]);
+
+  const redo = useCallback(() => {
+    const current = sessionRef.current;
+    const next = popRedo(current);
+    if (!next) return false;
+    runWithoutRecording(() => {
+      applySessionSnapshot(next, { persistImmediate: true });
+    });
+    return true;
+  }, [applySessionSnapshot, popRedo, runWithoutRecording]);
 
   const setPlatformId = useCallback(
     (platformId: PlatformId) => patchDocument({ platformId }),
@@ -1252,6 +1372,14 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       generatingVisualBlocks,
       advanceOnboarding,
       skipBrief,
+      adoptSession,
+      undo,
+      redo,
+      canUndo,
+      canRedo,
+      historyLimitToast,
+      beginHistoryCoalesce: beginCoalesce,
+      endHistoryCoalesce: endCoalesce,
     }),
     [
       ready,
@@ -1295,6 +1423,14 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       generatingVisualBlocks,
       advanceOnboarding,
       skipBrief,
+      adoptSession,
+      undo,
+      redo,
+      canUndo,
+      canRedo,
+      historyLimitToast,
+      beginCoalesce,
+      endCoalesce,
     ],
   );
 }

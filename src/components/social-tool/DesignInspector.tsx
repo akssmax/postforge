@@ -11,8 +11,15 @@ import {
   isPatternNone,
   PatternLibraryPicker,
 } from "@/components/social-tool/PatternLibraryPicker";
-import { InspectorSlider } from "@/components/social-tool/InspectorControls";
+import {
+  InspectorSlider,
+  InspectorTextSegment,
+} from "@/components/social-tool/InspectorControls";
+import { Button, Tooltip } from "@heroui/react";
+import { motion } from "framer-motion";
+import { PanelLeftClose } from "lucide-react";
 import { getMonogramOnlyMarkup } from "@/lib/brand/logoVariants";
+import { ASIDE_PANEL_TOGGLE_LAYOUT_ID } from "@/components/social-tool/asidePanelMotion";
 import type { UseBrandKitReturn } from "@/lib/brand/useBrandKit";
 import type { UseFeaturedBlockReturn } from "@/lib/social-tool/useFeaturedBlock";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
@@ -31,6 +38,8 @@ import {
   type SocialFontId,
   type TextAlign,
 } from "@/lib/social-tool/presets";
+
+export type AsideTab = "chat" | "design";
 
 type BrandPanelProps = Pick<
   UseBrandKitReturn,
@@ -122,6 +131,10 @@ type Props = {
   onBriefApplyPlan: (plan: ValidatedDesignPlan) => void;
   onBriefSkip: () => void;
   briefChat?: BriefChatState;
+  /** Ready-phase Chat | Design tab (design sessions with briefChat only). */
+  asideTab?: AsideTab;
+  onAsideTabChange?: (tab: AsideTab) => void;
+  onCollapseAside?: () => void;
   brandSummary?: {
     primary?: string;
     secondary?: string;
@@ -356,34 +369,8 @@ function InspectorOverview(props: Props) {
   );
 }
 
-export function DesignInspector(props: Props) {
-  const { phase, inspectorSelection, brand, featured } = props;
-
-  if (phase === "needsLogo") {
-    return (
-      <DesignEmptyState
-        onUpload={brand.uploadLogo}
-        uploading={brand.uploading}
-        error={brand.error}
-      />
-    );
-  }
-
-  if (phase === "needsBrief") {
-    if (!props.briefChat) return null;
-
-    return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <BrandInspectorSection {...props} defaultExpanded={false} />
-        <BriefChatPanel
-          {...props.briefChat}
-          onSkip={props.onBriefSkip}
-          autoFocus
-        />
-        {/* Background, pattern, and visual slot controls appear after the brief generates. */}
-      </div>
-    );
-  }
+function ReadyDesignPanels(props: Props) {
+  const { inspectorSelection, featured } = props;
 
   if (inspectorSelection === null || inspectorSelection === "pattern") {
     return <InspectorOverview {...props} />;
@@ -455,4 +442,103 @@ export function DesignInspector(props: Props) {
   }
 
   return null;
+}
+
+function UnifiedAsideShell(props: Props) {
+  const asideTab = props.asideTab ?? "chat";
+  const onAsideTabChange = props.onAsideTabChange;
+
+  if (!props.briefChat || !onAsideTabChange) {
+    return <ReadyDesignPanels {...props} />;
+  }
+
+  return (
+    <div className="social-tool-aside-unified flex min-h-0 flex-1 flex-col">
+      <header className="social-tool-aside-tabs">
+        <InspectorTextSegment
+          aria-label="Sidebar mode"
+          value={asideTab}
+          onChange={(value) => onAsideTabChange(value as AsideTab)}
+          options={[
+            { id: "design", label: "Design" },
+            { id: "chat", label: "Chat" },
+          ]}
+          className="social-tool-aside-tabs__segment min-w-0 flex-1"
+        />
+        {props.onCollapseAside ? (
+          <motion.div
+            layoutId={ASIDE_PANEL_TOGGLE_LAYOUT_ID}
+            className="shrink-0"
+            transition={{ type: "spring", stiffness: 420, damping: 32 }}
+          >
+            <Tooltip delay={500}>
+              <Tooltip.Trigger>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  isIconOnly
+                  aria-label="Hide sidebar"
+                  className="social-tool-aside-collapse-btn size-9 shrink-0"
+                  onPress={props.onCollapseAside}
+                >
+                  <PanelLeftClose className="size-4" aria-hidden />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content placement="bottom" offset={8}>
+                <p className="layout-shuffle-tooltip-title">Hide sidebar</p>
+                <p className="layout-shuffle-tooltip-body">
+                  Expand the canvas to full width
+                </p>
+              </Tooltip.Content>
+            </Tooltip>
+          </motion.div>
+        ) : null}
+      </header>
+      {asideTab === "chat" ? (
+        <BriefChatPanel {...props.briefChat} mode="follow-up" autoFocus />
+      ) : (
+        <div className="social-tool-aside-design min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <ReadyDesignPanels {...props} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function DesignInspector(props: Props) {
+  const { phase, brand } = props;
+
+  if (phase === "needsLogo") {
+    return (
+      <DesignEmptyState
+        onUpload={brand.uploadLogo}
+        uploading={brand.uploading}
+        error={brand.error}
+      />
+    );
+  }
+
+  if (phase === "needsBrief") {
+    if (!props.briefChat) return null;
+
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <BrandInspectorSection {...props} defaultExpanded={false} />
+        <BriefChatPanel
+          {...props.briefChat}
+          mode="onboarding"
+          onSkip={props.onBriefSkip}
+          autoFocus
+        />
+        {/* Background, pattern, and visual slot controls appear after the brief generates. */}
+      </div>
+    );
+  }
+
+  if (props.briefChat && props.onAsideTabChange) {
+    return <UnifiedAsideShell {...props} />;
+  }
+
+  return <ReadyDesignPanels {...props} />;
 }

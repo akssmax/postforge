@@ -5,7 +5,7 @@ import { PenSquare } from "lucide-react";
 import { Tooltip } from "@heroui/react";
 import { AppNav } from "@/components/designs/AppNav";
 import { Logo } from "@/components/Logo";
-import { ThemeControls } from "@/components/ThemeControls";
+import { UserAvatarButton } from "@/components/UserAvatarButton";
 import { createDesignId } from "@/lib/design/ids";
 
 type Props = {
@@ -54,7 +54,7 @@ export function DesignToolHeader({ center, children, showQuickNew = true }: Prop
       </div>
 
       <div className="design-tool-header-end flex shrink-0 items-center justify-self-end gap-3">
-        <ThemeControls compact />
+        <UserAvatarButton />
         {children}
       </div>
     </header>

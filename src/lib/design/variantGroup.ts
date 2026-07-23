@@ -17,11 +17,80 @@ export type DesignVariantGroup = {
   originDesignId: string;
   boardIds: string[];
   activeDesignId: string;
+  /** Optional custom display names keyed by board designId. Empty/whitespace falls back to index. */
+  boardNames?: Record<string, string>;
   updatedAt: number;
 };
 
+/** 1-based index label used by the artboard switcher and as rename fallback. */
+export function artboardIndexLabel(index: number): string {
+  return String(index + 1);
+}
+
+/** Resolve a board's canvas label: custom name if set, else index string. */
+export function resolveArtboardDisplayName(
+  boardNames: Record<string, string> | undefined,
+  designId: string,
+  index: number,
+): string {
+  const custom = boardNames?.[designId]?.trim();
+  return custom || artboardIndexLabel(index);
+}
+
+/** Normalize a rename draft — empty/whitespace clears the custom name. */
+export function normalizeArtboardName(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+export const VARIANT_GROUP_KEY_PREFIX = "postforge:design-variant-group:";
+
 export function variantGroupStorageKey(originDesignId: string): string {
-  return `postforge:design-variant-group:${originDesignId}`;
+  return `${VARIANT_GROUP_KEY_PREFIX}${originDesignId}`;
+}
+
+/** All stored variant groups (origins that have a group key). */
+export function listStoredVariantGroups(): DesignVariantGroup[] {
+  if (typeof window === "undefined") return [];
+  const groups: DesignVariantGroup[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key?.startsWith(VARIANT_GROUP_KEY_PREFIX)) continue;
+    const originId = key.slice(VARIANT_GROUP_KEY_PREFIX.length);
+    if (!originId) continue;
+    groups.push(loadVariantGroup(originId));
+  }
+  return groups;
+}
+
+/** Board ids that belong to a group but are not the origin (should not appear in /designs). */
+export function collectNonOriginBoardIds(): Set<string> {
+  const ids = new Set<string>();
+  for (const group of listStoredVariantGroups()) {
+    for (const id of group.boardIds) {
+      if (id !== group.originDesignId) ids.add(id);
+    }
+  }
+  return ids;
+}
+
+/** Find the variant group that contains this board (as origin or option). */
+export function findVariantGroupForBoard(
+  designId: string,
+): DesignVariantGroup | null {
+  if (typeof window === "undefined") return null;
+  if (localStorage.getItem(variantGroupStorageKey(designId))) {
+    return loadVariantGroup(designId);
+  }
+  for (const group of listStoredVariantGroups()) {
+    if (group.boardIds.includes(designId)) return group;
+  }
+  return null;
+}
+
+export function isNonOriginVariantBoard(designId: string): boolean {
+  const group = findVariantGroupForBoard(designId);
+  return Boolean(group && group.originDesignId !== designId);
 }
 
 export function createEmptyVariantGroup(
@@ -56,16 +125,33 @@ export function loadVariantGroup(
     const activeDesignId = boardIds.includes(parsed.activeDesignId)
       ? parsed.activeDesignId
       : originDesignId;
+    const boardNames = sanitizeBoardNames(parsed.boardNames, boardIds);
     return {
       groupId: parsed.groupId || createDesignId(),
       originDesignId,
       boardIds,
       activeDesignId,
+      ...(boardNames ? { boardNames } : {}),
       updatedAt: parsed.updatedAt ?? Date.now(),
     };
   } catch {
     return createEmptyVariantGroup(originDesignId);
   }
+}
+
+function sanitizeBoardNames(
+  raw: unknown,
+  boardIds: string[],
+): Record<string, string> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const idSet = new Set(boardIds);
+  const next: Record<string, string> = {};
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!idSet.has(id) || typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed) next[id] = trimmed;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
 }
 
 export function saveVariantGroup(group: DesignVariantGroup): void {
@@ -140,12 +226,37 @@ export function removeVariantBoards(
   for (const id of group.boardIds) {
     if (id !== originId) deleteDesignSessionKey(id);
   }
+  const originName = group.boardNames?.[originId]?.trim();
   const next: DesignVariantGroup = {
     ...group,
     boardIds: [originId],
     activeDesignId: originId,
+    boardNames: originName ? { [originId]: originName } : undefined,
     updatedAt: Date.now(),
   };
   saveVariantGroup(next);
   return next;
+}
+
+/** Set or clear a board's custom display name. Does not persist — caller should save. */
+export function withBoardName(
+  group: DesignVariantGroup,
+  designId: string,
+  name: string | undefined,
+): DesignVariantGroup {
+  if (!group.boardIds.includes(designId)) return group;
+  const previous = group.boardNames?.[designId];
+  const normalized = name === undefined ? undefined : normalizeArtboardName(name);
+  if ((previous ?? undefined) === normalized) return group;
+  const boardNames = { ...(group.boardNames ?? {}) };
+  if (normalized) {
+    boardNames[designId] = normalized;
+  } else {
+    delete boardNames[designId];
+  }
+  return {
+    ...group,
+    boardNames: Object.keys(boardNames).length > 0 ? boardNames : undefined,
+    updatedAt: Date.now(),
+  };
 }

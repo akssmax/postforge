@@ -107,6 +107,9 @@ type Props = {
   showFeaturedImage?: boolean;
   featuredTransform?: FeaturedImageTransform;
   onFeaturedTransformChange?: (next: FeaturedImageTransform) => void;
+  /** Coalesce pointer-drag edits into one undo step */
+  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing") => void;
+  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing") => void;
   /** Preview CSS scale — used to convert screen drag deltas to canvas space */
   previewScale?: number;
   /** Show drag handles / hover chrome (off during export) */
@@ -233,6 +236,8 @@ export function ProductShotPost({
   showFeaturedImage = true,
   featuredTransform = DEFAULT_FEATURED_TRANSFORM,
   onFeaturedTransformChange,
+  onHistoryCoalesceBegin,
+  onHistoryCoalesceEnd,
   previewScale = 1,
   interactive = false,
   patternOpacity = 0.28,
@@ -298,6 +303,14 @@ export function ProductShotPost({
   const logoH = Math.max(12, Math.round(34 * canvasScale * logoScale));
   const showSpacingHandles =
     showSpacingControls && interactive && !!onSpacingChange;
+  const spacingHistoryCoalesce = {
+    onHistoryCoalesceBegin: onHistoryCoalesceBegin
+      ? () => onHistoryCoalesceBegin("spacing")
+      : undefined,
+    onHistoryCoalesceEnd: onHistoryCoalesceEnd
+      ? () => onHistoryCoalesceEnd("spacing")
+      : undefined,
+  };
 
   function setSpacingToken(key: keyof PostLayoutSpacing, token: SpacingToken) {
     onSpacingChange?.({ ...spacing, [key]: token });
@@ -503,6 +516,7 @@ export function ProductShotPost({
           ev.preventDefault();
           ev.stopPropagation();
           onCanvasSelect?.("featured");
+          onHistoryCoalesceBegin?.("featuredTransform");
           setDragging(true);
           dragRef.current = {
             startX: ev.clientX,
@@ -526,6 +540,7 @@ export function ProductShotPost({
           }
           dragRef.current = null;
           setDragging(false);
+          onHistoryCoalesceEnd?.("featuredTransform");
         }}
         onPointerCancel={(ev) => {
           if (ev.currentTarget.hasPointerCapture(ev.pointerId)) {
@@ -533,6 +548,7 @@ export function ProductShotPost({
           }
           dragRef.current = null;
           setDragging(false);
+          onHistoryCoalesceEnd?.("featuredTransform");
         }}
       >
         <Move className="size-3.5" strokeWidth={2.25} aria-hidden />
@@ -716,6 +732,7 @@ export function ProductShotPost({
             onTokenChange={(t) => setSpacingToken(spacingKey, t)}
             previewScale={previewScale}
             ariaLabel={ariaLabel}
+            {...spacingHistoryCoalesce}
           />
         ) : null}
       </div>
@@ -893,6 +910,7 @@ export function ProductShotPost({
             onTokenChange={(t) => setSpacingToken("textZonePadBottom", t)}
             previewScale={previewScale}
             ariaLabel="Text zone bottom padding"
+            {...spacingHistoryCoalesce}
           />
         ) : null}
       </div>
@@ -1158,6 +1176,7 @@ export function ProductShotPost({
               previewScale={previewScale}
               ariaLabel="Layout top padding"
               className="spacing-handle--layout-pad spacing-handle--layout-pad-top"
+              {...spacingHistoryCoalesce}
             />
             <SpacingHandle
               kind="padding"
@@ -1167,6 +1186,7 @@ export function ProductShotPost({
               previewScale={previewScale}
               ariaLabel="Layout left padding"
               className="spacing-handle--layout-pad spacing-handle--layout-pad-left"
+              {...spacingHistoryCoalesce}
             />
             <SpacingHandle
               kind="padding"
@@ -1176,6 +1196,7 @@ export function ProductShotPost({
               previewScale={previewScale}
               ariaLabel="Layout right padding"
               className="spacing-handle--layout-pad spacing-handle--layout-pad-right"
+              {...spacingHistoryCoalesce}
             />
             <SpacingHandle
               kind="padding"
@@ -1185,6 +1206,7 @@ export function ProductShotPost({
               previewScale={previewScale}
               ariaLabel="Layout bottom padding"
               className="spacing-handle--layout-pad spacing-handle--layout-pad-bottom"
+              {...spacingHistoryCoalesce}
             />
           </>
         ) : null}
@@ -1249,6 +1271,7 @@ export function ProductShotPost({
                 previewScale={previewScale}
                 ariaLabel="Footer padding"
                 className="spacing-handle--footer-pad"
+                {...spacingHistoryCoalesce}
               />
             ) : null}
             {footerBlocks.flatMap((block, index) => {

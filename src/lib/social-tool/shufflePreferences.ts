@@ -14,13 +14,16 @@ export const DEFAULT_SHUFFLE_PREFERENCES: ShufflePreferences = {
   featuredPosition: true,
 };
 
-const STORAGE_KEY = "postforge:shuffle-preferences";
+const GLOBAL_STORAGE_KEY = "postforge:shuffle-preferences";
 
-export function loadShufflePreferences(): ShufflePreferences {
-  if (typeof window === "undefined") return DEFAULT_SHUFFLE_PREFERENCES;
+function storageKey(scopeId?: string | null): string {
+  if (scopeId) return `postforge:shuffle-preferences:${scopeId}`;
+  return GLOBAL_STORAGE_KEY;
+}
+
+function parsePreferences(raw: string | null): ShufflePreferences {
+  if (!raw) return DEFAULT_SHUFFLE_PREFERENCES;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_SHUFFLE_PREFERENCES;
     const parsed = JSON.parse(raw) as Partial<ShufflePreferences>;
     return {
       layout: parsed.layout ?? DEFAULT_SHUFFLE_PREFERENCES.layout,
@@ -35,9 +38,21 @@ export function loadShufflePreferences(): ShufflePreferences {
   }
 }
 
-export function saveShufflePreferences(prefs: ShufflePreferences): void {
+/** Load prefs for an artboard (`scopeId`) or the legacy global key. */
+export function loadShufflePreferences(scopeId?: string | null): ShufflePreferences {
+  if (typeof window === "undefined") return DEFAULT_SHUFFLE_PREFERENCES;
+  const scoped = scopeId ? localStorage.getItem(storageKey(scopeId)) : null;
+  if (scoped) return parsePreferences(scoped);
+  // First visit on a board: fall back to global defaults (not another board's toggles)
+  return parsePreferences(localStorage.getItem(GLOBAL_STORAGE_KEY));
+}
+
+export function saveShufflePreferences(
+  prefs: ShufflePreferences,
+  scopeId?: string | null,
+): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  localStorage.setItem(storageKey(scopeId), JSON.stringify(prefs));
 }
 
 export function isShuffleAllEnabled(prefs: ShufflePreferences): boolean {

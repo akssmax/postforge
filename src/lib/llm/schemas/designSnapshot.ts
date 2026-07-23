@@ -110,6 +110,20 @@ export const designSnapshotSchema = z.object({
   allowedProductPages: z.array(z.string()),
   allowedPatternRefs: z.array(z.string()),
   selection: z.string().nullable().optional(),
+  artboards: z
+    .object({
+      activeIndex: z.number().int().min(1).max(7),
+      count: z.number().int().min(1).max(7),
+      boards: z.array(
+        z.object({
+          index: z.number().int().min(1).max(7),
+          designId: z.string(),
+          layoutName: z.string(),
+          headline: z.string(),
+        }),
+      ),
+    })
+    .optional(),
 });
 
 export type DesignSnapshot = z.infer<typeof designSnapshotSchema>;
@@ -138,4 +152,5 @@ export type DesignSnapshotInput = {
   };
   layoutSpacing: PostLayoutSpacing;
   selection?: CanvasSelectionId | null;
+  artboards?: DesignSnapshot["artboards"];
 };

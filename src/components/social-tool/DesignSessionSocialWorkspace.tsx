@@ -1,9 +1,12 @@
 "use client";
 
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
-import { ChevronDown, Download, Loader2 } from "lucide-react";
-import { Button } from "@heroui/react";
-import { DesignInspector } from "@/components/social-tool/DesignInspector";
+import { ChevronDown, Download, Loader2, PanelLeft } from "lucide-react";
+import { Button, Tooltip } from "@heroui/react";
+import {
+  DesignInspector,
+  type AsideTab,
+} from "@/components/social-tool/DesignInspector";
 import { DesignToolHeader } from "@/components/social-tool/DesignToolHeader";
 import { CanvasPlatformPicker } from "@/components/social-tool/CanvasPlatformPicker";
 import { CanvasDesignOverlay } from "@/components/social-tool/CanvasDesignOverlay";
@@ -18,12 +21,23 @@ import { exportPost, type ExportFormat } from "@/lib/social-tool/exportPost";
 import { useBrandToolTheme } from "@/lib/brand/useBrandToolTheme";
 import { LayoutPreviewEmptyState } from "@/components/social-tool/LayoutPreviewEmptyState";
 import { CanvasZoomControls } from "@/components/social-tool/CanvasZoomControls";
+import { CanvasHistoryControls } from "@/components/social-tool/CanvasHistoryControls";
 import { CanvasArtboardSwitcher } from "@/components/social-tool/CanvasArtboardSwitcher";
 import {
-  AnimatePresence,
+  AnimatePresence as VariantAnimatePresence,
   CanvasVariantArtboard,
   CanvasVariantSkeleton,
 } from "@/components/social-tool/CanvasVariantArtboard";
+import {
+  ASIDE_PANEL_WIDTH_PX,
+  asidePanelSpring,
+} from "@/components/social-tool/asidePanelMotion";
+import {
+  AnimatePresence,
+  LayoutGroup,
+  motion,
+  useReducedMotion,
+} from "framer-motion";
 import { useCanvasPreviewViewport } from "@/lib/social-tool/useCanvasPreviewViewport";
 import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
 import { applyShuffleToSession } from "@/lib/social-tool/applyShuffle";
@@ -58,8 +72,12 @@ import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
 import { useBriefChat } from "@/lib/llm/useBriefChat";
 import { buildDesignSnapshot } from "@/lib/design/buildDesignSnapshot";
-import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
-import { FloatingBriefComposer } from "@/components/social-tool/FloatingBriefComposer";
+import type {
+  ArtboardTarget,
+  CanvasPatchResult,
+} from "@/lib/llm/schemas/canvasTools";
+import { applyCanvasPatchToSession } from "@/lib/llm/services/applyCanvasPatch";
+import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { VariantPicker } from "@/components/social-tool/VariantPicker";
 
 type Props = {
@@ -69,7 +87,13 @@ type Props = {
 export function DesignSessionSocialWorkspace({ designId }: Props) {
   const originDesignId = designId;
   const variantGroup = useDesignVariantGroup(originDesignId);
-  const session = useDesignSession(variantGroup.activeDesignId);
+  const boardsRef = useRef(variantGroup.boards);
+  boardsRef.current = variantGroup.boards;
+  const session = useDesignSession(variantGroup.activeDesignId, {
+    getSeedSession: () =>
+      boardsRef.current.find((b) => b.designId === variantGroup.activeDesignId) ??
+      null,
+  });
   const doc = session.document;
 
   const [exportScale, setExportScale] = useState<1 | 2>(2);
@@ -81,6 +105,10 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const [canvasSelection, setCanvasSelection] = useState<CanvasSelectionId | null>(
     null,
   );
+  const [asideTab, setAsideTab] = useState<AsideTab>("chat");
+  const [asideCollapsed, setAsideCollapsed] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const asideTransition = reduceMotion ? { duration: 0 } : asidePanelSpring;
 
   useEffect(() => {
     if (session.session) variantGroup.syncBoard(session.session);
@@ -110,10 +138,48 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     });
   }, [logoRevision]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const undoRef = useRef(session.undo);
+  const redoRef = useRef(session.redo);
+  undoRef.current = session.undo;
+  redoRef.current = session.redo;
+
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") clearInspectorSelection();
+    const isEditableTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      return (
+        target.isContentEditable ||
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        !!target.closest("[contenteditable='true']")
+      );
     };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        clearInspectorSelection();
+        return;
+      }
+
+      if (isEditableTarget(e.target)) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+
+      if (e.code === "KeyZ" && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        undoRef.current();
+        return;
+      }
+      if (
+        (e.code === "KeyZ" && e.shiftKey && !e.altKey) ||
+        (e.code === "KeyY" && !e.shiftKey && !e.altKey)
+      ) {
+        e.preventDefault();
+        redoRef.current();
+      }
+    };
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
@@ -205,19 +271,14 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         : session.session
           ? [session.session]
           : [];
-    return boards.map((board, i) => {
-      const isOrigin = board.designId === originDesignId;
-      const optionIndex = isOrigin
-        ? 0
-        : boards
-            .filter((b) => b.designId !== originDesignId)
-            .findIndex((b) => b.designId === board.designId) + 1;
-      return {
-        id: board.designId,
-        label: isOrigin ? "Original" : String(optionIndex),
-      };
-    });
-  }, [variantGroup.boards, session.session, originDesignId]);
+    const boardNames = variantGroup.group.boardNames;
+    return boards.map((board, i) => ({
+      id: board.designId,
+      // Switcher always shows fixed 1–7 indices (never custom names)
+      label: String(i + 1),
+      name: boardNames?.[board.designId],
+    }));
+  }, [variantGroup.boards, variantGroup.group.boardNames, session.session]);
 
   useEffect(() => {
     if (variantGroup.phase !== "revealing") return;
@@ -255,25 +316,17 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       backgrounds: session.backgroundPresets,
     });
 
-    if (boardId === variantGroup.activeDesignId) {
-      if (prefs.background) {
-        session.setBackgroundPreset(result.session.brand.activeBackgroundPresetId);
-      }
-      patchDocument(result.session.document);
-      if (result.shouldShuffleFeaturedVisual) {
-        void session.shuffleFeaturedVisualBlock({
-          headline: result.session.document.copy.heading,
-          subheading: result.session.document.copy.subheading,
-        });
-      }
-      return;
-    }
-
     let next = result.session;
     if (result.shouldShuffleFeaturedVisual) {
       next = (await shuffleFeaturedVisualForSession(next)).session;
     }
+
+    // Persist only this artboard's snapshot
     variantGroup.replaceBoard(next);
+
+    if (boardId === variantGroup.activeDesignId) {
+      session.adoptSession(next);
+    }
   }
 
   async function handleGenerateVariants() {
@@ -289,6 +342,10 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   function handleActivateBoard(boardId: string) {
     if (boardId !== variantGroup.activeDesignId) {
+      // Flush the leaving board into the variant cache + storage before switch
+      if (session.session) {
+        variantGroup.syncBoard(session.session);
+      }
       setAdjustSpacing(false);
       clearInspectorSelection();
       variantGroup.setActiveDesignId(boardId);
@@ -304,7 +361,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     });
   }
 
-  // 0 = Original, 1–6 = options (matches artboard switcher pills)
+  // Keys 1–7 select artboards 1–7 (matches switcher pills)
   useEffect(() => {
     if (!isReady || artboardSwitcherItems.length <= 1) return;
 
@@ -324,9 +381,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         }
       }
 
-      const digit = e.code.match(/^Digit([0-6])$/)?.[1] ?? e.code.match(/^Numpad([0-6])$/)?.[1];
+      const digit =
+        e.code.match(/^Digit([1-7])$/)?.[1] ??
+        e.code.match(/^Numpad([1-7])$/)?.[1];
       if (digit == null) return;
-      const index = Number(digit);
+      const index = Number(digit) - 1;
       const board = artboardSwitcherItems[index];
       if (!board) return;
       e.preventDefault();
@@ -458,6 +517,17 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         : null)
     : null;
 
+  useEffect(() => {
+    if (inspectorSelection !== null) {
+      setAsideTab("design");
+      setAsideCollapsed(false);
+    }
+  }, [inspectorSelection]);
+
+  useEffect(() => {
+    if (!isReady) setAsideCollapsed(false);
+  }, [isReady]);
+
   function handleCanvasSelect(id: CanvasSelectionId | null) {
     if (!isReady) return;
     if (id === null) {
@@ -561,8 +631,48 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     session.applyDesignPlan(plan);
   }
 
+  function resolveTargetBoardIds(target: ArtboardTarget | undefined): string[] {
+    const boards =
+      variantGroup.boards.length > 0
+        ? variantGroup.boards
+        : session.session
+          ? [session.session]
+          : [];
+    if (boards.length === 0) return [variantGroup.activeDesignId];
+
+    if (!target || target === "active") {
+      return [variantGroup.activeDesignId];
+    }
+    if (target === "all") {
+      return boards.map((board) => board.designId);
+    }
+    return target
+      .map((index) => boards[index - 1]?.designId)
+      .filter((id): id is string => Boolean(id));
+  }
+
   function handleApplyCanvasPatch(patch: CanvasPatchResult) {
-    return session.applyCanvasPatch(patch);
+    if (!patch.success) return false;
+
+    const boardIds = resolveTargetBoardIds(patch.targetArtboards);
+    let applied = false;
+
+    for (const boardId of boardIds) {
+      if (boardId === variantGroup.activeDesignId) {
+        if (session.applyCanvasPatch(patch)) applied = true;
+        continue;
+      }
+
+      const board =
+        variantGroup.boards.find((b) => b.designId === boardId) ??
+        loadDesignSession(boardId);
+      if (!board) continue;
+      const next = applyCanvasPatchToSession(board, patch);
+      variantGroup.replaceBoard(next);
+      applied = true;
+    }
+
+    return applied;
   }
 
   const brandSummary = useMemo(
@@ -580,10 +690,28 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   const designSnapshot = useMemo(() => {
     if (!session.session) return null;
+    const boards =
+      variantGroup.boards.length > 0
+        ? variantGroup.boards
+        : [session.session];
+    const activeIndex = Math.max(
+      1,
+      boards.findIndex((b) => b.designId === variantGroup.activeDesignId) + 1,
+    );
     return buildDesignSnapshot({
       session: session.session,
       backgroundPresets: session.backgroundPresets,
       selection: inspectorSelection,
+      artboards: {
+        activeIndex,
+        count: Math.min(7, boards.length),
+        boards: boards.slice(0, 7).map((board, index) => ({
+          index: index + 1,
+          designId: board.designId,
+          layoutName: getPostLayout(board.document.layoutId).name,
+          headline: board.document.copy.heading,
+        })),
+      },
     });
   }, [
     session.session,
@@ -600,6 +728,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     session.featured.mode,
     session.featured.productPage,
     session.featured.image,
+    variantGroup.boards,
+    variantGroup.activeDesignId,
   ]);
 
   const briefChat = useBriefChat({
@@ -614,8 +744,6 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       handleCanvasSelect("featured");
     },
   });
-
-  const showFloatingComposer = isReady && inspectorSelection === null;
 
   function handlePlatformChange(next: PlatformId) {
     const patch: Partial<DesignDocument> = { platformId: next };
@@ -720,16 +848,42 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         </div>
       </DesignToolHeader>
 
+      <LayoutGroup id="design-aside-panel">
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-        <aside
-          className={`social-tool-aside flex min-h-0 w-full shrink-0 flex-col overflow-y-auto overscroll-contain border-b border-leap-line lg:h-full lg:w-[360px] lg:border-r lg:border-b-0${
-            isNeedsBrief ? " social-tool-aside--brief" : ""
+        <AnimatePresence initial={false} mode="sync">
+        {!asideCollapsed ? (
+        <motion.aside
+          key="design-aside"
+          initial={
+            reduceMotion
+              ? false
+              : { opacity: 0, x: -36, width: 0 }
+          }
+          animate={{
+            opacity: 1,
+            x: 0,
+            width: ASIDE_PANEL_WIDTH_PX,
+          }}
+          exit={
+            reduceMotion
+              ? { opacity: 0, width: 0 }
+              : { opacity: 0, x: -28, width: 0 }
+          }
+          transition={asideTransition}
+          className={`social-tool-aside social-tool-aside--motion flex min-h-0 shrink-0 flex-col overflow-hidden border-b border-leap-line lg:h-full lg:border-r lg:border-b-0${
+            isNeedsBrief || isReady ? " social-tool-aside--brief" : ""
           }`}
         >
+          <div className="social-tool-aside__inner flex min-h-0 w-full min-w-[min(100%,360px)] flex-1 flex-col overflow-y-auto overscroll-contain lg:w-[360px]">
           <DesignInspector
             phase={doc.onboarding.phase}
             platformId={doc.platformId}
             inspectorSelection={inspectorSelection}
+            asideTab={asideTab}
+            onAsideTabChange={setAsideTab}
+            onCollapseAside={
+              isReady ? () => setAsideCollapsed(true) : undefined
+            }
             showContent={doc.showContent}
             onShowContentChange={handleShowContentChange}
             copy={doc.copy}
@@ -819,7 +973,10 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             briefChat={briefChat}
             brandSummary={brandSummary}
           />
-        </aside>
+          </div>
+        </motion.aside>
+        ) : null}
+        </AnimatePresence>
 
         <div
           ref={setStageEl}
@@ -837,13 +994,46 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             onZoomOut={zoomOut}
             onReset={resetZoom}
             onActualSize={setActualSize}
-            trailing={
-              <CanvasArtboardSwitcher
-                boards={artboardSwitcherItems}
-                activeId={variantGroup.activeDesignId}
-                onSelect={handleActivateBoard}
-              />
+            leading={
+              asideCollapsed ? (
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      isIconOnly
+                      aria-label="Show sidebar"
+                      className="canvas-tool-pill-btn canvas-zoom-icon-btn"
+                      onPress={() => setAsideCollapsed(false)}
+                    >
+                      <PanelLeft className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    <p className="layout-shuffle-tooltip-title">Show sidebar</p>
+                    <p className="layout-shuffle-tooltip-body">
+                      Open Design and Chat controls
+                    </p>
+                  </Tooltip.Content>
+                </Tooltip>
+              ) : null
             }
+          />
+          <CanvasHistoryControls
+            canUndo={session.canUndo}
+            canRedo={session.canRedo}
+            onUndo={() => {
+              session.undo();
+            }}
+            onRedo={() => {
+              session.redo();
+            }}
+            historyLimitToast={session.historyLimitToast}
+          />
+          <CanvasArtboardSwitcher
+            boards={artboardSwitcherItems}
+            activeId={variantGroup.activeDesignId}
+            onSelect={handleActivateBoard}
           />
           <div
             className="canvas-pan-layer flex w-max max-w-none shrink-0 flex-col items-center gap-3"
@@ -886,24 +1076,25 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                     session.session?.designId === board.designId
                       ? session.session
                       : board;
-                  const variantIndex = isOrigin
-                    ? 0
-                    : variantGroup.boards
-                        .filter((b) => b.designId !== originDesignId)
-                        .findIndex((b) => b.designId === board.designId) + 1;
 
                   return (
                     <CanvasVariantArtboard
                       key={board.designId}
                       board={liveBoard}
                       originDesignId={originDesignId}
-                      index={variantIndex}
+                      index={index}
                       isActive={isActive}
                       isOrigin={isOrigin}
                       previewScale={previewScale}
                       adjustSpacing={adjustSpacing}
                       onToggleSpacing={() => setAdjustSpacing((on) => !on)}
                       onActivate={() => handleActivateBoard(board.designId)}
+                      artboardName={
+                        variantGroup.group.boardNames?.[board.designId]
+                      }
+                      onRenameArtboard={(name) => {
+                        variantGroup.setBoardName(board.designId, name);
+                      }}
                       onShuffle={(prefs) => {
                         void shuffleBoard(board.designId, prefs);
                       }}
@@ -931,6 +1122,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       canvasSelection={inspectorSelection}
                       onCanvasSelect={handleCanvasSelect}
                       onFeaturedTransformChange={handleFeaturedTransformChange}
+                      onHistoryCoalesceBegin={session.beginHistoryCoalesce}
+                      onHistoryCoalesceEnd={session.endHistoryCoalesce}
                       onSpacingChange={(v) =>
                         patchDocument({ layoutSpacing: v })
                       }
@@ -1005,7 +1198,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                   );
                 })}
 
-                <AnimatePresence>
+                <VariantAnimatePresence>
                   {variantGroup.phase === "preparing" &&
                   variantGroup.pendingBatchSize > 0
                     ? Array.from(
@@ -1023,7 +1216,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         ),
                       )
                     : null}
-                </AnimatePresence>
+                </VariantAnimatePresence>
 
                 {showContrastOverlay ? (
                   <CanvasDesignOverlay
@@ -1046,11 +1239,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               />
             ) : null}
           </div>
-          {showFloatingComposer ? (
-            <FloatingBriefComposer {...briefChat} mode="follow-up" />
-          ) : null}
         </div>
       </div>
+      </LayoutGroup>
     </div>
   );
 }

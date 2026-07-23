@@ -5,6 +5,28 @@ import type { DesignDocument } from "@/lib/design/types";
 import type { BrandKitPersisted } from "@/lib/brand/types";
 import type { FeaturedBlockPersisted } from "@/lib/social-tool/featuredBlock";
 
+/** Which artboards a canvas tool should update (1-based indices match the UI pills). */
+export type ArtboardTarget = "active" | "all" | number[];
+
+export const artboardTargetValueSchema = z.union([
+  z.literal("active"),
+  z.literal("all"),
+  z.array(z.number().int().min(1).max(7)).min(1).max(7),
+]);
+
+const ARTBOARD_TARGET_DESCRIPTION =
+  "Artboards to update: 'active' (default), 'all', or 1-based indices like [1,3]. Use 'all' for shared brand/background/pattern changes; use active or specific indices for copy/layout unique to one option.";
+
+export function withArtboardTargetSchema<T extends z.ZodRawShape>(
+  schema: z.ZodObject<T>,
+) {
+  return schema.extend({
+    targetArtboards: artboardTargetValueSchema
+      .optional()
+      .describe(ARTBOARD_TARGET_DESCRIPTION),
+  });
+}
+
 export type CanvasPatchResult = {
   success: boolean;
   message?: string;
@@ -12,8 +34,21 @@ export type CanvasPatchResult = {
   document?: Partial<DesignDocument>;
   brand?: Partial<BrandKitPersisted>;
   featured?: Partial<FeaturedBlockPersisted>;
+  /** Defaults to active artboard when omitted. */
+  targetArtboards?: ArtboardTarget;
   error?: string;
 };
+
+export function attachArtboardTarget<T extends { targetArtboards?: ArtboardTarget }>(
+  patch: CanvasPatchResult,
+  input: T,
+): CanvasPatchResult {
+  if (!patch.success) return patch;
+  return {
+    ...patch,
+    targetArtboards: input.targetArtboards ?? "active",
+  };
+}
 
 const layoutIds = POST_LAYOUTS.map((l) => l.id) as [PostLayoutId, ...PostLayoutId[]];
 

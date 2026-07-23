@@ -14,6 +14,8 @@ import {
 type Props = {
   layoutName: string;
   onShuffle: (preferences: ShufflePreferences) => void;
+  /** Per-artboard scope so shuffle toggles stay independent across boards */
+  preferenceScopeId?: string;
 };
 
 function ShuffleMenuRow({
@@ -39,20 +41,31 @@ function ShuffleMenuRow({
   );
 }
 
-export function LayoutShuffleButton({ layoutName, onShuffle }: Props) {
+export function LayoutShuffleButton({
+  layoutName,
+  onShuffle,
+  preferenceScopeId,
+}: Props) {
   const [flash, setFlash] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [preferences, setPreferences] = useState(loadShufflePreferences);
+  const [preferences, setPreferences] = useState(() =>
+    loadShufflePreferences(preferenceScopeId),
+  );
   const timerRef = useRef<number | null>(null);
   const skipInitialSaveRef = useRef(true);
+
+  useEffect(() => {
+    skipInitialSaveRef.current = true;
+    setPreferences(loadShufflePreferences(preferenceScopeId));
+  }, [preferenceScopeId]);
 
   useEffect(() => {
     if (skipInitialSaveRef.current) {
       skipInitialSaveRef.current = false;
       return;
     }
-    saveShufflePreferences(preferences);
-  }, [preferences]);
+    saveShufflePreferences(preferences, preferenceScopeId);
+  }, [preferences, preferenceScopeId]);
 
   useEffect(() => {
     return () => {

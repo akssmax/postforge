@@ -17,24 +17,52 @@ type ToolOutput = {
   error?: string;
 };
 
+export function extractDesignPlanFromMessage(
+  message: UIMessage,
+): ValidatedDesignPlan | null {
+  if (message.role !== "assistant") return null;
+
+  for (const part of message.parts) {
+    if (
+      part.type === "tool-updateDesign" &&
+      "state" in part &&
+      part.state === "output-available" &&
+      "output" in part
+    ) {
+      const output = part.output as ToolOutput;
+      if (output?.success && output.plan) {
+        return output.plan;
+      }
+    }
+  }
+  return null;
+}
+
 export function extractLatestDesignPlan(
   messages: UIMessage[],
 ): ValidatedDesignPlan | null {
   for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message.role !== "assistant") continue;
+    const plan = extractDesignPlanFromMessage(messages[i]!);
+    if (plan) return plan;
+  }
+  return null;
+}
 
-    for (const part of message.parts) {
-      if (
-        part.type === "tool-updateDesign" &&
-        "state" in part &&
-        part.state === "output-available" &&
-        "output" in part
-      ) {
-        const output = part.output as ToolOutput;
-        if (output?.success && output.plan) {
-          return output.plan;
-        }
+export function extractDesignVariantsFromMessage(
+  message: UIMessage,
+): DesignVariantResult[] | null {
+  if (message.role !== "assistant") return null;
+
+  for (const part of message.parts) {
+    if (
+      part.type === "tool-updateDesignVariants" &&
+      "state" in part &&
+      part.state === "output-available" &&
+      "output" in part
+    ) {
+      const output = part.output as ToolOutput;
+      if (output?.success && output.variants?.length) {
+        return output.variants;
       }
     }
   }
@@ -45,22 +73,8 @@ export function extractLatestDesignVariants(
   messages: UIMessage[],
 ): DesignVariantResult[] | null {
   for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message.role !== "assistant") continue;
-
-    for (const part of message.parts) {
-      if (
-        part.type === "tool-updateDesignVariants" &&
-        "state" in part &&
-        part.state === "output-available" &&
-        "output" in part
-      ) {
-        const output = part.output as ToolOutput;
-        if (output?.success && output.variants?.length) {
-          return output.variants;
-        }
-      }
-    }
+    const variants = extractDesignVariantsFromMessage(messages[i]!);
+    if (variants?.length) return variants;
   }
   return null;
 }

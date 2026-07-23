@@ -41,8 +41,9 @@ export function buildDesignSnapshotInput(input: {
   session: DesignSessionPersisted;
   backgroundPresets: BackgroundPreset[];
   selection?: DesignSnapshotInput["selection"];
+  artboards?: DesignSnapshotInput["artboards"];
 }): DesignSnapshotInput {
-  const { session, backgroundPresets, selection } = input;
+  const { session, backgroundPresets, selection, artboards } = input;
   const doc = session.document;
   const layout = getPostLayout(doc.layoutId);
   const dynamicLayout = resolveDocumentLayout(doc);
@@ -118,6 +119,7 @@ export function buildDesignSnapshotInput(input: {
     },
     layoutSpacing: doc.layoutSpacing,
     selection: selection ?? null,
+    ...(artboards ? { artboards } : {}),
   };
 }
 
@@ -129,6 +131,7 @@ export function serializeDesignSnapshot(input: DesignSnapshotInput): DesignSnaps
     allowedProductPages: [...PRODUCT_PAGES],
     allowedPatternRefs: [...PATTERN_REFS],
     selection: input.selection ?? null,
+    ...(input.artboards ? { artboards: input.artboards } : {}),
   };
   return designSnapshotSchema.parse(snapshot);
 }
@@ -137,6 +140,12 @@ export function buildDesignSnapshot(args: {
   session: DesignSessionPersisted;
   backgroundPresets: BackgroundPreset[];
   selection?: DesignSnapshotInput["selection"];
+  artboards?: DesignSnapshotInput["artboards"];
 }): DesignSnapshot {
-  return serializeDesignSnapshot(buildDesignSnapshotInput(args));
+  return serializeDesignSnapshot(
+    buildDesignSnapshotInput({
+      ...args,
+      artboards: args.artboards,
+    }),
+  );
 }

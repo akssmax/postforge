@@ -65,6 +65,54 @@ export function InspectorSegment({
   );
 }
 
+type TextSegmentOption = {
+  id: string;
+  label: string;
+};
+
+type TextSegmentProps = {
+  "aria-label": string;
+  value: string;
+  onChange: (value: string) => void;
+  options: TextSegmentOption[];
+  size?: "sm" | "md";
+  className?: string;
+};
+
+/** Labeled segmented control (e.g. Chat | Design sidebar tabs). */
+export function InspectorTextSegment({
+  "aria-label": ariaLabel,
+  value,
+  onChange,
+  options,
+  size = "sm",
+  className,
+}: TextSegmentProps) {
+  return (
+    <ToggleButtonGroup
+      aria-label={ariaLabel}
+      selectionMode="single"
+      disallowEmptySelection
+      size={size}
+      className={["social-tool-segment", "social-tool-segment--text", className]
+        .filter(Boolean)
+        .join(" ")}
+      selectedKeys={new Set([value])}
+      onSelectionChange={(keys) => {
+        const next = [...keys][0];
+        if (next != null) onChange(String(next));
+      }}
+    >
+      {options.map((opt, index) => (
+        <ToggleButton key={opt.id} id={opt.id}>
+          {index > 0 ? <ToggleButtonGroup.Separator /> : null}
+          {opt.label}
+        </ToggleButton>
+      ))}
+    </ToggleButtonGroup>
+  );
+}
+
 type SelectOption = {
   id: string;
   label: string;

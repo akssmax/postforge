@@ -3,15 +3,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { extractLatestCanvasPatch, extractLatestClientAction } from "@/lib/llm/extractCanvasActions";
 import {
-  extractLatestDesignPlan,
-  extractLatestDesignVariants,
+  extractCanvasPatchFromMessage,
+  extractLatestClientAction,
+} from "@/lib/llm/extractCanvasActions";
+import {
+  extractDesignPlanFromMessage,
+  extractDesignVariantsFromMessage,
   type DesignVariantResult,
 } from "@/lib/llm/extractDesignPlan";
 import { validatedPlanFromBriefResult } from "@/lib/llm/briefResultAdapter";
 import { runDesignPipelineOffline } from "@/lib/llm/stages/pipelineOrchestratorOffline";
 import { runCanvasAgentOffline } from "@/lib/llm/stages/canvasAgentOffline";
+import { mergeCanvasPatches } from "@/lib/llm/services/computeCanvasPatch";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
@@ -58,6 +62,10 @@ export function useBriefChat({
 }: UseBriefChatOptions) {
   const lastAppliedRef = useRef<string>("");
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onApplyPlanRef = useRef(onApplyPlan);
+  const onApplyCanvasPatchRef = useRef(onApplyCanvasPatch);
+  onApplyPlanRef.current = onApplyPlan;
+  onApplyCanvasPatchRef.current = onApplyCanvasPatch;
   const [pendingVariants, setPendingVariants] = useState<DesignVariantResult[] | null>(null);
   const [activeVariantTheme, setActiveVariantTheme] = useState<string | null>(null);
 
@@ -79,14 +87,42 @@ export function useBriefChat({
   });
 
   useEffect(() => {
-    const variants = extractLatestDesignVariants(messages);
+    // Only apply tools from the latest user turn. Older onboarding
+    // `updateDesignVariants` results must not block follow-up canvas patches.
+    let lastUserIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]?.role === "user") {
+        lastUserIndex = i;
+        break;
+      }
+    }
+    if (lastUserIndex < 0) return;
+
+    let plan: ValidatedDesignPlan | null = null;
+    let variants: DesignVariantResult[] | null = null;
+    const patches: CanvasPatchResult[] = [];
+
+    for (let i = lastUserIndex + 1; i < messages.length; i++) {
+      const message = messages[i]!;
+      if (message.role !== "assistant") continue;
+
+      const messageVariants = extractDesignVariantsFromMessage(message);
+      if (messageVariants?.length) variants = messageVariants;
+
+      const messagePlan = extractDesignPlanFromMessage(message);
+      if (messagePlan) plan = messagePlan;
+
+      const messagePatch = extractCanvasPatchFromMessage(message);
+      if (messagePatch) patches.push(messagePatch);
+    }
+
     if (variants?.length) {
       setPendingVariants(variants);
       return;
     }
 
-    const plan = extractLatestDesignPlan(messages);
-    const canvasPatch = extractLatestCanvasPatch(messages);
+    const canvasPatch =
+      patches.length > 0 ? mergeCanvasPatches(patches) : null;
     const payload = plan ?? canvasPatch;
     if (!payload) return;
 
@@ -97,16 +133,16 @@ export function useBriefChat({
     applyTimerRef.current = setTimeout(() => {
       lastAppliedRef.current = fingerprint;
       if (plan) {
-        onApplyPlan(plan);
+        onApplyPlanRef.current(plan);
       } else if (canvasPatch) {
-        onApplyCanvasPatch(canvasPatch);
+        onApplyCanvasPatchRef.current(canvasPatch);
       }
     }, APPLY_DEBOUNCE_MS);
 
     return () => {
       if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
     };
-  }, [messages, onApplyCanvasPatch, onApplyPlan]);
+  }, [messages]);
 
   useEffect(() => {
     const action = extractLatestClientAction(messages);

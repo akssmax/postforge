@@ -3,6 +3,11 @@
 import type { ReactNode } from "react";
 import { Hand, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { Button, Tooltip } from "@heroui/react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import {
+  ASIDE_PANEL_TOGGLE_LAYOUT_ID,
+  asidePanelSpring,
+} from "@/components/social-tool/asidePanelMotion";
 
 type Props = {
   zoomPercent: number;
@@ -14,8 +19,8 @@ type Props = {
   onZoomOut: () => void;
   onReset: () => void;
   onActualSize: () => void;
-  /** Optional pill group rendered after zoom controls (e.g. artboard switcher) */
-  trailing?: ReactNode;
+  /** Optional control before hand/zoom (e.g. show sidebar when collapsed) */
+  leading?: ReactNode;
 };
 
 export function CanvasZoomControls({
@@ -28,10 +33,38 @@ export function CanvasZoomControls({
   onZoomOut,
   onReset,
   onActualSize,
-  trailing,
+  leading,
 }: Props) {
+  const reduceMotion = useReducedMotion();
+
   return (
     <div className="canvas-stage-chrome" role="toolbar" aria-label="Canvas tools">
+      <AnimatePresence initial={false} mode="popLayout">
+        {leading ? (
+          <motion.div
+            key="canvas-chrome-leading"
+            className="flex items-center gap-1.5"
+            initial={reduceMotion ? false : { opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -8 }}
+            transition={reduceMotion ? { duration: 0 } : asidePanelSpring}
+          >
+            <motion.div
+              layoutId={ASIDE_PANEL_TOGGLE_LAYOUT_ID}
+              className="flex"
+              transition={reduceMotion ? { duration: 0 } : asidePanelSpring}
+            >
+              {leading}
+            </motion.div>
+            <div
+              className="canvas-stage-chrome-separator"
+              role="separator"
+              aria-orientation="vertical"
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
       <div className="canvas-zoom-toolbar" role="group" aria-label="Hand tool">
         <Tooltip delay={500}>
           <Tooltip.Trigger>
@@ -130,17 +163,6 @@ export function CanvasZoomControls({
           </Tooltip>
         ) : null}
       </div>
-
-      {trailing ? (
-        <>
-          <div
-            className="canvas-stage-chrome-separator"
-            role="separator"
-            aria-orientation="vertical"
-          />
-          {trailing}
-        </>
-      ) : null}
     </div>
   );
 }

@@ -9,7 +9,7 @@ Reference for agents and contributors building UI in this repo. Prefer these con
 - **Dark mode:** `[data-theme="dark"]` on the document root. Custom variants: `dark:` and `light:` in Tailwind map to `data-theme`. Test both themes for sidebar, header, and popovers.
 - **Inset controls** (sidebar cards, header pills, icon buttons): use `--overlay-subtle`, `--overlay-hover`, `--overlay-active`, `--overlay-border` — not `--surface-secondary` mixes. Brand theme overrides on `.social-tool` must not clobber overlay tokens.
 - **HeroUI:** import `@heroui/styles` in `globals.css`. Prefer HeroUI components (`Button`, `Switch`, `Select`, `Tooltip`, etc.) over raw HTML for interactive controls.
-- **Brand theme on canvas:** scoped via `useBrandToolTheme` on `.social-tool` only. Do not override `--surface-secondary` / `--overlay-*` from brand extraction.
+- **Brand theme on canvas:** scoped via `useBrandToolTheme` on `.social-tool` only. Do not override `--surface-secondary` / `--overlay-*` from brand extraction. Header `Monogram` fills use `var(--brand-500)` so they pick up that scoped override (default teal elsewhere).
 
 ## Typography
 
@@ -29,21 +29,24 @@ Reference for agents and contributors building UI in this repo. Prefer these con
 | `/slides` | Slide deck editor |
 | `/design-system` | Token and component gallery |
 
-- **Header:** `DesignToolHeader` — back to `/designs`, logo, app nav (`AppNav`: Designs, Design system, Home), new-design icon, center slot (e.g. platform picker), theme toggle, export actions.
+- **Header:** `DesignToolHeader` — back to `/designs`, logo, app nav (`AppNav`: Designs, Design system, Home), new-design icon, center slot (e.g. platform picker), user avatar, export actions. Theme controls live on the `/designs` dashboard, not in the design-tool header.
 - **Sidebar:** `.social-tool-aside` — collapsible blocks with **toggle row + content** pattern (Content, Brand, Featured block, Pattern). Match `BrandPanel` / `ContentPanel` structure.
 - **Onboarding phases** (`/design/[id]` only):
   - `needsLogo` — sidebar shows `DesignEmptyState` only (upload CTA). Canvas is a blank shell (logo slot only).
   - `needsBrief` — `BrandPanel` + optional `BriefChatPanel` (Generate or Skip). Canvas shows logo.
-  - `ready` — full editor; selection-driven inspector (below).
-- **Selection-driven inspector** (ready phase, and `/tool`):
+  - `ready` — full editor with unified **Design | Chat** sidebar header (`asideTab` in `DesignSessionSocialWorkspace` / `DesignInspector`):
+    - **Chat** (default when no selection) — full LLM transcript + footer composer (`BriefChatPanel` `mode="follow-up"`). No canvas floating composer.
+    - **Design** — selection-driven inspector (below). Canvas selection auto-switches to Design; clearing selection does not force Chat.
+    - **Collapse** — icon in the sidebar tab header hides the aside for a full-width canvas; a matching show control appears in `.canvas-stage-chrome`. Canvas selection re-opens the sidebar.
+- **Selection-driven inspector** (ready Design tab, and `/tool`):
   - Canvas clicks set `canvasSelection` → `inspectorSelection`.
   - `null` or `"pattern"` selection → featured block overview + pinned canvas panels.
   - `"copy"` → `ContentPanel`; `"logo"` → `BrandPanel`; `"featured"` → `FeaturedBlockPanel`.
   - **Background** and **Pattern** are canvas-level settings — always pinned at the bottom of the sidebar (`FixedCanvasPanels` in `DesignInspector.tsx`), not swapped by selection.
-  - Implemented in `DesignInspector.tsx`. Escape clears selection.
-- **Canvas toolbar:** `.canvas-preview-toolbar` — shuffle left; **Generate variants** + spacing + contrast badge right; pills use `.canvas-tool-pill-btn`. Hidden until onboarding `ready`. Multi-artboard rows use `.canvas-artboard-row` / `.canvas-variant-artboard` with per-board shuffle; follow-up/export target the active board (`data-artboard-id`). Stage chrome (`.canvas-stage-chrome`) holds hand/zoom plus an artboard switcher when multiple boards exist.
-- **Design session storage:** `localStorage` key `postforge:design:{id}`; logo/featured blobs in IndexedDB as `{designId}:logo:{id}` / `{designId}:featured:{id}`; thumbnails as `{designId}:thumbnail` in the same IDB store.
-- **Design index:** `postforge:design-index` — array of `DesignSummary` metadata for `/designs`. Updated via `designRepository.upsert()` on meaningful save (logo uploaded or onboarding past `needsLogo`). Lazy migration scans existing session keys when index is empty.
+  - Implemented in `DesignInspector.tsx`. Escape clears selection. `/tool` has no Chat tab (Design-only).
+- **Canvas toolbar:** `.canvas-preview-toolbar` — shuffle left; **Generate variants** + spacing + contrast badge right; pills use `.canvas-tool-pill-btn`. Hidden until onboarding `ready`. Multi-artboard rows use `.canvas-artboard-row` / `.canvas-variant-artboard` with per-board shuffle; follow-up/export target the active board (`data-artboard-id`). Stage chrome (`.canvas-stage-chrome`, top-left) holds hand and zoom; **undo/redo** is a separate bottom-left pill (`.canvas-history-chrome`); artboard switcher is a separate top-right pill (`.canvas-artboard-chrome`) when multiple boards exist. Undo is per artboard (max 11 steps, in-memory); ⌘/Ctrl+Z undoes, ⌘/Ctrl+⇧Z or Ctrl+Y redoes.
+- **Design session storage:** `localStorage` key `postforge:design:{id}`; logo/featured blobs in IndexedDB as `{designId}:logo:{id}` / `{designId}:featured:{id}`; thumbnails as `{designId}:thumbnail` in the same IDB store. Multi-artboard variants use additional `postforge:design:{boardId}` keys plus `postforge:design-variant-group:{originId}` — only the **origin** design id is listed on `/designs`.
+- **Design index:** `postforge:design-index` — array of `DesignSummary` metadata for `/designs`. Updated via `designRepository.upsert()` on meaningful save (logo uploaded or onboarding past `needsLogo`). Non-origin variant boards are excluded from the index (and pruned on list). Deleting an origin removes its whole variant group. Lazy migration scans existing session keys when index is empty.
 
 ## Pattern library
 
@@ -107,6 +110,7 @@ Reference for agents and contributors building UI in this repo. Prefer these con
 ## Motion and feedback
 
 - **Shuffle toast:** `.layout-shuffle-toast` — brief layout name flash after shuffle.
+- **History limit toast:** `.canvas-history-toast` — flashes above the bottom-left history pill only when the user tries to undo past the full 11-step stack (12th undo), not on ordinary edits.
 - **Canvas selection:** `.canvas-selectable.is-canvas-selected` — mint ring, do not block pointer events on `::after`.
 - **Export:** disable interactive canvas chrome (`interactive={false}`) before capture. Thumbnails on `/designs` reuse the same capture path at low scale (~0.12) after debounced save when logo exists or phase is `ready`.
 

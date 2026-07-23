@@ -1,6 +1,7 @@
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
+  isStepCount,
   streamText,
   tool,
   type UIMessage,
@@ -12,6 +13,7 @@ import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
 import type { PlatformId } from "@/lib/social-tool/presets";
 import {
+  attachArtboardTarget,
   generateVisualBlockToolSchema,
   modifyVisualBlockToolSchema,
   selectVisualBlockToolSchema,
@@ -25,6 +27,7 @@ import {
   updateSpacingToolSchema,
   updateTypographyToolSchema,
   updateVisibilityToolSchema,
+  withArtboardTargetSchema,
 } from "@/lib/llm/schemas/canvasTools";
 import { composeVisualBlocks, modifyVisualBlock as modifyVisualBlockComposer } from "@/lib/llm/stages/genuiComposer";
 import {
@@ -55,6 +58,20 @@ import {
 } from "@/lib/llm/services/computeCanvasPatch";
 
 function buildSnapshotPrompt(snapshot: DesignSnapshot): string {
+  const artboards = snapshot.artboards;
+  const artboardLine = artboards
+    ? [
+        `- Artboards: ${artboards.count} total; editing #${artboards.activeIndex}`,
+        `- Board list: ${artboards.boards
+          .map(
+            (b) =>
+              `#${b.index} (${b.layoutName}): ${JSON.stringify(b.headline.slice(0, 48))}`,
+          )
+          .join("; ")}`,
+        `- Set targetArtboards on tools: "active" (default), "all", or 1-based indices like [1,3]`,
+      ].join("\n")
+    : "";
+
   return [
     "Current design snapshot:",
     `- Layout: ${snapshot.layoutName} (${snapshot.layoutId})`,
@@ -71,6 +88,7 @@ function buildSnapshotPrompt(snapshot: DesignSnapshot): string {
     `- Visibility: content=${snapshot.visibility.showContent}, brand=${snapshot.visibility.showBrand}, featured=${snapshot.visibility.showFeaturedImage}, pattern=${snapshot.visibility.showPattern}`,
     `- Allowed layouts: ${snapshot.allowedLayouts.join(", ")}`,
     `- Allowed patterns: ${snapshot.allowedPatternRefs.join(", ")}`,
+    artboardLine,
     snapshot.selection ? `- Selected: ${snapshot.selection}` : "",
   ]
     .filter(Boolean)
@@ -85,14 +103,15 @@ function buildCanvasTools(
   return {
     updateCopy: tool({
       description:
-        "Update text in one or more copy slots (headline, subheading, CTA/extras). Provide full new text per slot.",
-      inputSchema: updateCopyToolSchema,
-      execute: async (input) => computeUpdateCopyPatch(snapshot, input),
+        "Update text in one or more copy slots (headline, subheading, CTA/extras). Provide full new text per slot. Defaults to the active artboard; set targetArtboards for multi-board edits.",
+      inputSchema: withArtboardTargetSchema(updateCopyToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeUpdateCopyPatch(snapshot, input), input),
     }),
     refreshCopyVariants: tool({
       description:
-        "Regenerate 7-8 brief-specific headline/subheading options and apply the best one. Prefer this when the user asks to rewrite, refresh, or change copy direction.",
-      inputSchema: refreshCopyVariantsToolSchema,
+        "Regenerate 7-8 brief-specific headline/subheading options and apply the best one. Prefer this when the user asks to rewrite, refresh, or change copy direction. Defaults to the active artboard.",
+      inputSchema: withArtboardTargetSchema(refreshCopyVariantsToolSchema),
       execute: async (input) => {
         const instruction = input.instruction?.trim() || followUpMessage.trim();
         const briefContext = [
@@ -133,29 +152,37 @@ function buildCanvasTools(
           subheading: snapshot.copy.subheading,
         };
         const variants = buildCopyVariantPool(primary, generated.slice(1), rulesProfile);
-        return computeRefreshCopyVariantsPatch(snapshot, variants, 0);
+        return attachArtboardTarget(
+          computeRefreshCopyVariantsPatch(snapshot, variants, 0),
+          input,
+        );
       },
     }),
     updateBackground: tool({
       description:
-        "Change canvas background using a preset id from the snapshot catalog. Never invent preset ids.",
-      inputSchema: updateBackgroundToolSchema,
-      execute: async (input) => computeUpdateBackgroundPatch(snapshot, input),
+        "Change canvas background using a preset id from the snapshot catalog. Never invent preset ids. Prefer targetArtboards='all' when the user wants a shared background across options.",
+      inputSchema: withArtboardTargetSchema(updateBackgroundToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeUpdateBackgroundPatch(snapshot, input), input),
     }),
     updatePattern: tool({
-      description: "Toggle or change background pattern using allowed pattern refs.",
-      inputSchema: updatePatternToolSchema,
-      execute: async (input) => computeUpdatePatternPatch(snapshot, input),
+      description:
+        "Toggle or change background pattern using allowed pattern refs. Prefer targetArtboards='all' for shared pattern changes.",
+      inputSchema: withArtboardTargetSchema(updatePatternToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeUpdatePatternPatch(snapshot, input), input),
     }),
     updateFeatured: tool({
-      description: "Show/hide the visual slot or switch between placeholder, composed, or uploaded image.",
-      inputSchema: updateFeaturedToolSchema,
-      execute: async (input) => computeUpdateFeaturedPatch(snapshot, input),
+      description:
+        "Show/hide the visual slot or switch between placeholder, composed, or uploaded image.",
+      inputSchema: withArtboardTargetSchema(updateFeaturedToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeUpdateFeaturedPatch(snapshot, input), input),
     }),
     generateVisualBlock: tool({
       description:
         "Add visual blocks for the featured slot. Default to source=library for instant patterns; use source=generate only when the user wants custom AI SVG.",
-      inputSchema: generateVisualBlockToolSchema,
+      inputSchema: withArtboardTargetSchema(generateVisualBlockToolSchema),
       execute: async (input) => {
         const source = input.source ?? "library";
         const payload = {
@@ -180,13 +207,16 @@ function buildCanvasTools(
           source === "library"
             ? composeVisualBlocksFromLibrary(payload, { libraryIds: input.libraryIds })
             : await composeVisualBlocks({ ...payload, source: "generate" });
-        return computeGeneratedVisualBlocksPatch(snapshot, blocks);
+        return attachArtboardTarget(
+          computeGeneratedVisualBlocksPatch(snapshot, blocks),
+          input,
+        );
       },
     }),
     modifyVisualBlock: tool({
       description:
         "Modify an existing visual block SVG using a natural-language instruction. Use for visual-slot edits only.",
-      inputSchema: modifyVisualBlockToolSchema,
+      inputSchema: withArtboardTargetSchema(modifyVisualBlockToolSchema),
       execute: async (input) => {
         const blockId =
           input.blockId ??
@@ -212,39 +242,50 @@ function buildCanvasTools(
           return { success: false as const, error: "Could not modify visual block" };
         }
         const fullBlock = { ...existing, ...modified, id: existing.id };
-        return computeModifiedVisualBlockPatch(snapshot, fullBlock);
+        return attachArtboardTarget(
+          computeModifiedVisualBlockPatch(snapshot, fullBlock),
+          input,
+        );
       },
     }),
     selectVisualBlock: tool({
-      description: "Switch the active visual block in the featured slot using a block id from the library.",
-      inputSchema: selectVisualBlockToolSchema,
-      execute: async (input) => computeSelectVisualBlockPatch(snapshot, input),
+      description:
+        "Switch the active visual block in the featured slot using a block id from the library.",
+      inputSchema: withArtboardTargetSchema(selectVisualBlockToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeSelectVisualBlockPatch(snapshot, input), input),
     }),
     updateLayout: tool({
       description:
-        "Switch to another catalog layout. preserveCopy defaults to true.",
-      inputSchema: updateLayoutToolSchema,
-      execute: async (input) => computeUpdateLayoutPatch(snapshot, input),
+        "Switch to another catalog layout. preserveCopy defaults to true. Defaults to the active artboard unless targetArtboards is set.",
+      inputSchema: withArtboardTargetSchema(updateLayoutToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeUpdateLayoutPatch(snapshot, input), input),
     }),
     updateBrand: tool({
-      description: "Adjust logo visibility, scale, placement, or alignment.",
-      inputSchema: updateBrandToolSchema,
-      execute: async (input) => computeUpdateBrandPatch(input),
+      description:
+        "Adjust logo visibility, scale, placement, or alignment. Prefer targetArtboards='all' for shared brand chrome.",
+      inputSchema: withArtboardTargetSchema(updateBrandToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeUpdateBrandPatch(input), input),
     }),
     updateTypography: tool({
       description: "Change text alignment, fonts, or type scale.",
-      inputSchema: updateTypographyToolSchema,
-      execute: async (input) => computeUpdateTypographyPatch(input),
+      inputSchema: withArtboardTargetSchema(updateTypographyToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeUpdateTypographyPatch(input), input),
     }),
     updateVisibility: tool({
       description: "Show or hide content, brand, featured, pattern, or background.",
-      inputSchema: updateVisibilityToolSchema,
-      execute: async (input) => computeUpdateVisibilityPatch(input),
+      inputSchema: withArtboardTargetSchema(updateVisibilityToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeUpdateVisibilityPatch(input), input),
     }),
     updateSpacing: tool({
       description: "Adjust layout spacing tokens (Tailwind scale classes).",
-      inputSchema: updateSpacingToolSchema,
-      execute: async (input) => computeUpdateSpacingPatch(snapshot, input),
+      inputSchema: withArtboardTargetSchema(updateSpacingToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeUpdateSpacingPatch(snapshot, input), input),
     }),
   };
 }
@@ -292,6 +333,17 @@ export async function handleCanvasAgentRequest(input: {
   const result = streamText({
     model,
     temperature: 0.2,
+    // Default stopWhen is isStepCount(1), which ends after the first tool call and
+    // never produces a user-facing text reply. Allow a follow-up text step.
+    stopWhen: isStepCount(5),
+    prepareStep: ({ steps }) => {
+      const last = steps.at(-1);
+      if (last && last.toolCalls.length > 0) {
+        // After tools run, force a short natural-language confirmation.
+        return { toolChoice: "none" as const };
+      }
+      return {};
+    },
     system: [
       "You are Postforge's visual block assistant.",
       "Focus on the featured visual slot — generate, modify, or select visual blocks.",
@@ -305,6 +357,11 @@ export async function handleCanvasAgentRequest(input: {
       "Use selectVisualBlock to swap blocks from the library.",
       "Use refreshCopyVariants when the user asks to rewrite, refresh, or change headline/subheading direction.",
       "Use updateCopy only for precise edits to specific slot text.",
+      "Multi-artboard: each tool accepts targetArtboards ('active' | 'all' | [1-based indices]).",
+      "Default to active. Use 'all' when the user says every board/all variants/shared background/brand.",
+      "Use specific indices when they name artboard numbers (e.g. board 2 and 4 → [2,4]).",
+      "After you call tools, always send a short (1-2 sentence) user-facing reply confirming what changed.",
+      "Never finish with tool calls alone — end with conversational text the user can read in chat.",
       rulesProfilePrompt(rulesProfile),
       rulesProfile.featuredPolicy === "library"
         ? 'For "add visual" requests, prefer generateVisualBlock with source=library — pick UI blocks or illustrations whose tags match brief intent (keywords, goal, proofStrategy). Use libraryIds when you know the best-matched asset id. Use source=generate only when the user explicitly wants custom AI SVG.'

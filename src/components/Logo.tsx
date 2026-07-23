@@ -109,10 +109,14 @@ const waveBot: Variants = {
   },
 };
 
+/** Mark fill — default Postforge teal via globals; brand primary when `.social-tool` theme is active */
+const MARK_FILL = "var(--brand-500)";
+const MARK_FILL_SOFT = "var(--brand-100)";
+
 const glintFill: Variants = {
-  rest: { fill: "#4BB793" },
+  rest: { fill: MARK_FILL },
   hover: {
-    fill: ["#4BB793", "#E3FFCC", "#4BB793"],
+    fill: [MARK_FILL, MARK_FILL_SOFT, MARK_FILL],
     transition: { duration: 0.7, times: [0, 0.45, 1] },
   },
 };
@@ -126,7 +130,7 @@ function MarkPaths({
     <g>
       <motion.path
         d={MARK.top}
-        fill="#4BB793"
+        fill={MARK_FILL}
         variants={
           mode === "leap"
             ? leapTop
@@ -141,7 +145,7 @@ function MarkPaths({
       />
       <motion.path
         d={MARK.mid}
-        fill="#4BB793"
+        fill={MARK_FILL}
         variants={
           mode === "leap"
             ? leapMid
@@ -157,7 +161,7 @@ function MarkPaths({
       />
       <motion.path
         d={MARK.bot}
-        fill="#4BB793"
+        fill={MARK_FILL}
         variants={
           mode === "leap"
             ? leapBot

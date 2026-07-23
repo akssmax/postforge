@@ -1,6 +1,7 @@
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
+  isStepCount,
   streamText,
   tool,
   type UIMessage,
@@ -117,11 +118,25 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
     const result = streamText({
       model,
       temperature: 0.3,
+      // Allow a text step after the forced tool call (default stopWhen is 1 step).
+      stopWhen: isStepCount(3),
+      prepareStep: ({ stepNumber }) => {
+        if (stepNumber === 0) {
+          return {
+            toolChoice: {
+              type: "tool" as const,
+              toolName: "updateDesignVariants" as const,
+            },
+          };
+        }
+        return { toolChoice: "none" as const };
+      },
       system: [
         "You are Postforge's creative brief assistant.",
         "The pipeline generated multiple themed variants.",
-        "Explain briefly that the user can pick a variant below.",
-        "Then call updateDesignVariants.",
+        "Call updateDesignVariants to apply them.",
+        "Then reply in 1-2 short sentences that the user can pick a variant below.",
+        "Always end with conversational text — never finish on tool calls alone.",
         variantsResult.summary,
       ].join("\n"),
       messages: await convertToModelMessages(messages),
@@ -140,7 +155,7 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
           }),
         }),
       },
-      toolChoice: { type: "tool", toolName: "updateDesignVariants" },
+      toolChoice: "auto",
     });
 
     return createUIMessageStreamResponse({
@@ -160,11 +175,22 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
   const result = streamText({
     model,
     temperature: 0.3,
+    // Allow a text step after the forced tool call (default stopWhen is 1 step).
+    stopWhen: isStepCount(3),
+    prepareStep: ({ stepNumber }) => {
+      if (stepNumber === 0) {
+        return {
+          toolChoice: { type: "tool" as const, toolName: "updateDesign" as const },
+        };
+      }
+      return { toolChoice: "none" as const };
+    },
     system: [
       "You are Postforge's creative brief assistant.",
       "The design pipeline has already chosen layout, copy, visual treatment, and a visuals-library block for the featured slot.",
-      "Explain the choices briefly in 2-4 sentences in natural language.",
-      "Then call updateDesign to apply the plan.",
+      "Call updateDesign to apply the plan.",
+      "Then explain the choices briefly in 2-4 sentences in natural language.",
+      "Always end with conversational text — never finish on tool calls alone.",
       "Do not invent coordinates, layout geometry, alternate layouts, or custom AI visuals.",
       "",
       "Pipeline summary:",
@@ -205,7 +231,7 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
         },
       }),
     },
-    toolChoice: { type: "tool", toolName: "updateDesign" },
+    toolChoice: "auto",
   });
 
   return createUIMessageStreamResponse({

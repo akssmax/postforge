@@ -9,8 +9,10 @@ import {
   MAX_VARIANT_BOARDS,
   persistBoardSession,
   saveVariantGroup,
+  withBoardName,
   type DesignVariantGroup,
 } from "@/lib/design/variantGroup";
+import { designRepository } from "@/lib/design/repository";
 import {
   generateDesignVariants,
   nextVariantBatchSize,
@@ -27,6 +29,8 @@ export type UseDesignVariantGroupResult = {
   canGenerateMore: boolean;
   activeDesignId: string;
   setActiveDesignId: (id: string) => void;
+  /** Set or clear a custom artboard name (empty clears → falls back to index). */
+  setBoardName: (designId: string, name: string) => void;
   syncBoard: (session: DesignSessionPersisted) => void;
   generateVariants: (originSession: DesignSessionPersisted) => Promise<void>;
   patchBoardDocument: (
@@ -68,26 +72,39 @@ export function useDesignVariantGroup(
     [],
   );
 
+  const setBoardName = useCallback((designId: string, name: string) => {
+    setGroup((prev) => {
+      const next = withBoardName(prev, designId, name);
+      if (next === prev) return prev;
+      saveVariantGroup(next);
+      return next;
+    });
+  }, []);
+
   const syncBoard = useCallback((session: DesignSessionPersisted) => {
+    // Snapshot + persist immediately so switching boards can't drop featured/shuffle state
+    const snapshot = structuredClone(session) as DesignSessionPersisted;
+    persistBoardSession(snapshot);
     setBoards((prev) => {
-      const idx = prev.findIndex((b) => b.designId === session.designId);
+      const idx = prev.findIndex((b) => b.designId === snapshot.designId);
       if (idx === -1) {
-        if (session.designId === originDesignId) return [session, ...prev];
+        if (snapshot.designId === originDesignId) return [snapshot, ...prev];
         return prev;
       }
       const next = [...prev];
-      next[idx] = session;
+      next[idx] = snapshot;
       return next;
     });
   }, [originDesignId]);
 
   const replaceBoard = useCallback((session: DesignSessionPersisted) => {
-    persistBoardSession(session);
+    const snapshot = structuredClone(session) as DesignSessionPersisted;
+    persistBoardSession(snapshot);
     setBoards((prev) => {
-      const idx = prev.findIndex((b) => b.designId === session.designId);
+      const idx = prev.findIndex((b) => b.designId === snapshot.designId);
       if (idx === -1) return prev;
       const next = [...prev];
-      next[idx] = session;
+      next[idx] = snapshot;
       return next;
     });
   }, []);
@@ -191,6 +208,11 @@ export function useDesignVariantGroup(
         setGroup(result.group);
         setBoards(result.boards);
         setPendingBatchSize(0);
+        // Keep a single /designs card on the origin; bump its updatedAt.
+        const originBoard =
+          result.boards.find((b) => b.designId === originDesignId) ??
+          originSession;
+        void designRepository.upsert(originBoard).catch(() => {});
         await new Promise((r) => setTimeout(r, 120));
         setPhase("ready");
       } catch (err) {
@@ -211,6 +233,7 @@ export function useDesignVariantGroup(
     canGenerateMore: boards.length < MAX_VARIANT_BOARDS,
     activeDesignId: group.activeDesignId,
     setActiveDesignId,
+    setBoardName,
     syncBoard,
     generateVariants,
     patchBoardDocument,

@@ -13,6 +13,12 @@ import {
   thumbnailBlobKey,
 } from "@/lib/design/thumbnail";
 import {
+  collectNonOriginBoardIds,
+  findVariantGroupForBoard,
+  isNonOriginVariantBoard,
+  variantGroupStorageKey,
+} from "@/lib/design/variantGroup";
+import {
   readDesignIndex,
   removeDesignIndexEntry,
   upsertDesignIndexEntry,
@@ -32,6 +38,7 @@ let migrationDone = false;
 function scanLocalDesignSessions(): DesignSummary[] {
   if (typeof window === "undefined") return [];
 
+  const variantBoardIds = collectNonOriginBoardIds();
   const summaries: DesignSummary[] = [];
 
   for (let i = 0; i < localStorage.length; i += 1) {
@@ -40,7 +47,7 @@ function scanLocalDesignSessions(): DesignSummary[] {
     if (key === "postforge:design-index") continue;
 
     const designId = key.slice(SESSION_KEY_PREFIX.length);
-    if (!designId) continue;
+    if (!designId || variantBoardIds.has(designId)) continue;
 
     try {
       const session = loadDesignSession(designId);
@@ -56,13 +63,27 @@ function scanLocalDesignSessions(): DesignSummary[] {
   return summaries.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+/** Drop stray variant-board cards from the index (one file per origin). */
+function pruneVariantBoardsFromIndex(entries: DesignSummary[]): DesignSummary[] {
+  const variantBoardIds = collectNonOriginBoardIds();
+  if (variantBoardIds.size === 0) return entries;
+
+  const next = entries.filter((entry) => !variantBoardIds.has(entry.id));
+  if (next.length !== entries.length) {
+    writeDesignIndex(next);
+  }
+  return next;
+}
+
 function ensureMigratedIndex(): DesignSummary[] {
-  if (migrationDone) return readDesignIndex();
+  if (migrationDone) {
+    return pruneVariantBoardsFromIndex(readDesignIndex());
+  }
 
   const existing = readDesignIndex();
   if (existing.length > 0) {
     migrationDone = true;
-    return existing;
+    return pruneVariantBoardsFromIndex(existing);
   }
 
   const migrated = scanLocalDesignSessions();
@@ -113,6 +134,32 @@ export class LocalDesignRepository implements DesignRepository {
 
     saveDesignSession(session);
 
+    // Variant artboards share one dashboard card keyed by the origin design.
+    if (isNonOriginVariantBoard(session.designId)) {
+      removeDesignIndexEntry(session.designId);
+      const group = findVariantGroupForBoard(session.designId);
+      const originId = group?.originDesignId;
+      if (!originId) return null;
+
+      const originSession = loadDesignSession(originId);
+      if (!isMeaningfulSession(originSession)) return null;
+
+      const existing = readDesignIndex().find((item) => item.id === originId);
+      const createdAt = existing?.createdAt ?? Date.now();
+      const bumped: DesignSessionPersisted = {
+        ...originSession,
+        updatedAt: Math.max(originSession.updatedAt ?? 0, session.updatedAt ?? 0, Date.now()),
+      };
+      saveDesignSession(bumped);
+      const summary = sessionToSummary(
+        bumped,
+        createdAt,
+        thumbnailBlobKey(originId),
+      );
+      upsertDesignIndexEntry(summary);
+      return summary;
+    }
+
     const existing = readDesignIndex().find((item) => item.id === session.designId);
     const createdAt = existing?.createdAt ?? Date.now();
     const thumbnailKey = thumbnailBlobKey(session.designId);
@@ -125,29 +172,42 @@ export class LocalDesignRepository implements DesignRepository {
   async delete(id: string): Promise<void> {
     if (typeof window === "undefined") return;
 
-    const session = await this.get(id);
-    if (session) {
-      await deleteSessionBlobs(session);
-    } else {
-      await deleteDesignThumbnail(id);
+    const group = findVariantGroupForBoard(id);
+    const boardIds = group
+      ? [...new Set(group.boardIds)]
+      : [id];
+    const originId = group?.originDesignId ?? id;
+
+    for (const boardId of boardIds) {
+      const session = await this.get(boardId);
+      if (session) {
+        await deleteSessionBlobs(session);
+      } else {
+        await deleteDesignThumbnail(boardId);
+      }
+      localStorage.removeItem(designSessionStorageKey(boardId));
+      removeDesignPatterns(boardId);
+      removeDesignIndexEntry(boardId);
     }
 
-    localStorage.removeItem(designSessionStorageKey(id));
-    removeDesignPatterns(id);
-    removeDesignIndexEntry(id);
+    localStorage.removeItem(variantGroupStorageKey(originId));
   }
 
   async captureThumbnail(id: string, node: HTMLElement): Promise<void> {
-    const session = await this.get(id);
+    const group = findVariantGroupForBoard(id);
+    const indexId =
+      group && group.originDesignId !== id ? group.originDesignId : id;
+
+    const session = await this.get(indexId);
     if (!session) return;
 
-    await captureDesignThumbnail(id, node, session.document.platformId);
+    await captureDesignThumbnail(indexId, node, session.document.platformId);
 
-    const existing = readDesignIndex().find((item) => item.id === id);
+    const existing = readDesignIndex().find((item) => item.id === indexId);
     if (existing) {
       upsertDesignIndexEntry({
         ...existing,
-        thumbnailKey: thumbnailBlobKey(id),
+        thumbnailKey: thumbnailBlobKey(indexId),
         updatedAt: existing.updatedAt,
       });
     }

@@ -380,10 +380,34 @@ function omitUndefined<T extends Record<string, unknown>>(value: T | undefined):
   return entries.length > 0 ? (Object.fromEntries(entries) as Partial<T>) : undefined;
 }
 
+function mergeArtboardTargets(
+  patches: CanvasPatchResult[],
+): CanvasPatchResult["targetArtboards"] {
+  const targets = patches
+    .map((p) => p.targetArtboards)
+    .filter((t): t is NonNullable<typeof t> => t != null);
+  if (targets.length === 0) return "active";
+  if (targets.some((t) => t === "all")) return "all";
+  const indices = new Set<number>();
+  let hasActive = false;
+  for (const t of targets) {
+    if (t === "active") {
+      hasActive = true;
+      continue;
+    }
+    if (Array.isArray(t)) {
+      for (const n of t) indices.add(n);
+    }
+  }
+  if (indices.size > 0) return [...indices].sort((a, b) => a - b);
+  return hasActive ? "active" : "active";
+}
+
 export function mergeCanvasPatches(patches: CanvasPatchResult[]): CanvasPatchResult {
   const merged: CanvasPatchResult = {
     success: true,
     message: patches.map((p) => p.message).filter(Boolean).join(" · "),
+    targetArtboards: mergeArtboardTargets(patches),
   };
 
   for (const patch of patches) {
