@@ -1540,6 +1540,8 @@ html:has(.social-tool) body {
 
 .canvas-platform-pill {
   width: auto;
+  max-width: min(20rem, 42vw);
+  min-width: 0;
 }
 
 .canvas-platform-pill-trigger {
@@ -1547,14 +1549,15 @@ html:has(.social-tool) body {
   align-items: center;
   gap: 0.35rem;
   min-height: 2rem;
-  max-width: min(20rem, 42vw);
-  padding: 0.35rem 0.65rem 0.35rem 0.55rem;
+  max-width: 100%;
+  padding: 0.35rem 1.75rem 0.35rem 0.55rem;
   border-radius: 999px;
   border: 1px solid var(--overlay-border);
   background: var(--overlay-subtle);
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-primary);
+  overflow: hidden;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
@@ -1568,11 +1571,14 @@ html:has(.social-tool) body {
   align-items: center;
   gap: 0.45rem;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
+  max-width: 100%;
   overflow: hidden;
 }
 
 .canvas-platform-pill-label {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1617,10 +1623,11 @@ html:has(.social-tool) body {
   color: var(--text-tertiary);
 }
 
-.canvas-platform-pill [data-slot="value"] {
+.canvas-platform-pill [data-slot="value"],
+.canvas-platform-pill .select__value {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .social-tool-select {
