@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useEffect, useCallback } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { ChevronDown, Download, Loader2, PanelLeft } from "lucide-react";
 import { Button, Tooltip } from "@heroui/react";
 import {
@@ -77,6 +77,7 @@ import type {
   CanvasPatchResult,
 } from "@/lib/llm/schemas/canvasTools";
 import { applyCanvasPatchToSession } from "@/lib/llm/services/applyCanvasPatch";
+import { recordHistorySnapshot } from "@/lib/design/useDesignHistory";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { VariantPicker } from "@/components/social-tool/VariantPicker";
 
@@ -131,11 +132,15 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     setSelectedBlock(null);
     setContrastPanelOpen(false);
     setCanvasSelection(null);
-    session.patchDocument({
-      logoBackdrop: false,
-      logoInvert: false,
-      textContrastBoost: false,
-    });
+    // Reset contrast chrome without polluting undo history.
+    session.patchDocument(
+      {
+        logoBackdrop: false,
+        logoInvert: false,
+        textContrastBoost: false,
+      },
+      { recordHistory: false },
+    );
   }, [logoRevision]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const undoRef = useRef(session.undo);
@@ -667,6 +672,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         variantGroup.boards.find((b) => b.designId === boardId) ??
         loadDesignSession(boardId);
       if (!board) continue;
+      recordHistorySnapshot(boardId, board);
       const next = applyCanvasPatchToSession(board, patch);
       variantGroup.replaceBoard(next);
       applied = true;
@@ -1121,6 +1127,10 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       exporting={!!exporting}
                       canvasSelection={inspectorSelection}
                       onCanvasSelect={handleCanvasSelect}
+                      onTypeScaleChange={(v) => patchDocument({ typeScale: v })}
+                      showPropertyPills={
+                        !asideCollapsed && asideTab === "design"
+                      }
                       onFeaturedTransformChange={handleFeaturedTransformChange}
                       onHistoryCoalesceBegin={session.beginHistoryCoalesce}
                       onHistoryCoalesceEnd={session.endHistoryCoalesce}
@@ -1137,7 +1147,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       generatingVisualBlocks={session.generatingVisualBlocks}
                       canvasRef={isActive ? canvasRef : undefined}
                       viewportRef={isActive ? viewportRef : undefined}
-                      reveal={variantGroup.phase === "ready" || variantGroup.phase === "revealing"}
+                      reveal={variantGroup.phase === "revealing"}
                       showContent={
                         (liveBoard.document.showContent || isNeedsBrief) &&
                         showCanvasBlocks

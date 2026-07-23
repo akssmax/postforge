@@ -39,7 +39,9 @@ import {
   type PostContentBlock,
   type PostLayoutId,
 } from "@/lib/social-tool/postLayouts";
+import { CanvasPropertyPills } from "@/components/social-tool/CanvasPropertyPills";
 import { SpacingHandle } from "@/components/social-tool/SpacingHandle";
+import { canvasSelectionKind } from "@/lib/social-tool/canvasSelection";
 import {
   DEFAULT_POST_LAYOUT_SPACING,
   canvasScaleFactor,
@@ -96,6 +98,9 @@ type Props = {
   featuredSvgMarkup?: string | null;
   hasFeaturedImage?: boolean;
   typeScale?: number;
+  onTypeScaleChange?: (value: number) => void;
+  /** Show floating property pills when selection + inspector are active */
+  showPropertyPills?: boolean;
   logoScale?: number;
   logoAlign?: LogoAlign;
   logoPlacement?: LogoPlacement;
@@ -225,6 +230,8 @@ export function ProductShotPost({
   featuredSvgMarkup = null,
   hasFeaturedImage = false,
   typeScale = 1,
+  onTypeScaleChange,
+  showPropertyPills = true,
   logoScale = 1,
   logoAlign = "left",
   logoPlacement = "top",
@@ -898,6 +905,16 @@ export function ProductShotPost({
             data-canvas-select="copy"
             onPointerDown={(ev) => handleCanvasSelect("copy", ev)}
           >
+            {interactive &&
+            showPropertyPills &&
+            canvasSelectionKind(canvasSelection) === "copy" ? (
+              <CanvasPropertyPills
+                selection={canvasSelection}
+                enabled
+                typeScale={typeScale}
+                onTypeScaleChange={onTypeScaleChange}
+              />
+            ) : null}
             {renderCopyStack()}
           </div>
         ) : null}

@@ -15,7 +15,6 @@ import {
 import { validatedPlanFromBriefResult } from "@/lib/llm/briefResultAdapter";
 import { runDesignPipelineOffline } from "@/lib/llm/stages/pipelineOrchestratorOffline";
 import { runCanvasAgentOffline } from "@/lib/llm/stages/canvasAgentOffline";
-import { mergeCanvasPatches } from "@/lib/llm/services/computeCanvasPatch";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
@@ -61,6 +60,8 @@ export function useBriefChat({
   onOpenFeaturedUpload,
 }: UseBriefChatOptions) {
   const lastAppliedRef = useRef<string>("");
+  const lastUserTurnRef = useRef(-1);
+  const lastClientActionRef = useRef<string>("");
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onApplyPlanRef = useRef(onApplyPlan);
   const onApplyCanvasPatchRef = useRef(onApplyCanvasPatch);
@@ -98,6 +99,13 @@ export function useBriefChat({
     }
     if (lastUserIndex < 0) return;
 
+    // New user turn → allow re-applying the same patch content after undo.
+    if (lastUserIndex !== lastUserTurnRef.current) {
+      lastUserTurnRef.current = lastUserIndex;
+      lastAppliedRef.current = "";
+      lastClientActionRef.current = "";
+    }
+
     let plan: ValidatedDesignPlan | null = null;
     let variants: DesignVariantResult[] | null = null;
     const patches: CanvasPatchResult[] = [];
@@ -121,9 +129,8 @@ export function useBriefChat({
       return;
     }
 
-    const canvasPatch =
-      patches.length > 0 ? mergeCanvasPatches(patches) : null;
-    const payload = plan ?? canvasPatch;
+    // Apply patches individually so mixed targetArtboards don't collapse.
+    const payload = plan ?? (patches.length > 0 ? patches : null);
     if (!payload) return;
 
     const fingerprint = JSON.stringify(payload);
@@ -134,8 +141,10 @@ export function useBriefChat({
       lastAppliedRef.current = fingerprint;
       if (plan) {
         onApplyPlanRef.current(plan);
-      } else if (canvasPatch) {
-        onApplyCanvasPatchRef.current(canvasPatch);
+      } else {
+        for (const patch of patches) {
+          onApplyCanvasPatchRef.current(patch);
+        }
       }
     }, APPLY_DEBOUNCE_MS);
 
@@ -146,6 +155,10 @@ export function useBriefChat({
 
   useEffect(() => {
     const action = extractLatestClientAction(messages);
+    if (!action) return;
+    const key = `${lastUserTurnRef.current}:${action}`;
+    if (key === lastClientActionRef.current) return;
+    lastClientActionRef.current = key;
     if (action === "open_featured_upload") {
       onOpenFeaturedUpload?.();
     }

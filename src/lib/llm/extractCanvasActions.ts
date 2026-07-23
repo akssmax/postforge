@@ -58,9 +58,25 @@ export function extractLatestCanvasPatch(messages: UIMessage[]): CanvasPatchResu
   return null;
 }
 
+/** Client actions may arrive on failed tool results (e.g. upload-required). */
 export function extractLatestClientAction(
   messages: UIMessage[],
 ): CanvasPatchResult["clientAction"] | null {
-  const patch = extractLatestCanvasPatch(messages);
-  return patch?.clientAction ?? null;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]!;
+    if (message.role !== "assistant") continue;
+
+    for (const part of message.parts) {
+      if (
+        CANVAS_TOOL_TYPES.includes(part.type as (typeof CANVAS_TOOL_TYPES)[number]) &&
+        "state" in part &&
+        part.state === "output-available" &&
+        "output" in part
+      ) {
+        const output = part.output as ToolOutput;
+        if (output?.clientAction) return output.clientAction;
+      }
+    }
+  }
+  return null;
 }

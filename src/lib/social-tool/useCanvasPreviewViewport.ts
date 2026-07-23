@@ -66,6 +66,7 @@ export function useCanvasPreviewViewport({
   const handModeRef = useRef(handMode);
   const spaceDownRef = useRef(spaceDown);
   const stageElRef = useRef(stageEl);
+  const focusedElRef = useRef<HTMLElement | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -86,14 +87,31 @@ export function useCanvasPreviewViewport({
   const canActualSize = fitScale < 0.995;
   const handActive = handMode || spaceDown;
 
+  /** Nudge pan so `el` is centered. Safe to call again after paint for residuals. */
+  const centerElementInStage = useCallback((el: HTMLElement) => {
+    const stage = stageElRef.current;
+    if (!stage || !el.isConnected) return;
+    const stageRect = stage.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    if (elRect.width < 1 || elRect.height < 1) return;
+    const dx =
+      stageRect.left + stageRect.width / 2 - (elRect.left + elRect.width / 2);
+    const dy =
+      stageRect.top + stageRect.height / 2 - (elRect.top + elRect.height / 2);
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+    setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
+  }, []);
+
   useEffect(() => {
     setUserZoom(1);
     setPan({ x: 0, y: 0 });
+    focusedElRef.current = null;
   }, [platformWidth, platformHeight]);
 
   useEffect(() => {
     const el = stageEl;
     if (!el) return;
+    let resizePanTimer: ReturnType<typeof setTimeout> | null = null;
 
     const update = () => {
       const availW = Math.max(el.clientWidth - FIT_PAD, 200);
@@ -101,13 +119,22 @@ export function useCanvasPreviewViewport({
       const sx = availW / platformWidth;
       const sy = availH / platformHeight;
       setFitScale(Math.min(sx, sy, 1));
+      // Debounced: aside/stage size animation would otherwise stack pan deltas
+      // before paint, overshooting the focused artboard.
+      const focused = focusedElRef.current;
+      if (!focused?.isConnected) return;
+      if (resizePanTimer) clearTimeout(resizePanTimer);
+      resizePanTimer = setTimeout(() => centerElementInStage(focused), 50);
     };
 
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
-    return () => ro.disconnect();
-  }, [stageEl, platformWidth, platformHeight]);
+    return () => {
+      ro.disconnect();
+      if (resizePanTimer) clearTimeout(resizePanTimer);
+    };
+  }, [stageEl, platformWidth, platformHeight, centerElementInStage]);
 
   useEffect(() => {
     const el = stageEl;
@@ -214,6 +241,8 @@ export function useCanvasPreviewViewport({
       e.preventDefault();
       e.stopPropagation();
 
+      focusedElRef.current = null;
+
       const stage = stageElRef.current;
       if (stage) {
         stage.scrollTop = 0;
@@ -269,12 +298,14 @@ export function useCanvasPreviewViewport({
   }
 
   function resetZoom() {
+    focusedElRef.current = null;
     setUserZoom(1);
     setPan({ x: 0, y: 0 });
   }
 
   function setActualSize() {
     if (fitScale <= 0) return;
+    focusedElRef.current = null;
     setUserZoom(clamp(1 / fitScale, MIN_USER_ZOOM, MAX_USER_ZOOM));
     setPan({ x: 0, y: 0 });
   }
@@ -291,20 +322,15 @@ export function useCanvasPreviewViewport({
   }
 
   /** Center an element (e.g. artboard) in the stage viewport. */
-  function panElementIntoView(el: HTMLElement) {
-    const stage = stageElRef.current;
-    if (!stage) return;
-    const stageRect = stage.getBoundingClientRect();
-    const elRect = el.getBoundingClientRect();
-    const stageCx = stageRect.left + stageRect.width / 2;
-    const stageCy = stageRect.top + stageRect.height / 2;
-    const elCx = elRect.left + elRect.width / 2;
-    const elCy = elRect.top + elRect.height / 2;
-    setPan((p) => ({
-      x: p.x + (stageCx - elCx),
-      y: p.y + (stageCy - elCy),
-    }));
-  }
+  const panElementIntoView = useCallback(
+    (el: HTMLElement) => {
+      focusedElRef.current = el;
+      centerElementInStage(el);
+      // After paint + brief layout settle (active chrome / aside), correct residual.
+      window.setTimeout(() => centerElementInStage(el), 100);
+    },
+    [centerElementInStage],
+  );
 
   return {
     fitScale,

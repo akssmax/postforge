@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Button, Tooltip } from "@heroui/react";
 
 export type ArtboardSwitcherItem = {
@@ -17,10 +18,32 @@ type Props = {
 };
 
 export function CanvasArtboardSwitcher({ boards, activeId, onSelect }: Props) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    // Query the pressed pill — avoid Button refs (they can fight HeroUI/RAC).
+    const btn = scroller.querySelector<HTMLElement>(
+      'button[aria-pressed="true"]',
+    );
+    if (!btn) return;
+    const scrollerRect = scroller.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    const delta =
+      btnRect.left +
+      btnRect.width / 2 -
+      (scrollerRect.left + scrollerRect.width / 2);
+    if (Math.abs(delta) < 1) return;
+    // Scroll only this overflow chrome — never scrollIntoView (ancestors).
+    scroller.scrollBy({ left: delta, behavior: "smooth" });
+  }, [activeId, boards.length]);
+
   if (boards.length <= 1) return null;
 
   return (
     <div
+      ref={scrollerRef}
       className="canvas-stage-chrome canvas-artboard-chrome"
       role="toolbar"
       aria-label="Artboards"

@@ -829,6 +829,7 @@ function ToolSocialWorkspace() {
                   featuredSvgMarkup={featured.image?.svgMarkup ?? null}
                   hasFeaturedImage={!!featured.image}
                   typeScale={typeScale}
+                  onTypeScaleChange={setTypeScale}
                   logoScale={logoScale}
                   logoAlign={logoAlign}
                   logoPlacement={logoPlacement}

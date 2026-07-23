@@ -175,7 +175,10 @@ export type UseDesignSessionResult = {
   brandError: string | null;
   featuredUploading: boolean;
   featuredError: string | null;
-  patchDocument: (partial: Partial<DesignDocument>) => void;
+  patchDocument: (
+    partial: Partial<DesignDocument>,
+    options?: { recordHistory?: boolean },
+  ) => void;
   setPlatformId: (platformId: PlatformId) => void;
   uploadLogo: (file: File) => Promise<void>;
   uploadLogoVariant: (variant: BrandLogoVariant, file: File) => Promise<void>;
@@ -315,40 +318,59 @@ export function useDesignSession(
       flushPersist(previous);
     }
 
+    // Important: do NOT setReady(false) on board switches. Unmounting the
+    // workspace tears down artboards mid-activate and breaks switcher + pan.
     async function init() {
-      const seed = getSeedSessionRef.current?.();
-      const loaded =
-        seed?.designId === designId
-          ? seed
-          : (loadDesignSession(designId) ?? createBlankSession(designId));
-      const next = {
-        ...loaded,
-        designId,
-        document: repairDesignDocument(loaded.document),
-      };
-      // Keep storage aligned with the hydrated snapshot
-      saveDesignSession(next);
+      try {
+        const seed = getSeedSessionRef.current?.();
+        const loaded =
+          seed?.designId === designId
+            ? seed
+            : (loadDesignSession(designId) ?? createBlankSession(designId));
+        const next = {
+          ...loaded,
+          designId,
+          document: repairDesignDocument(loaded.document),
+        };
+        // Keep storage aligned with the hydrated snapshot
+        saveDesignSession(next);
 
-      const srcs = await hydrateAllLogoSrcs(next.brand);
-
-      let resolvedFeatured: string | null = null;
-      if (next.featured.image) {
-        resolvedFeatured = await resolveFeaturedImageSrc(next.featured.image);
-        if (resolvedFeatured?.startsWith("blob:")) {
-          featuredBlobUrlRef.current = resolvedFeatured;
+        // Apply in-memory seed immediately so the active artboard's live
+        // session matches without waiting on logo/featured hydrate.
+        if (seed?.designId === designId) {
+          sessionRef.current = next;
+          setSession(next);
         }
+
+        const srcs = await hydrateAllLogoSrcs(next.brand);
+
+        let resolvedFeatured: string | null = null;
+        if (next.featured.image) {
+          resolvedFeatured = await resolveFeaturedImageSrc(next.featured.image);
+          if (resolvedFeatured?.startsWith("blob:")) {
+            featuredBlobUrlRef.current = resolvedFeatured;
+          }
+        }
+
+        if (cancelled) return;
+
+        logoBlobUrlsRef.current = Object.values(srcs).filter(
+          (src): src is string => !!src?.startsWith("blob:"),
+        );
+        sessionRef.current = next;
+        setSession(next);
+        setLogoSrcs(srcs);
+        setLogoSrc(srcs.primary ?? null);
+        setFeaturedImageSrc(resolvedFeatured);
+        setReady(true);
+      } catch (err) {
+        console.error("[postforge] design session init failed", err);
+        if (cancelled) return;
+        const fallback = createBlankSession(designId);
+        sessionRef.current = fallback;
+        setSession(fallback);
+        setReady(true);
       }
-
-      if (cancelled) return;
-
-      logoBlobUrlsRef.current = Object.values(srcs).filter(
-        (src): src is string => !!src?.startsWith("blob:"),
-      );
-      setSession(next);
-      setLogoSrcs(srcs);
-      setLogoSrc(srcs.primary ?? null);
-      setFeaturedImageSrc(resolvedFeatured);
-      setReady(true);
     }
 
     void init();
@@ -400,16 +422,22 @@ export function useDesignSession(
   );
 
   const updateSession = useCallback(
-    (updater: (prev: DesignSessionPersisted) => DesignSessionPersisted) => {
+    (
+      updater: (prev: DesignSessionPersisted) => DesignSessionPersisted,
+      options?: { recordHistory?: boolean },
+    ) => {
       const prev = sessionRef.current;
-      if (!prev) return;
+      if (!prev || prev.designId !== designId) return;
       const next = updater(prev);
-      pushBeforeChange(prev);
+      if (next === prev) return;
+      if (options?.recordHistory !== false) {
+        pushBeforeChange(prev);
+      }
       sessionRef.current = next;
       schedulePersist(next);
       setSession(next);
     },
-    [pushBeforeChange, schedulePersist],
+    [designId, pushBeforeChange, schedulePersist],
   );
 
   useEffect(() => {
@@ -417,12 +445,22 @@ export function useDesignSession(
   }, [session]);
 
   const patchDocument = useCallback(
-    (partial: Partial<DesignDocument>) => {
-      updateSession((prev) => ({
-        ...prev,
-        document: { ...prev.document, ...partial },
-        updatedAt: Date.now(),
-      }));
+    (
+      partial: Partial<DesignDocument>,
+      options?: { recordHistory?: boolean },
+    ) => {
+      updateSession((prev) => {
+        const document = { ...prev.document, ...partial };
+        const unchanged = (Object.keys(partial) as (keyof DesignDocument)[]).every(
+          (key) => prev.document[key] === document[key],
+        );
+        if (unchanged) return prev;
+        return {
+          ...prev,
+          document,
+          updatedAt: Date.now(),
+        };
+      }, options);
     },
     [updateSession],
   );
@@ -431,7 +469,7 @@ export function useDesignSession(
     (next: DesignSessionPersisted) => {
       if (next.designId !== designId) return;
       const prev = sessionRef.current;
-      if (prev) pushBeforeChange(prev);
+      if (prev && prev.designId === designId) pushBeforeChange(prev);
       applySessionSnapshot(next, { persistImmediate: true });
     },
     [applySessionSnapshot, designId, pushBeforeChange],
@@ -439,23 +477,25 @@ export function useDesignSession(
 
   const undo = useCallback(() => {
     const current = sessionRef.current;
+    if (!current || current.designId !== designId) return false;
     const previous = popUndo(current);
     if (!previous) return false;
     runWithoutRecording(() => {
       applySessionSnapshot(previous, { persistImmediate: true });
     });
     return true;
-  }, [applySessionSnapshot, popUndo, runWithoutRecording]);
+  }, [applySessionSnapshot, designId, popUndo, runWithoutRecording]);
 
   const redo = useCallback(() => {
     const current = sessionRef.current;
+    if (!current || current.designId !== designId) return false;
     const next = popRedo(current);
     if (!next) return false;
     runWithoutRecording(() => {
       applySessionSnapshot(next, { persistImmediate: true });
     });
     return true;
-  }, [applySessionSnapshot, popRedo, runWithoutRecording]);
+  }, [applySessionSnapshot, designId, popRedo, runWithoutRecording]);
 
   const setPlatformId = useCallback(
     (platformId: PlatformId) => patchDocument({ platformId }),

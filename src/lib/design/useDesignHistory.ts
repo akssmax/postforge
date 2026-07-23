@@ -40,6 +40,23 @@ function persistStacks(designId: string, stacks: HistoryStacks) {
   });
 }
 
+/** Record a snapshot for a board that isn't the active `useDesignSession` instance. */
+export function recordHistorySnapshot(
+  designId: string,
+  prev: DesignSessionPersisted,
+): { capped: boolean } {
+  const stacks = loadStacks(designId);
+  stacks.past = [...stacks.past, cloneSession(prev)];
+  let capped = false;
+  if (stacks.past.length > DESIGN_HISTORY_LIMIT) {
+    stacks.past = stacks.past.slice(stacks.past.length - DESIGN_HISTORY_LIMIT);
+    capped = true;
+  }
+  stacks.future = [];
+  persistStacks(designId, stacks);
+  return { capped };
+}
+
 /**
  * In-memory undo/redo stacks for one artboard (`designId`).
  * Stacks are cached per designId across board switches. Not written to localStorage.
@@ -53,6 +70,7 @@ export function useDesignHistory(designId: string) {
   const suppressRef = useRef(false);
   const coalesceKeyRef = useRef<string | null>(null);
   const coalesceRecordedRef = useRef(false);
+  const coalesceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [canUndo, setCanUndo] = useState(false);
@@ -94,6 +112,10 @@ export function useDesignHistory(designId: string) {
       clearTimeout(toastTimerRef.current);
       toastTimerRef.current = null;
     }
+    if (coalesceTimerRef.current) {
+      clearTimeout(coalesceTimerRef.current);
+      coalesceTimerRef.current = null;
+    }
     syncFlags();
   }, [designId, syncFlags]);
 
@@ -104,6 +126,7 @@ export function useDesignHistory(designId: string) {
         future: futureRef.current,
       });
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (coalesceTimerRef.current) clearTimeout(coalesceTimerRef.current);
     };
   }, []);
 
@@ -142,19 +165,31 @@ export function useDesignHistory(designId: string) {
     [syncFlags],
   );
 
-  const beginCoalesce = useCallback((key: string) => {
-    if (suppressRef.current) return;
-    coalesceKeyRef.current = key;
-    coalesceRecordedRef.current = false;
-  }, []);
-
   const endCoalesce = useCallback((key?: string) => {
     if (key && coalesceKeyRef.current && coalesceKeyRef.current !== key) {
       return;
     }
     coalesceKeyRef.current = null;
     coalesceRecordedRef.current = false;
+    if (coalesceTimerRef.current) {
+      clearTimeout(coalesceTimerRef.current);
+      coalesceTimerRef.current = null;
+    }
   }, []);
+
+  const beginCoalesce = useCallback(
+    (key: string) => {
+      if (suppressRef.current) return;
+      coalesceKeyRef.current = key;
+      coalesceRecordedRef.current = false;
+      if (coalesceTimerRef.current) clearTimeout(coalesceTimerRef.current);
+      // Safety: never leave coalesce stuck if pointerup is lost.
+      coalesceTimerRef.current = setTimeout(() => {
+        endCoalesce(key);
+      }, 8000);
+    },
+    [endCoalesce],
+  );
 
   const undo = useCallback(
     (current: DesignSessionPersisted | null): DesignSessionPersisted | null => {

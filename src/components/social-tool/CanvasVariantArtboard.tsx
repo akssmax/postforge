@@ -59,6 +59,8 @@ type Props = {
   exporting?: boolean;
   canvasSelection?: CanvasSelectionId | null;
   onCanvasSelect?: (id: CanvasSelectionId | null) => void;
+  onTypeScaleChange?: (value: number) => void;
+  showPropertyPills?: boolean;
   onFeaturedTransformChange?: (t: FeaturedImageTransform) => void;
   onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing") => void;
   onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing") => void;
@@ -101,6 +103,8 @@ export function CanvasVariantArtboard({
   exporting = false,
   canvasSelection = null,
   onCanvasSelect,
+  onTypeScaleChange,
+  showPropertyPills = true,
   onFeaturedTransformChange,
   onHistoryCoalesceBegin,
   onHistoryCoalesceEnd,
@@ -371,6 +375,8 @@ export function CanvasVariantArtboard({
                 featuredSvgMarkup={board.featured.image?.svgMarkup ?? null}
                 hasFeaturedImage={!!board.featured.image}
                 typeScale={doc.typeScale}
+                onTypeScaleChange={isActive ? onTypeScaleChange : undefined}
+                showPropertyPills={showPropertyPills && isActive}
                 logoScale={doc.logoScale}
                 logoAlign={doc.logoAlign}
                 logoPlacement={doc.logoPlacement}
