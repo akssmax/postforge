@@ -1,3 +1,4 @@
+import { BRAND_LOGO_VARIANTS, getLogoRecord } from "@/lib/brand/logoVariants";
 import { deleteLogoBlob } from "@/lib/brand/storage";
 import {
   designSessionStorageKey,
@@ -75,8 +76,11 @@ function ensureMigratedIndex(): DesignSummary[] {
 async function deleteSessionBlobs(session: DesignSessionPersisted): Promise<void> {
   const { designId, brand, featured } = session;
 
-  if (brand.logo?.blobKey) {
-    await deleteLogoBlob(brand.logo.blobKey);
+  for (const variant of BRAND_LOGO_VARIANTS) {
+    const record = getLogoRecord(brand, variant);
+    if (record?.blobKey) {
+      await deleteLogoBlob(record.blobKey);
+    }
   }
 
   if (featured.image?.blobKey) {

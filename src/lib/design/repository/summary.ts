@@ -1,4 +1,5 @@
 import type { DesignSessionPersisted } from "@/lib/design/types";
+import { kitHasAnyLogo } from "@/lib/brand/logoVariants";
 import { getPlatform } from "@/lib/social-tool/presets";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import type { DesignSummary } from "./types";
@@ -7,8 +8,7 @@ export const UNTITLED_DESIGN_TITLE = "Untitled design";
 
 export function isMeaningfulSession(session: DesignSessionPersisted): boolean {
   return (
-    session.document.onboarding.phase !== "needsLogo" ||
-    session.brand.logo !== null
+    session.document.onboarding.phase !== "needsLogo" || kitHasAnyLogo(session.brand)
   );
 }
 
@@ -34,7 +34,7 @@ export function sessionToSummary(
     layoutId: session.document.layoutId,
     layoutName: layout.name,
     onboardingPhase: session.document.onboarding.phase,
-    hasLogo: session.brand.logo !== null,
+    hasLogo: kitHasAnyLogo(session.brand),
     ...(thumbnailKey ? { thumbnailKey } : {}),
   };
 }

@@ -56,6 +56,12 @@ import {
   canFixLogoSvgContrast,
   hasLogoSvgContrastFix,
 } from "@/lib/brand/logoContrastFix";
+import {
+  getMonogramMarkup,
+  kitHasAnyLogo,
+  logoVariantColorMode,
+  resolveCanvasLogo,
+} from "@/lib/brand/logoVariants";
 import { useDesignSession } from "@/lib/design/useDesignSession";
 import { designRepository } from "@/lib/design/repository";
 import type { DesignDocument } from "@/lib/design/types";
@@ -82,7 +88,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   const toolThemeRef = useBrandToolTheme({
     colors: session.kit.colors,
-    active: !!session.kit.logo,
+    active: kitHasAnyLogo(session.kit),
   });
 
   const logoRevision = session.kit.logo?.id ?? "none";
@@ -335,6 +341,19 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   const activeBgCss = session.activeBackground.css.background;
   const bgHex = resolveBackgroundHex(activeBgCss);
+  const canvasLogo = useMemo(
+    () => resolveCanvasLogo(session.kit, activeBgCss),
+    [session.kit, activeBgCss],
+  );
+  const canvasLogoSrc = canvasLogo
+    ? (session.kit.logoSrcs?.[canvasLogo.variant] ??
+      (canvasLogo.variant === "primary" ? session.kit.logoSrc : null))
+    : null;
+  const canvasLogoColorMode = canvasLogo
+    ? logoVariantColorMode(canvasLogo.variant, canvasLogo.record)
+    : "inherit";
+  const patternLogoSvgMarkup =
+    getMonogramMarkup(session.kit) ?? canvasLogo?.record.svgMarkup ?? null;
   const textColor =
     doc.showBrand && (session.kit.activeBackgroundPresetId || doc.textContrastBoost)
       ? doc.textContrastBoost
@@ -349,13 +368,13 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       : undefined;
 
   const contrastEnabled =
-    isReady && doc.showBrand && !!session.kit.logo && !exporting;
+    isReady && doc.showBrand && !!canvasLogo && !exporting;
   const contrastResults = useMemo(
     () =>
       evaluateCanvasContrast({
         enabled: contrastEnabled,
         backgroundCss: activeBgCss,
-        logoSvgMarkup: session.kit.logo?.svgMarkup,
+        logoSvgMarkup: canvasLogo?.record.svgMarkup,
         showLogo: doc.showBrand,
         textColor: textColor ?? session.activeBackground.css.textOnBrand,
         subTextColor: subTextColor ?? session.activeBackground.css.subText,
@@ -365,7 +384,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     [
       contrastEnabled,
       activeBgCss,
-      session.kit.logo?.svgMarkup,
+      canvasLogo?.record.svgMarkup,
       doc.showBrand,
       textColor,
       subTextColor,
@@ -379,14 +398,16 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const contrastFailingCount = contrastResults.filter((r) => !r.passes).length;
   const canFixLogoSvg = useMemo(
     () =>
-      session.kit.logo?.svgMarkup
-        ? canFixLogoSvgContrast(session.kit.logo.svgMarkup, activeBgCss, {
+      canvasLogo?.record.svgMarkup
+        ? canFixLogoSvgContrast(canvasLogo.record.svgMarkup, activeBgCss, {
             logoBackdrop: doc.logoBackdrop,
           })
         : false,
-    [session.kit.logo?.svgMarkup, activeBgCss, doc.logoBackdrop],
+    [canvasLogo?.record.svgMarkup, activeBgCss, doc.logoBackdrop],
   );
-  const hasLogoSvgFix = hasLogoSvgContrastFix(session.kit.logo);
+  const hasLogoSvgFix = canvasLogo
+    ? hasLogoSvgContrastFix(canvasLogo.record)
+    : false;
   const showContrastOverlay =
     contrastEnabled && contrastPanelOpen && contrastFailingCount > 0;
 
@@ -646,7 +667,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               uploading: session.brandUploading,
               error: session.brandError,
               uploadLogo: session.uploadLogo,
-              removeLogo: session.removeLogo,
+              uploadLogoVariant: session.uploadLogoVariant,
+              removeLogoVariant: session.removeLogoVariant,
               setColor: session.setColor,
               resetColor: session.resetColor,
               applySwatch: session.applySwatch,
@@ -708,7 +730,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         }}
                         logoBackdrop={doc.logoBackdrop}
                         logoInvert={doc.logoInvert}
-                        hasSvgLogo={session.kit.logo?.mime === "image/svg+xml"}
+                        hasSvgLogo={canvasLogo?.record.mime === "image/svg+xml"}
                         canFixLogoSvg={canFixLogoSvg}
                         hasLogoSvgFix={hasLogoSvgFix}
                         onFixLogoBackdrop={() => patchDocument({ logoBackdrop: true })}
@@ -792,9 +814,10 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         headingFont={doc.headingFont}
                         subFont={doc.subFont}
                         accentPeriod={template.accentPeriod}
-                        logoSrc={session.kit.logoSrc}
-                        logoSvgMarkup={session.kit.logo?.svgMarkup ?? null}
-                        hasUploadedLogo={!!session.kit.logo}
+                        logoSrc={canvasLogoSrc}
+                        logoSvgMarkup={canvasLogo?.record.svgMarkup ?? null}
+                        patternLogoSvgMarkup={patternLogoSvgMarkup}
+                        hasUploadedLogo={!!canvasLogo}
                         backgroundPreset={
                           doc.showBackground && session.kit.activeBackgroundPresetId
                             ? session.activeBackground.css
@@ -805,8 +828,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         logoBackdrop={doc.logoBackdrop}
                         logoInvert={doc.logoInvert}
                         logoUsesExplicitColors={
-                          session.kit.logo?.usesExplicitColors ?? false
+                          canvasLogo?.record.usesExplicitColors ?? false
                         }
+                        logoColorMode={canvasLogoColorMode}
                         textColorOverride={textColor}
                         subTextColorOverride={subTextColor}
                         layoutId={doc.layoutId}

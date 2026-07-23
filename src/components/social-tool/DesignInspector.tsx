@@ -12,6 +12,7 @@ import {
   PatternLibraryPicker,
 } from "@/components/social-tool/PatternLibraryPicker";
 import { InspectorSlider } from "@/components/social-tool/InspectorControls";
+import { getMonogramMarkup } from "@/lib/brand/logoVariants";
 import type { UseBrandKitReturn } from "@/lib/brand/useBrandKit";
 import type { UseFeaturedBlockReturn } from "@/lib/social-tool/useFeaturedBlock";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
@@ -34,7 +35,8 @@ type BrandPanelProps = Pick<
   | "uploading"
   | "error"
   | "uploadLogo"
-  | "removeLogo"
+  | "uploadLogoVariant"
+  | "removeLogoVariant"
   | "setColor"
   | "resetColor"
   | "applySwatch"
@@ -164,8 +166,12 @@ function PatternSection({
             onPatternChange={onPatternChange}
             patternTint={patternTint}
             designId={designId}
-            logoSvgMarkup={brand.kit.logo?.svgMarkup ?? null}
-            logoMime={brand.kit.logo?.mime ?? null}
+            logoSvgMarkup={getMonogramMarkup(brand.kit) ?? brand.kit.logo?.svgMarkup ?? null}
+            logoMime={
+              brand.kit.logos?.monogram?.mime ??
+              brand.kit.logo?.mime ??
+              null
+            }
           />
           {!isPatternNone(pattern) ? (
             <>
@@ -272,7 +278,12 @@ function BackgroundSection({
 }
 
 /** Canvas-level controls — always visible once logo onboarding is done */
-function FixedCanvasPanels(props: Props) {
+function FixedCanvasPanels(
+  props: Props & {
+    /** When a canvas element is selected, keep background only to reduce scroll */
+    compact?: boolean;
+  },
+) {
   return (
     <>
       <BackgroundSection
@@ -280,7 +291,7 @@ function FixedCanvasPanels(props: Props) {
         showBackground={props.showBackground}
         onShowBackgroundChange={props.onShowBackgroundChange}
       />
-      <PatternSection {...props} />
+      {props.compact ? null : <PatternSection {...props} />}
     </>
   );
 }
@@ -320,9 +331,9 @@ function BrandInspectorSection(
 function InspectorOverview(props: Props) {
   return (
     <>
-      <BlockPanelsOverview {...props} />
       <BrandInspectorSection {...props} defaultExpanded={false} />
       <FixedCanvasPanels {...props} />
+      <BlockPanelsOverview {...props} />
     </>
   );
 }
@@ -349,8 +360,8 @@ export function DesignInspector(props: Props) {
           onGenerate={props.onBriefGenerate}
           onSkip={props.onBriefSkip}
         />
-        <BlockPanelsOverview {...props} />
         <FixedCanvasPanels {...props} />
+        <BlockPanelsOverview {...props} />
       </>
     );
   }
@@ -379,7 +390,7 @@ export function DesignInspector(props: Props) {
           typeScale={props.typeScale}
           onTypeScaleChange={props.onTypeScaleChange}
         />
-        <FixedCanvasPanels {...props} />
+        <FixedCanvasPanels {...props} compact />
       </>
     );
   }
@@ -388,7 +399,7 @@ export function DesignInspector(props: Props) {
     return (
       <>
         <BrandInspectorSection {...props} defaultExpanded />
-        <FixedCanvasPanels {...props} />
+        <FixedCanvasPanels {...props} compact />
       </>
     );
   }
@@ -412,7 +423,7 @@ export function DesignInspector(props: Props) {
           featuredTransform={props.featuredTransform}
           onFeaturedTransformChange={props.onFeaturedTransformChange}
         />
-        <FixedCanvasPanels {...props} />
+        <FixedCanvasPanels {...props} compact />
       </>
     );
   }

@@ -1,5 +1,10 @@
 import type { BackgroundPreset, BrandColors } from "@/lib/brand/types";
 import {
+  buildHarmonyBackgroundSolids,
+  buildHarmonyGradientSpecs,
+  harmonyGradientCss,
+} from "@/lib/brand/colorHarmony";
+import {
   mixHex,
   relativeLuminance,
   hexToRgb,
@@ -28,98 +33,63 @@ function solidPreset(
   };
 }
 
-export function buildSolidBackgroundPresets(colors: BrandColors): BackgroundPreset[] {
-  const { primary, secondary, accent, neutral } = colors;
-  const deep = withLightness(neutral, 8);
+function gradientPreset(
+  id: string,
+  label: string,
+  background: string,
+  colors: BrandColors,
+  theme: "light" | "dark",
+  overrides?: Partial<BackgroundPreset["css"]>,
+): BackgroundPreset {
+  const textOnBrand = overrides?.textOnBrand ?? (theme === "dark" ? "#f4f4f4" : withLightness(colors.neutral, 18));
+  return {
+    id,
+    label,
+    kind: "gradient",
+    gradientTheme: theme,
+    css: {
+      background,
+      patternTint: overrides?.patternTint ?? colors.primary,
+      footerPatternTint: overrides?.footerPatternTint ?? colors.accent,
+      textOnBrand,
+      accentDot: overrides?.accentDot ?? colors.accent,
+      subText: overrides?.subText ?? mixTextSecondary(textOnBrand),
+    },
+  };
+}
 
-  return [
-    solidPreset("solid-primary", "Primary", primary, colors),
-    solidPreset("solid-secondary", "Secondary", secondary, colors),
-    solidPreset("solid-accent", "Accent", accent, colors),
-    solidPreset("solid-neutral", "Neutral", neutral, colors),
-    solidPreset("solid-white", "White", "#ffffff", colors),
-    solidPreset("solid-light", "Light", "#f8faf9", colors),
-    solidPreset("solid-muted", "Muted", mixHex("#ffffff", primary, 0.14), colors),
-    solidPreset("solid-dark", "Dark", deep, colors),
-  ];
+export function buildSolidBackgroundPresets(colors: BrandColors): BackgroundPreset[] {
+  return buildHarmonyBackgroundSolids(colors, 12).map((candidate) =>
+    solidPreset(candidate.id, candidate.label, candidate.hex, colors),
+  );
 }
 
 export function buildGradientBackgroundPresets(colors: BrandColors): BackgroundPreset[] {
-  const { primary, secondary, accent, neutral } = colors;
-  const deep = withLightness(neutral, 8);
-  const soft = mixHex("#ffffff", primary, 0.12);
-  const ink = withLightness(neutral, 6);
+  const harmonyGradients = buildHarmonyGradientSpecs(colors).map((spec) =>
+    gradientPreset(
+      spec.id,
+      spec.label,
+      harmonyGradientCss(spec),
+      colors,
+      spec.theme,
+      spec.theme === "light"
+        ? {
+            patternTint: withLightness(colors.primary, 38),
+            footerPatternTint: colors.secondary,
+            accentDot: colors.primary,
+            subText: "rgba(15,24,22,0.62)",
+          }
+        : undefined,
+    ),
+  );
 
   return [
-    {
-      id: "brand-hero",
-      label: "Brand hero",
-      kind: "gradient",
-      css: {
-        background: `linear-gradient(145deg, ${withLightness(secondary, 18)} 0%, ${deep} 55%, ${ink} 100%)`,
-        patternTint: primary,
-        footerPatternTint: accent,
-        textOnBrand: "#f4f4f4",
-        accentDot: accent,
-        subText: "rgba(255,255,255,0.72)",
-      },
-    },
-    {
-      id: "soft-wash",
-      label: "Soft wash",
-      kind: "gradient",
-      css: {
-        background: `linear-gradient(180deg, ${soft} 0%, #ffffff 100%)`,
-        patternTint: primary,
-        footerPatternTint: secondary,
-        textOnBrand: withLightness(neutral, 16),
-        accentDot: primary,
-        subText: "rgba(10,27,37,0.65)",
-      },
-    },
-    {
-      id: "complementary",
-      label: "Complement pop",
-      kind: "gradient",
-      css: {
-        background: `linear-gradient(135deg, ${withLightness(primary, 20)} 0%, ${withLightness(accent, 28)} 100%)`,
-        patternTint: accent,
-        footerPatternTint: primary,
-        textOnBrand: "#f4f4f4",
-        accentDot: accent,
-        subText: "rgba(255,255,255,0.75)",
-      },
-    },
-    {
-      id: "dark-ink",
-      label: "Dark ink",
-      kind: "gradient",
-      css: {
-        background: `linear-gradient(160deg, ${ink} 0%, ${withLightness(neutral, 14)} 100%)`,
-        patternTint: primary,
-        footerPatternTint: accent,
-        textOnBrand: "#eef6f2",
-        accentDot: accent,
-        subText: "rgba(255,255,255,0.68)",
-      },
-    },
-    {
-      id: "light-editorial",
-      label: "Light editorial",
-      kind: "gradient",
-      css: {
-        background: `linear-gradient(180deg, #f8faf9 0%, ${mixHex("#ffffff", secondary, 0.08)} 100%)`,
-        patternTint: withLightness(primary, 38),
-        footerPatternTint: secondary,
-        textOnBrand: withLightness(neutral, 18),
-        accentDot: primary,
-        subText: "rgba(15,24,22,0.62)",
-      },
-    },
+    ...harmonyGradients,
     {
       id: "default",
       label: "Postforge default",
       kind: "gradient",
+      gradientTheme: "dark",
       css: {
         background: "var(--gradient-hero)",
         patternTint: "#4BB793",

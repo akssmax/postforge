@@ -57,6 +57,36 @@ function GradientSwatch({
   );
 }
 
+function GradientGroup({
+  heading,
+  presets,
+  activeBackground,
+  onSelectPreset,
+}: {
+  heading: string;
+  presets: BackgroundPreset[];
+  activeBackground: BackgroundPreset;
+  onSelectPreset: (preset: BackgroundPreset) => void;
+}) {
+  if (presets.length === 0) return null;
+
+  return (
+    <div className="brand-bg-popover-section">
+      <p className="brand-bg-popover-subheading">{heading}</p>
+      <div className="brand-bg-gradient-grid">
+        {presets.map((preset) => (
+          <GradientSwatch
+            key={preset.id}
+            preset={preset}
+            active={activeBackground.id === preset.id}
+            onSelect={() => onSelectPreset(preset)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function BrandBackgroundPicker({
   activeBackground,
   solidPresets,
@@ -66,6 +96,11 @@ export function BrandBackgroundPicker({
   const selectPreset = (preset: BackgroundPreset) => {
     onSelect(preset.id === "default" ? null : preset.id);
   };
+
+  const lightGradients = gradientPresets.filter((preset) => preset.gradientTheme === "light");
+  const darkGradients = gradientPresets.filter(
+    (preset) => preset.gradientTheme === "dark" || preset.gradientTheme == null,
+  );
 
   return (
     <Popover>
@@ -99,16 +134,18 @@ export function BrandBackgroundPicker({
 
           <div className="brand-bg-popover-section">
             <p className="brand-bg-popover-heading">Gradient</p>
-            <div className="brand-bg-gradient-grid">
-              {gradientPresets.map((preset) => (
-                <GradientSwatch
-                  key={preset.id}
-                  preset={preset}
-                  active={activeBackground.id === preset.id}
-                  onSelect={() => selectPreset(preset)}
-                />
-              ))}
-            </div>
+            <GradientGroup
+              heading="Light"
+              presets={lightGradients}
+              activeBackground={activeBackground}
+              onSelectPreset={selectPreset}
+            />
+            <GradientGroup
+              heading="Dark"
+              presets={darkGradients}
+              activeBackground={activeBackground}
+              onSelectPreset={selectPreset}
+            />
           </div>
         </Popover.Dialog>
       </Popover.Content>

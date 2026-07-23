@@ -1,4 +1,5 @@
 import { defaultKit } from "@/lib/brand/storage";
+import { normalizeBrandKit } from "@/lib/brand/logoVariants";
 import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
 import {
   DEFAULT_POST_LAYOUT_SPACING,
@@ -121,11 +122,7 @@ export function loadDesignSession(designId: string): DesignSessionPersisted {
     return {
       designId,
       updatedAt: parsed.updatedAt ?? Date.now(),
-      brand: {
-        logo: parsed.brand?.logo ?? null,
-        colors: { ...defaultKit().colors, ...parsed.brand?.colors },
-        activeBackgroundPresetId: parsed.brand?.activeBackgroundPresetId ?? null,
-      },
+      brand: normalizeBrandKit(parsed.brand),
       featured: {
         mode: parsed.featured?.mode === "image" ? "image" : "genui",
         productPage: normalizeProductPage(parsed.featured?.productPage),

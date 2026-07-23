@@ -9,6 +9,7 @@ type Props = {
   height: number;
   invert?: boolean;
   usesExplicitColors?: boolean;
+  colorMode?: "light" | "dark" | "inherit";
 };
 
 export function BrandLogoSlot({
@@ -18,6 +19,7 @@ export function BrandLogoSlot({
   height,
   invert = false,
   usesExplicitColors = false,
+  colorMode = "inherit",
 }: Props) {
   if (!hasLogo) {
     return (
@@ -29,9 +31,17 @@ export function BrandLogoSlot({
   }
 
   if (svgMarkup) {
+    const tintClass =
+      colorMode === "dark"
+        ? " brand-logo-inline--mono-dark"
+        : colorMode === "light"
+          ? " brand-logo-inline--mono-light"
+          : usesExplicitColors
+            ? ""
+            : " text-white";
     return (
       <div
-        className={`brand-logo-inline${usesExplicitColors ? "" : " text-white"}${invert ? " brand-logo-invert" : ""}`}
+        className={`brand-logo-inline${tintClass}${invert ? " brand-logo-invert" : ""}`}
         style={{ height }}
         role="img"
         aria-label="Brand logo"

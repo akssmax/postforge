@@ -101,7 +101,9 @@ type Props = {
   accentPeriod?: boolean;
   logoSrc?: string | null;
   logoSvgMarkup?: string | null;
+  patternLogoSvgMarkup?: string | null;
   hasUploadedLogo?: boolean;
+  logoColorMode?: "light" | "dark" | "inherit";
   backgroundPreset?: BackgroundPreset["css"];
   designMode?: boolean;
   onSelectBlock?: (id: DesignBlockId | null) => void;
@@ -201,6 +203,8 @@ export function ProductShotPost({
   accentPeriod = true,
   logoSrc = null,
   logoSvgMarkup = null,
+  patternLogoSvgMarkup = null,
+  logoColorMode = "inherit",
   hasUploadedLogo = false,
   backgroundPreset,
   designMode = false,
@@ -463,6 +467,7 @@ export function ProductShotPost({
         height={logoH}
         invert={logoInvert}
         usesExplicitColors={logoUsesExplicitColors}
+        colorMode={logoColorMode}
       />
     </div>
   ) : null;
@@ -846,7 +851,7 @@ export function ProductShotPost({
         <PostPattern
           pattern={pattern}
           designId={designId}
-          logoSvgMarkup={logoSvgMarkup}
+          logoSvgMarkup={patternLogoSvgMarkup ?? logoSvgMarkup}
           theme="dark"
           opacity={patternOpacity}
           scale={patternScale}

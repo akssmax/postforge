@@ -5,7 +5,12 @@ import {
   DEFAULT_BRAND_COLORS,
   type BrandKitPersisted,
   type BrandLogoRecord,
+  type BrandLogoVariant,
 } from "@/lib/brand/types";
+import {
+  BRAND_LOGO_VARIANTS,
+  normalizeBrandKit,
+} from "@/lib/brand/logoVariants";
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -66,12 +71,8 @@ export function loadBrandKitPersisted(storageScope?: string): BrandKitPersisted 
   try {
     const raw = localStorage.getItem(brandKitStorageKey(storageScope));
     if (!raw) return defaultKit();
-    const parsed = JSON.parse(raw) as BrandKitPersisted;
-    return {
-      logo: parsed.logo ?? null,
-      colors: { ...DEFAULT_BRAND_COLORS, ...parsed.colors },
-      activeBackgroundPresetId: parsed.activeBackgroundPresetId ?? null,
-    };
+    const parsed = JSON.parse(raw) as Partial<BrandKitPersisted>;
+    return normalizeBrandKit(parsed);
   } catch {
     return defaultKit();
   }
@@ -82,15 +83,19 @@ export function saveBrandKitPersisted(
   storageScope?: string,
 ): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(brandKitStorageKey(storageScope), JSON.stringify(kit));
+  localStorage.setItem(
+    brandKitStorageKey(storageScope),
+    JSON.stringify(normalizeBrandKit(kit)),
+  );
 }
 
 export function defaultKit(): BrandKitPersisted {
-  return {
+  return normalizeBrandKit({
     logo: null,
+    logos: {},
     colors: { ...DEFAULT_BRAND_COLORS },
     activeBackgroundPresetId: null,
-  };
+  });
 }
 
 export function createLogoRecord(
@@ -119,6 +124,16 @@ export function createLogoRecord(
   };
 }
 
+export function logoBlobKey(
+  variant: BrandLogoVariant,
+  storageScope?: string,
+): string {
+  const stamp = Date.now();
+  return storageScope
+    ? `${storageScope}:logo:${variant}:${stamp}`
+    : `logo:${variant}:${stamp}`;
+}
+
 export async function resolveLogoSrc(
   logo: BrandLogoRecord | null,
 ): Promise<string | null> {
@@ -132,4 +147,17 @@ export async function resolveLogoSrc(
     return URL.createObjectURL(blob);
   }
   return null;
+}
+
+export async function hydrateAllLogoSrcs(
+  kit: BrandKitPersisted,
+): Promise<Partial<Record<BrandLogoVariant, string | null>>> {
+  const out: Partial<Record<BrandLogoVariant, string | null>> = {};
+  await Promise.all(
+    BRAND_LOGO_VARIANTS.map(async (variant) => {
+      const record = kit.logos?.[variant] ?? (variant === "primary" ? kit.logo : null);
+      out[variant] = record ? await resolveLogoSrc(record) : null;
+    }),
+  );
+  return out;
 }

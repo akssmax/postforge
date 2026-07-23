@@ -1,18 +1,16 @@
 "use client";
 
-import { useRef } from "react";
 import {
   AlignCenter,
   AlignLeft,
   AlignRight,
   ChevronDown,
-  ImagePlus,
   PanelBottom,
   PanelTop,
-  Trash2,
 } from "lucide-react";
-import { Button, Disclosure, Switch } from "@heroui/react";
+import { Disclosure, Switch } from "@heroui/react";
 import { BrandColorPicker } from "@/components/social-tool/BrandColorPicker";
+import { BrandLogoKitGrid } from "@/components/social-tool/BrandLogoKitGrid";
 import {
   InspectorSegment,
   InspectorSlider,
@@ -37,8 +35,8 @@ type Props = Pick<
   | "kit"
   | "uploading"
   | "error"
-  | "uploadLogo"
-  | "removeLogo"
+  | "uploadLogoVariant"
+  | "removeLogoVariant"
   | "setColor"
   | "resetColor"
   | "applySwatch"
@@ -66,8 +64,8 @@ export function BrandPanel({
   kit,
   uploading,
   error,
-  uploadLogo,
-  removeLogo,
+  uploadLogoVariant,
+  removeLogoVariant,
   setColor,
   resetColor,
   applySwatch,
@@ -82,9 +80,6 @@ export function BrandPanel({
   onLogoAlignChange,
   defaultExpanded = false,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const hasSvgLogo = kit.logo?.mime === "image/svg+xml";
-
   return (
     <section className="social-tool-section brand-panel">
       <Disclosure
@@ -123,77 +118,18 @@ export function BrandPanel({
           <Disclosure.Body className="brand-panel-disclosure-body">
             {showBrand ? (
               <>
-                <p className="text-[11px] leading-4 text-text-tertiary">
-                  Upload SVG or PNG. SVG unlocks live contrast checks on the canvas.
-                </p>
-
-                <div className="brand-upload-card">
-            <div className="brand-upload-preview">
-              {kit.logo ? (
-                kit.logo.svgMarkup ? (
-                  <div
-                    className="brand-upload-thumb brand-logo-inline"
-                    dangerouslySetInnerHTML={{ __html: kit.logo.svgMarkup }}
-                  />
-                ) : kit.logoSrc ? (
-                  <div className="brand-upload-thumb">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={kit.logoSrc} alt="" className="brand-upload-thumb-img" />
-                  </div>
-                ) : (
-                  <div className="brand-logo-placeholder brand-upload-thumb-empty" />
-                )
-              ) : (
-                <div className="brand-logo-placeholder brand-upload-thumb-empty" />
-              )}
-            </div>
-            <div className="brand-upload-meta">
-              <p className="text-sm font-medium text-text-primary">
-                {kit.logo ? kit.logo.fileName : "No logo yet"}
-              </p>
-              <p className="text-xs text-text-tertiary">
-                {hasSvgLogo
-                  ? "Contrast checks enabled"
-                  : kit.logo
-                    ? "Upload SVG for contrast checks"
-                    : "Placeholder shows on canvas until upload"}
-              </p>
-              <div className="brand-upload-actions">
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept=".svg,.png,image/svg+xml,image/png"
-                  className="sr-only"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void uploadLogo(file);
-                    e.target.value = "";
-                  }}
+                <BrandLogoKitGrid
+                  kit={kit}
+                  uploading={uploading}
+                  uploadLogoVariant={uploadLogoVariant}
+                  removeLogoVariant={removeLogoVariant}
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  isDisabled={uploading}
-                  onPress={() => inputRef.current?.click()}
-                >
-                  <ImagePlus className="size-4" />
-                  {kit.logo ? "Replace" : "Upload"}
-                </Button>
-                {kit.logo ? (
-                  <Button variant="outline" size="sm" onPress={() => void removeLogo()}>
-                    <Trash2 className="size-3.5" />
-                    Remove
-                  </Button>
+
+                {error ? (
+                  <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
                 ) : null}
-              </div>
-            </div>
-          </div>
 
-          {error ? (
-            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
-          ) : null}
-
-          <div className="brand-panel-block">
+                <div className="brand-panel-block">
             <p className="social-tool-label !mb-3">Logo</p>
             <div className="space-y-3">
               <InspectorSlider

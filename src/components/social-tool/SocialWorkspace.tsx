@@ -78,6 +78,12 @@ import {
   canFixLogoSvgContrast,
   hasLogoSvgContrastFix,
 } from "@/lib/brand/logoContrastFix";
+import {
+  getMonogramMarkup,
+  kitHasAnyLogo,
+  logoVariantColorMode,
+  resolveCanvasLogo,
+} from "@/lib/brand/logoVariants";
 import "./social-tool.css";
 
 type Props = {
@@ -135,7 +141,7 @@ function ToolSocialWorkspace() {
   const brand = useBrandKit();
   const toolThemeRef = useBrandToolTheme({
     colors: brand.kit.colors,
-    active: !!brand.kit.logo,
+    active: kitHasAnyLogo(brand.kit),
   });
   const featured = useFeaturedBlock();
 
@@ -342,6 +348,19 @@ function ToolSocialWorkspace() {
 
   const activeBgCss = brand.activeBackground.css.background;
   const bgHex = resolveBackgroundHex(activeBgCss);
+  const canvasLogo = useMemo(
+    () => resolveCanvasLogo(brand.kit, activeBgCss),
+    [brand.kit, activeBgCss],
+  );
+  const canvasLogoSrc = canvasLogo
+    ? (brand.kit.logoSrcs?.[canvasLogo.variant] ??
+      (canvasLogo.variant === "primary" ? brand.kit.logoSrc : null))
+    : null;
+  const canvasLogoColorMode = canvasLogo
+    ? logoVariantColorMode(canvasLogo.variant, canvasLogo.record)
+    : "inherit";
+  const patternLogoSvgMarkup =
+    getMonogramMarkup(brand.kit) ?? canvasLogo?.record.svgMarkup ?? null;
   const textColor =
     showBrand && (brand.kit.activeBackgroundPresetId || textContrastBoost)
       ? textContrastBoost
@@ -356,13 +375,13 @@ function ToolSocialWorkspace() {
       : undefined;
 
   const contrastEnabled =
-    showBrand && !!brand.kit.logo && !exporting;
+    showBrand && !!canvasLogo && !exporting;
   const contrastResults = useMemo(
     () =>
       evaluateCanvasContrast({
         enabled: contrastEnabled,
         backgroundCss: activeBgCss,
-        logoSvgMarkup: brand.kit.logo?.svgMarkup,
+        logoSvgMarkup: canvasLogo?.record.svgMarkup,
         showLogo: showBrand,
         textColor: textColor ?? brand.activeBackground.css.textOnBrand,
         subTextColor: subTextColor ?? brand.activeBackground.css.subText,
@@ -372,7 +391,7 @@ function ToolSocialWorkspace() {
     [
       contrastEnabled,
       activeBgCss,
-      brand.kit.logo?.svgMarkup,
+      canvasLogo?.record.svgMarkup,
       showBrand,
       textColor,
       subTextColor,
@@ -386,14 +405,16 @@ function ToolSocialWorkspace() {
   const contrastFailingCount = contrastResults.filter((r) => !r.passes).length;
   const canFixLogoSvg = useMemo(
     () =>
-      brand.kit.logo?.svgMarkup
-        ? canFixLogoSvgContrast(brand.kit.logo.svgMarkup, activeBgCss, {
+      canvasLogo?.record.svgMarkup
+        ? canFixLogoSvgContrast(canvasLogo.record.svgMarkup, activeBgCss, {
             logoBackdrop,
           })
         : false,
-    [brand.kit.logo?.svgMarkup, activeBgCss, logoBackdrop],
+    [canvasLogo?.record.svgMarkup, activeBgCss, logoBackdrop],
   );
-  const hasLogoSvgFix = hasLogoSvgContrastFix(brand.kit.logo);
+  const hasLogoSvgFix = canvasLogo
+    ? hasLogoSvgContrastFix(canvasLogo.record)
+    : false;
   const showContrastOverlay =
     contrastEnabled && contrastPanelOpen && contrastFailingCount > 0;
 
@@ -656,7 +677,8 @@ function ToolSocialWorkspace() {
               uploading: brand.uploading,
               error: brand.error,
               uploadLogo: brand.uploadLogo,
-              removeLogo: brand.removeLogo,
+              uploadLogoVariant: brand.uploadLogoVariant,
+              removeLogoVariant: brand.removeLogoVariant,
               setColor: brand.setColor,
               resetColor: brand.resetColor,
               applySwatch: brand.applySwatch,
@@ -718,7 +740,7 @@ function ToolSocialWorkspace() {
                       }}
                       logoBackdrop={logoBackdrop}
                       logoInvert={logoInvert}
-                      hasSvgLogo={brand.kit.logo?.mime === "image/svg+xml"}
+                      hasSvgLogo={canvasLogo?.record.mime === "image/svg+xml"}
                       canFixLogoSvg={canFixLogoSvg}
                       hasLogoSvgFix={hasLogoSvgFix}
                       onFixLogoBackdrop={() => setLogoBackdrop(true)}
@@ -795,9 +817,10 @@ function ToolSocialWorkspace() {
                   headingFont={headingFont}
                   subFont={subFont}
                   accentPeriod={template.accentPeriod}
-                  logoSrc={brand.kit.logoSrc}
-                  logoSvgMarkup={brand.kit.logo?.svgMarkup ?? null}
-                  hasUploadedLogo={!!brand.kit.logo}
+                  logoSrc={canvasLogoSrc}
+                  logoSvgMarkup={canvasLogo?.record.svgMarkup ?? null}
+                  patternLogoSvgMarkup={patternLogoSvgMarkup}
+                  hasUploadedLogo={!!canvasLogo}
                   backgroundPreset={
                     showBackground && brand.kit.activeBackgroundPresetId
                       ? brand.activeBackground.css
@@ -807,7 +830,10 @@ function ToolSocialWorkspace() {
                   onSelectBlock={setSelectedBlock}
                   logoBackdrop={logoBackdrop}
                   logoInvert={logoInvert}
-                  logoUsesExplicitColors={brand.kit.logo?.usesExplicitColors ?? false}
+                  logoUsesExplicitColors={
+                    canvasLogo?.record.usesExplicitColors ?? false
+                  }
+                  logoColorMode={canvasLogoColorMode}
                   textColorOverride={textColor}
                   subTextColorOverride={subTextColor}
                   layoutId={layoutId}

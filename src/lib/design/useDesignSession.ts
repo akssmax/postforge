@@ -21,16 +21,28 @@ import {
 import { resolveLayoutHierarchy } from "@/lib/social-tool/layoutHierarchy";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { getPlatform } from "@/lib/social-tool/presets";
+import {
+  getLogoRecord,
+  kitHasAnyLogo,
+  setLogoInKit,
+  syncPrimaryAlias,
+} from "@/lib/brand/logoVariants";
 import { parseLogoFile } from "@/lib/brand/parseLogoFile";
 import {
   createLogoRecord,
   defaultKit,
   deleteLogoBlob,
-  loadLogoBlob,
+  hydrateAllLogoSrcs,
+  logoBlobKey,
   resolveLogoSrc,
   saveLogoBlob,
 } from "@/lib/brand/storage";
-import type { BrandColors, BrandKitPersisted, BrandKitRuntime } from "@/lib/brand/types";
+import type {
+  BrandColors,
+  BrandKitPersisted,
+  BrandKitRuntime,
+  BrandLogoVariant,
+} from "@/lib/brand/types";
 import {
   createBlankSession,
   loadDesignSession,
@@ -80,7 +92,9 @@ export type UseDesignSessionResult = {
   patchDocument: (partial: Partial<DesignDocument>) => void;
   setPlatformId: (platformId: PlatformId) => void;
   uploadLogo: (file: File) => Promise<void>;
+  uploadLogoVariant: (variant: BrandLogoVariant, file: File) => Promise<void>;
   removeLogo: () => Promise<void>;
+  removeLogoVariant: (variant: BrandLogoVariant) => Promise<void>;
   fixLogoSvgContrast: (backgroundCss: string, logoBackdrop: boolean) => void;
   restoreLogoSvg: () => void;
   setColor: (role: keyof BrandColors, hex: string) => void;
@@ -100,20 +114,23 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
   const [session, setSession] = useState<DesignSessionPersisted | null>(null);
   const [ready, setReady] = useState(false);
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
+  const [logoSrcs, setLogoSrcs] = useState<
+    Partial<Record<BrandLogoVariant, string | null>>
+  >({});
   const [featuredImageSrc, setFeaturedImageSrc] = useState<string | null>(null);
   const [brandUploading, setBrandUploading] = useState(false);
   const [brandError, setBrandError] = useState<string | null>(null);
   const [featuredUploading, setFeaturedUploading] = useState(false);
   const [featuredError, setFeaturedError] = useState<string | null>(null);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const logoBlobUrlRef = useRef<string | null>(null);
   const featuredBlobUrlRef = useRef<string | null>(null);
+  const logoBlobUrlsRef = useRef<string[]>([]);
 
   const revokeLogoBlob = useCallback(() => {
-    if (logoBlobUrlRef.current?.startsWith("blob:")) {
-      URL.revokeObjectURL(logoBlobUrlRef.current);
+    for (const url of logoBlobUrlsRef.current) {
+      if (url.startsWith("blob:")) URL.revokeObjectURL(url);
     }
-    logoBlobUrlRef.current = null;
+    logoBlobUrlsRef.current = [];
   }, []);
 
   const revokeFeaturedBlob = useCallback(() => {
@@ -123,18 +140,26 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
     featuredBlobUrlRef.current = null;
   }, []);
 
+  const hydrateBrandLogos = useCallback(
+    async (brand: BrandKitPersisted) => {
+      revokeLogoBlob();
+      const srcs = await hydrateAllLogoSrcs(brand);
+      logoBlobUrlsRef.current = Object.values(srcs).filter(
+        (src): src is string => !!src?.startsWith("blob:"),
+      );
+      setLogoSrcs(srcs);
+      setLogoSrc(srcs.primary ?? null);
+    },
+    [revokeLogoBlob],
+  );
+
   useEffect(() => {
     let cancelled = false;
 
     async function init() {
       const loaded = loadDesignSession(designId);
       const next = loaded ?? createBlankSession(designId);
-
-      let resolvedLogo: string | null = null;
-      if (next.brand.logo) {
-        resolvedLogo = await resolveLogoSrc(next.brand.logo);
-        if (resolvedLogo?.startsWith("blob:")) logoBlobUrlRef.current = resolvedLogo;
-      }
+      const srcs = await hydrateAllLogoSrcs(next.brand);
 
       let resolvedFeatured: string | null = null;
       if (next.featured.image) {
@@ -146,8 +171,12 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
 
       if (cancelled) return;
 
+      logoBlobUrlsRef.current = Object.values(srcs).filter(
+        (src): src is string => !!src?.startsWith("blob:"),
+      );
       setSession(next);
-      setLogoSrc(resolvedLogo);
+      setLogoSrcs(srcs);
+      setLogoSrc(srcs.primary ?? null);
       setFeaturedImageSrc(resolvedFeatured);
       setReady(true);
     }
@@ -229,61 +258,55 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
     });
   }, [patchDocument]);
 
-  const uploadLogo = useCallback(
-    async (file: File) => {
+  const uploadLogoVariant = useCallback(
+    async (variant: BrandLogoVariant, file: File) => {
       setBrandUploading(true);
       setBrandError(null);
       try {
         const parsed = await parseLogoFile(file);
-        const recordBase = createLogoRecord(parsed, file.name);
-        const record =
-          parsed.kind === "png"
-            ? {
-                ...recordBase,
-                blobKey: scopedBlobKey(designId, "logo", recordBase.id),
-              }
-            : recordBase;
-
-        const prevLogo = session?.brand.logo;
-        if (prevLogo?.blobKey) await deleteLogoBlob(prevLogo.blobKey);
+        const record = createLogoRecord(parsed, file.name, {
+          blobKey:
+            parsed.kind === "png" ? logoBlobKey(variant, designId) : undefined,
+        });
+        const brand = session?.brand ?? defaultKit();
+        const previous = getLogoRecord(brand, variant);
+        if (previous?.blobKey) await deleteLogoBlob(previous.blobKey);
 
         if (parsed.kind === "png" && record.blobKey) {
           await saveLogoBlob(record.blobKey, parsed.blob);
         }
 
-        const colors =
+        const extractedColors =
           parsed.kind === "svg"
             ? extractColorsFromSvgMarkup(parsed.svgMarkup)
             : await extractColorsFromImageBlob(parsed.blob);
 
-        revokeLogoBlob();
-        const src = await resolveLogoSrc(record);
-        if (src?.startsWith("blob:")) logoBlobUrlRef.current = src;
-        setLogoSrc(src);
+        let nextBrand = syncPrimaryAlias(setLogoInKit(brand, variant, record));
+        if (variant === "primary" || !getLogoRecord(brand, "primary")) {
+          nextBrand = {
+            ...nextBrand,
+            colors: extractedColors,
+            activeBackgroundPresetId:
+              nextBrand.activeBackgroundPresetId ?? "brand-hero",
+          };
+        }
+
+        await hydrateBrandLogos(nextBrand);
 
         updateSession((prev) => {
           const enteringBrief =
-            prev.document.onboarding.phase === "needsLogo";
+            prev.document.onboarding.phase === "needsLogo" && variant === "primary";
           const nextPhase: DesignOnboardingPhase = enteringBrief
             ? "needsBrief"
             : prev.document.onboarding.phase;
 
           return {
             ...prev,
-            brand: {
-              ...prev.brand,
-              logo: record,
-              colors,
-              activeBackgroundPresetId: "brand-hero",
-            },
+            brand: nextBrand,
             document: {
               ...prev.document,
               showBrand: true,
-              ...(enteringBrief
-                ? {
-                    showContent: true,
-                  }
-                : {}),
+              ...(enteringBrief ? { showContent: true } : {}),
               onboarding: { ...prev.document.onboarding, phase: nextPhase },
             },
             updatedAt: Date.now(),
@@ -295,29 +318,48 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
         setBrandUploading(false);
       }
     },
-    [designId, revokeLogoBlob, session?.brand.logo, updateSession],
+    [designId, hydrateBrandLogos, session?.brand, updateSession],
+  );
+
+  const uploadLogo = useCallback(
+    async (file: File) => {
+      await uploadLogoVariant("primary", file);
+    },
+    [uploadLogoVariant],
+  );
+
+  const removeLogoVariant = useCallback(
+    async (variant: BrandLogoVariant) => {
+      const brand = session?.brand;
+      if (!brand) return;
+      const previous = getLogoRecord(brand, variant);
+      if (previous?.blobKey) await deleteLogoBlob(previous.blobKey);
+      const nextBrand = syncPrimaryAlias(setLogoInKit(brand, variant, null));
+      await hydrateBrandLogos(nextBrand);
+      updateSession((prev) => ({
+        ...prev,
+        brand: nextBrand,
+        document: {
+          ...prev.document,
+          onboarding: kitHasAnyLogo(nextBrand)
+            ? prev.document.onboarding
+            : { ...prev.document.onboarding, phase: "needsLogo" },
+        },
+        updatedAt: Date.now(),
+      }));
+    },
+    [hydrateBrandLogos, session?.brand, updateSession],
   );
 
   const removeLogo = useCallback(async () => {
-    const logo = session?.brand.logo;
-    if (logo?.blobKey) await deleteLogoBlob(logo.blobKey);
-    revokeLogoBlob();
-    setLogoSrc(null);
-    updateSession((prev) => ({
-      ...prev,
-      brand: { ...prev.brand, logo: null },
-      document: {
-        ...prev.document,
-        onboarding: { ...prev.document.onboarding, phase: "needsLogo" },
-      },
-      updatedAt: Date.now(),
-    }));
-  }, [revokeLogoBlob, session?.brand.logo, updateSession]);
+    await removeLogoVariant("primary");
+  }, [removeLogoVariant]);
 
   const fixLogoSvgContrast = useCallback(
-    (backgroundCss: string, logoBackdrop: boolean) => {
-      const logo = session?.brand.logo;
-      if (!logo?.svgMarkup) return;
+    (backgroundCss: string, logoBackdrop: boolean, variant: BrandLogoVariant = "primary") => {
+      const brand = session?.brand;
+      const logo = brand ? getLogoRecord(brand, variant) : null;
+      if (!logo?.svgMarkup || !brand) return;
       const base = withLogoSvgOriginal(logo);
       const source = base.svgMarkupOriginal ?? base.svgMarkup;
       if (!source) return;
@@ -327,18 +369,20 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
         { logoBackdrop },
       );
       if (fixes.length === 0) return;
-      const colors = extractColorsFromSvgMarkup(markup);
+      let nextBrand = syncPrimaryAlias(
+        setLogoInKit(brand, variant, {
+          ...base,
+          svgMarkup: markup,
+          usesExplicitColors,
+        }),
+      );
+      if (variant === "primary") {
+        nextBrand = { ...nextBrand, colors: extractColorsFromSvgMarkup(markup) };
+      }
+      void hydrateBrandLogos(nextBrand);
       updateSession((prev) => ({
         ...prev,
-        brand: {
-          ...prev.brand,
-          logo: {
-            ...base,
-            svgMarkup: markup,
-            usesExplicitColors,
-          },
-          colors,
-        },
+        brand: nextBrand,
         document: {
           ...prev.document,
           logoInvert: false,
@@ -346,30 +390,35 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
         updatedAt: Date.now(),
       }));
     },
-    [session?.brand.logo, updateSession],
+    [hydrateBrandLogos, session?.brand, updateSession],
   );
 
-  const restoreLogoSvg = useCallback(() => {
-    const logo = session?.brand.logo;
-    if (!logo?.svgMarkupOriginal) return;
-    const restored = restoreLogoSvgOriginal(logo);
-    const colors = restored.svgMarkup
-      ? extractColorsFromSvgMarkup(restored.svgMarkup)
-      : (session?.brand.colors ?? defaultKit().colors);
-    updateSession((prev) => ({
-      ...prev,
-      brand: {
-        ...prev.brand,
-        logo: restored,
-        colors,
-      },
-      document: {
-        ...prev.document,
-        logoInvert: false,
-      },
-      updatedAt: Date.now(),
-    }));
-  }, [session?.brand.colors, session?.brand.logo, updateSession]);
+  const restoreLogoSvg = useCallback(
+    (variant: BrandLogoVariant = "primary") => {
+      const brand = session?.brand;
+      const logo = brand ? getLogoRecord(brand, variant) : null;
+      if (!logo?.svgMarkupOriginal || !brand) return;
+      const restored = restoreLogoSvgOriginal(logo);
+      let nextBrand = syncPrimaryAlias(setLogoInKit(brand, variant, restored));
+      if (variant === "primary" && restored.svgMarkup) {
+        nextBrand = {
+          ...nextBrand,
+          colors: extractColorsFromSvgMarkup(restored.svgMarkup),
+        };
+      }
+      void hydrateBrandLogos(nextBrand);
+      updateSession((prev) => ({
+        ...prev,
+        brand: nextBrand,
+        document: {
+          ...prev.document,
+          logoInvert: false,
+        },
+        updatedAt: Date.now(),
+      }));
+    },
+    [hydrateBrandLogos, session?.brand, updateSession],
+  );
 
   const setColor = useCallback(
     (role: keyof BrandColors, hex: string) => {
@@ -593,8 +642,8 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
   );
 
   const kit: BrandKitRuntime = useMemo(
-    () => ({ ...brand, logoSrc }),
-    [brand, logoSrc],
+    () => ({ ...brand, logoSrc, logoSrcs }),
+    [brand, logoSrc, logoSrcs],
   );
 
   return useMemo(
@@ -618,7 +667,9 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       patchDocument,
       setPlatformId,
       uploadLogo,
+      uploadLogoVariant,
       removeLogo,
+      removeLogoVariant,
       fixLogoSvgContrast,
       restoreLogoSvg,
       setColor,
@@ -652,7 +703,9 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
       patchDocument,
       setPlatformId,
       uploadLogo,
+      uploadLogoVariant,
       removeLogo,
+      removeLogoVariant,
       fixLogoSvgContrast,
       restoreLogoSvg,
       setColor,

@@ -1,5 +1,9 @@
 export type BrandLogoMime = "image/svg+xml" | "image/png";
 
+export type BrandLogoVariant = "primary" | "onLight" | "onDark" | "monogram";
+
+export type BrandLogoSet = Partial<Record<BrandLogoVariant, BrandLogoRecord>>;
+
 export type BrandLogoRecord = {
   id: string;
   mime: BrandLogoMime;
@@ -30,6 +34,8 @@ export type BackgroundPreset = {
   id: string;
   label: string;
   kind: BackgroundPresetKind;
+  /** Light/dark grouping for gradient swatches in the background picker */
+  gradientTheme?: "light" | "dark";
   css: {
     background: string;
     patternTint: string;
@@ -42,14 +48,17 @@ export type BackgroundPreset = {
 
 /** Serializable kit stored in localStorage */
 export type BrandKitPersisted = {
+  /** Primary logo alias — mirrors logos.primary */
   logo: BrandLogoRecord | null;
+  logos: BrandLogoSet;
   colors: BrandColors;
   activeBackgroundPresetId: string | null;
 };
 
-/** Runtime kit with resolved logo URL for canvas */
+/** Runtime kit with resolved logo URLs for canvas */
 export type BrandKitRuntime = BrandKitPersisted & {
   logoSrc: string | null;
+  logoSrcs: Partial<Record<BrandLogoVariant, string | null>>;
 };
 
 export const DEFAULT_BRAND_COLORS: BrandColors = {
