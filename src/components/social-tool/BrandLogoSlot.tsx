@@ -56,7 +56,7 @@ export function BrandLogoSlot({
       <img
         src={logoSrc}
         alt="Brand logo"
-        className="brand-logo-img"
+        className={`brand-logo-img${invert ? " brand-logo-invert" : ""}`}
         style={{ height, width: "auto" }}
         draggable={false}
       />

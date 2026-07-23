@@ -1,0 +1,9 @@
+id: gradient
+label: Gradient
+radius: lg
+shadow: medium
+border: none
+spacing: comfortable
+typography: display
+elevation: medium
+surface: gradient

@@ -1,0 +1,9 @@
+id: glass
+label: Glass
+radius: lg
+shadow: soft
+border: hairline
+spacing: comfortable
+typography: sans-tight
+elevation: low
+surface: glass

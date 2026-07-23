@@ -530,6 +530,13 @@ export const designConfigData = {
         "centered-announcement",
         "brand-stack",
         "classic-hero"
+      ],
+      "bundles": [
+        "feature-launch"
+      ],
+      "families": [
+        "product",
+        "benefits"
       ]
     },
     {
@@ -554,6 +561,13 @@ export const designConfigData = {
         "classic-hero",
         "visual-first",
         "product-focus"
+      ],
+      "bundles": [
+        "feature-launch"
+      ],
+      "families": [
+        "product",
+        "metric"
       ]
     },
     {
@@ -582,6 +596,14 @@ export const designConfigData = {
         "split-feature-right",
         "professional-left",
         "product-focus"
+      ],
+      "bundles": [
+        "growth-proof",
+        "feature-launch"
+      ],
+      "families": [
+        "comparison",
+        "product"
       ]
     },
     {
@@ -607,6 +629,13 @@ export const designConfigData = {
         "centered-announcement",
         "brand-stack",
         "classic-hero"
+      ],
+      "bundles": [
+        "pricing-offer"
+      ],
+      "families": [
+        "pricing",
+        "metric"
       ]
     },
     {
@@ -632,6 +661,13 @@ export const designConfigData = {
         "footer-mark",
         "logo-footer-bar",
         "centered-announcement"
+      ],
+      "bundles": [
+        "process-explain"
+      ],
+      "families": [
+        "process",
+        "product"
       ]
     },
     {
@@ -656,6 +692,13 @@ export const designConfigData = {
         "copy-statement",
         "deck-sidebar",
         "professional-left"
+      ],
+      "bundles": [
+        "social-proof"
+      ],
+      "families": [
+        "proof",
+        "diagram"
       ]
     },
     {
@@ -683,6 +726,14 @@ export const designConfigData = {
         "visual-first",
         "product-focus",
         "balanced-split"
+      ],
+      "bundles": [
+        "growth-proof",
+        "pricing-offer"
+      ],
+      "families": [
+        "metric",
+        "pricing"
       ]
     },
     {
@@ -710,6 +761,15 @@ export const designConfigData = {
         "split-feature-right",
         "split-feature-left",
         "product-focus"
+      ],
+      "bundles": [
+        "feature-launch",
+        "process-explain"
+      ],
+      "families": [
+        "product",
+        "benefits",
+        "process"
       ]
     },
     {
@@ -736,6 +796,13 @@ export const designConfigData = {
         "logo-footer-bar",
         "brand-stack",
         "deck-sidebar"
+      ],
+      "bundles": [
+        "social-proof"
+      ],
+      "families": [
+        "proof",
+        "metric"
       ]
     },
     {
@@ -762,6 +829,14 @@ export const designConfigData = {
         "centered-announcement",
         "copy-statement",
         "professional-left"
+      ],
+      "bundles": [
+        "growth-proof",
+        "social-proof"
+      ],
+      "families": [
+        "metric",
+        "proof"
       ]
     }
   ],
@@ -1688,6 +1763,1028 @@ export const designConfigData = {
       "webinar": "cool",
       "hiring": "warm",
       "enterprise_saas": "enterprise"
+    }
+  },
+  "blockFamilies": [
+    {
+      "id": "benefits",
+      "label": "Benefits",
+      "purpose": [
+        "explain",
+        "list",
+        "persuade"
+      ],
+      "supports": [
+        "features",
+        "benefits",
+        "checklist"
+      ],
+      "hierarchy": "supporting",
+      "density": [
+        "compact",
+        "medium",
+        "hero"
+      ],
+      "compositions": [
+        "vertical",
+        "centered",
+        "editorial"
+      ],
+      "stylePacks": [
+        "enterprise",
+        "startup",
+        "minimal",
+        "editorial",
+        "glass"
+      ],
+      "compatibleRecipes": [
+        "offer_hero",
+        "problem_solution_flow",
+        "feature_launch",
+        "announcement_hero_layout"
+      ],
+      "assets": [
+        {
+          "id": "feature-list",
+          "kind": "ui",
+          "role": "primary"
+        },
+        {
+          "id": "checklist-benefits",
+          "kind": "ui",
+          "role": "checklist"
+        },
+        {
+          "id": "icon-benefit-row",
+          "kind": "ui",
+          "role": "icons"
+        },
+        {
+          "id": "benefit-pills",
+          "kind": "ui",
+          "role": "pills"
+        }
+      ],
+      "illustrationTags": [
+        "features",
+        "checklist",
+        "benefits",
+        "list",
+        "teamwork"
+      ],
+      "slots": {
+        "title": {
+          "optional": true
+        },
+        "item1": {
+          "optional": true
+        },
+        "item2": {
+          "optional": true
+        },
+        "item3": {
+          "optional": true
+        }
+      }
+    },
+    {
+      "id": "comparison",
+      "label": "Comparison",
+      "purpose": [
+        "compare",
+        "contrast",
+        "switch"
+      ],
+      "supports": [
+        "before_after",
+        "vs",
+        "competitive"
+      ],
+      "hierarchy": "hero",
+      "density": [
+        "compact",
+        "medium",
+        "hero"
+      ],
+      "compositions": [
+        "split",
+        "side-by-side",
+        "centered"
+      ],
+      "stylePacks": [
+        "enterprise",
+        "startup",
+        "bold",
+        "minimal",
+        "editorial"
+      ],
+      "compatibleRecipes": [
+        "comparison_switch",
+        "problem_solution_flow",
+        "offer_hero"
+      ],
+      "assets": [
+        {
+          "id": "vs-split-card",
+          "kind": "ui",
+          "role": "primary"
+        },
+        {
+          "id": "competitor-row",
+          "kind": "ui",
+          "role": "table"
+        },
+        {
+          "id": "switch-reason",
+          "kind": "ui",
+          "role": "reasons"
+        },
+        {
+          "id": "comparison-cards",
+          "kind": "diagram",
+          "role": "cards"
+        },
+        {
+          "id": "before-after",
+          "kind": "diagram",
+          "role": "variant"
+        }
+      ],
+      "illustrationTags": [
+        "comparison",
+        "versus",
+        "choice",
+        "decision",
+        "contrast"
+      ],
+      "slots": {
+        "left": {
+          "optional": true
+        },
+        "right": {
+          "optional": true
+        },
+        "title": {
+          "optional": true
+        }
+      }
+    },
+    {
+      "id": "diagram",
+      "label": "Diagram",
+      "purpose": [
+        "structure",
+        "connect",
+        "integrate"
+      ],
+      "supports": [
+        "hub",
+        "network",
+        "trend"
+      ],
+      "hierarchy": "supporting",
+      "density": [
+        "compact",
+        "medium",
+        "hero"
+      ],
+      "compositions": [
+        "centered",
+        "floating"
+      ],
+      "stylePacks": [
+        "enterprise",
+        "minimal",
+        "editorial",
+        "startup"
+      ],
+      "compatibleRecipes": [
+        "problem_solution_flow",
+        "process-explain",
+        "feature-launch"
+      ],
+      "assets": [
+        {
+          "id": "integration-hub",
+          "kind": "diagram",
+          "role": "primary"
+        },
+        {
+          "id": "line-chart",
+          "kind": "diagram",
+          "role": "trend"
+        }
+      ],
+      "illustrationTags": [
+        "network",
+        "connect",
+        "integration",
+        "system",
+        "architecture"
+      ],
+      "slots": {
+        "title": {
+          "optional": true
+        }
+      }
+    },
+    {
+      "id": "metric",
+      "label": "Metric",
+      "purpose": [
+        "prove",
+        "quantify"
+      ],
+      "supports": [
+        "roi",
+        "percentage",
+        "growth",
+        "revenue",
+        "kpi"
+      ],
+      "hierarchy": "hero",
+      "density": [
+        "compact",
+        "medium",
+        "hero"
+      ],
+      "compositions": [
+        "centered",
+        "split",
+        "editorial",
+        "floating"
+      ],
+      "stylePacks": [
+        "enterprise",
+        "startup",
+        "editorial",
+        "glass",
+        "bold",
+        "minimal",
+        "gradient"
+      ],
+      "compatibleRecipes": [
+        "offer_hero",
+        "comparison_switch",
+        "statistic_hero",
+        "social_proof_strip",
+        "problem_solution_flow"
+      ],
+      "assets": [
+        {
+          "id": "stat-highlight",
+          "kind": "ui",
+          "role": "primary"
+        },
+        {
+          "id": "kpi-hero",
+          "kind": "ui",
+          "role": "hero"
+        },
+        {
+          "id": "growth-badge",
+          "kind": "ui",
+          "role": "badge"
+        },
+        {
+          "id": "revenue-stat",
+          "kind": "ui",
+          "role": "revenue"
+        },
+        {
+          "id": "roi-callout",
+          "kind": "ui",
+          "role": "callout"
+        },
+        {
+          "id": "percent-split",
+          "kind": "ui",
+          "role": "split"
+        },
+        {
+          "id": "progress-ring",
+          "kind": "ui",
+          "role": "variant"
+        },
+        {
+          "id": "metric-cards-row",
+          "kind": "ui",
+          "role": "row"
+        },
+        {
+          "id": "dashboard-metrics",
+          "kind": "ui",
+          "role": "dashboard"
+        },
+        {
+          "id": "donut-chart",
+          "kind": "diagram",
+          "role": "chart"
+        },
+        {
+          "id": "bar-chart",
+          "kind": "diagram",
+          "role": "chart"
+        }
+      ],
+      "illustrationTags": [
+        "metric",
+        "chart",
+        "growth",
+        "analytics",
+        "success",
+        "data",
+        "statistics"
+      ],
+      "slots": {
+        "metric": {
+          "required": true
+        },
+        "description": {
+          "optional": true
+        },
+        "cta": {
+          "optional": true
+        }
+      }
+    },
+    {
+      "id": "pricing",
+      "label": "Pricing",
+      "purpose": [
+        "offer",
+        "convert",
+        "price"
+      ],
+      "supports": [
+        "pricing",
+        "plan",
+        "tier"
+      ],
+      "hierarchy": "hero",
+      "density": [
+        "compact",
+        "medium",
+        "hero"
+      ],
+      "compositions": [
+        "centered",
+        "card",
+        "floating"
+      ],
+      "stylePacks": [
+        "enterprise",
+        "startup",
+        "bold",
+        "glass",
+        "gradient"
+      ],
+      "compatibleRecipes": [
+        "offer_hero",
+        "discount_focus",
+        "pricing-offer"
+      ],
+      "assets": [
+        {
+          "id": "pricing-card",
+          "kind": "ui",
+          "role": "primary"
+        },
+        {
+          "id": "dual-pricing",
+          "kind": "ui",
+          "role": "compare"
+        },
+        {
+          "id": "offer-badge-card",
+          "kind": "ui",
+          "role": "offer"
+        },
+        {
+          "id": "discount-strip",
+          "kind": "ui",
+          "role": "discount"
+        }
+      ],
+      "illustrationTags": [
+        "pricing",
+        "payment",
+        "shopping",
+        "commerce",
+        "money"
+      ],
+      "slots": {
+        "tier": {
+          "optional": true
+        },
+        "price": {
+          "required": true
+        },
+        "cta": {
+          "optional": true
+        }
+      }
+    },
+    {
+      "id": "process",
+      "label": "Process",
+      "purpose": [
+        "explain",
+        "sequence",
+        "guide"
+      ],
+      "supports": [
+        "steps",
+        "timeline",
+        "funnel",
+        "pipeline"
+      ],
+      "hierarchy": "supporting",
+      "density": [
+        "compact",
+        "medium",
+        "hero"
+      ],
+      "compositions": [
+        "horizontal",
+        "vertical",
+        "centered"
+      ],
+      "stylePacks": [
+        "enterprise",
+        "startup",
+        "minimal",
+        "editorial"
+      ],
+      "compatibleRecipes": [
+        "problem_solution_flow",
+        "process-explain",
+        "announcement_hero_layout"
+      ],
+      "assets": [
+        {
+          "id": "numbered-steps",
+          "kind": "ui",
+          "role": "primary"
+        },
+        {
+          "id": "process-cards",
+          "kind": "ui",
+          "role": "cards"
+        },
+        {
+          "id": "roadmap-strip",
+          "kind": "ui",
+          "role": "roadmap"
+        },
+        {
+          "id": "timeline",
+          "kind": "diagram",
+          "role": "timeline"
+        },
+        {
+          "id": "workflow-steps",
+          "kind": "diagram",
+          "role": "steps"
+        },
+        {
+          "id": "pipeline-flow",
+          "kind": "diagram",
+          "role": "pipeline"
+        },
+        {
+          "id": "funnel",
+          "kind": "diagram",
+          "role": "funnel"
+        }
+      ],
+      "illustrationTags": [
+        "process",
+        "steps",
+        "workflow",
+        "timeline",
+        "journey",
+        "path"
+      ],
+      "slots": {
+        "title": {
+          "optional": true
+        },
+        "step1": {
+          "optional": true
+        },
+        "step2": {
+          "optional": true
+        },
+        "step3": {
+          "optional": true
+        }
+      }
+    },
+    {
+      "id": "product",
+      "label": "Product",
+      "purpose": [
+        "show",
+        "demonstrate",
+        "product_ui"
+      ],
+      "supports": [
+        "ui",
+        "dashboard",
+        "kanban",
+        "table"
+      ],
+      "hierarchy": "hero",
+      "density": [
+        "compact",
+        "medium",
+        "hero"
+      ],
+      "compositions": [
+        "centered",
+        "frame",
+        "split"
+      ],
+      "stylePacks": [
+        "enterprise",
+        "startup",
+        "glass",
+        "minimal",
+        "bold"
+      ],
+      "compatibleRecipes": [
+        "problem_solution_flow",
+        "offer_hero",
+        "announcement_hero_layout",
+        "comparison_switch"
+      ],
+      "assets": [
+        {
+          "id": "product-frame",
+          "kind": "ui",
+          "role": "primary"
+        },
+        {
+          "id": "kanban-board",
+          "kind": "ui",
+          "role": "board"
+        },
+        {
+          "id": "table-preview",
+          "kind": "ui",
+          "role": "table"
+        },
+        {
+          "id": "notification-stack",
+          "kind": "ui",
+          "role": "notifications"
+        },
+        {
+          "id": "calendar-preview",
+          "kind": "ui",
+          "role": "calendar"
+        },
+        {
+          "id": "chat-thread",
+          "kind": "ui",
+          "role": "chat"
+        },
+        {
+          "id": "form-card",
+          "kind": "ui",
+          "role": "form"
+        },
+        {
+          "id": "crm-list",
+          "kind": "ui",
+          "role": "crm"
+        },
+        {
+          "id": "inbox-preview",
+          "kind": "ui",
+          "role": "inbox"
+        },
+        {
+          "id": "cta-banner",
+          "kind": "ui",
+          "role": "cta"
+        },
+        {
+          "id": "value-prop-card",
+          "kind": "ui",
+          "role": "value"
+        }
+      ],
+      "illustrationTags": [
+        "app",
+        "interface",
+        "dashboard",
+        "software",
+        "device",
+        "screen"
+      ],
+      "slots": {
+        "title": {
+          "optional": true
+        }
+      }
+    },
+    {
+      "id": "proof",
+      "label": "Proof",
+      "purpose": [
+        "trust",
+        "social_proof",
+        "testify"
+      ],
+      "supports": [
+        "quote",
+        "testimonial",
+        "review"
+      ],
+      "hierarchy": "supporting",
+      "density": [
+        "compact",
+        "medium",
+        "hero"
+      ],
+      "compositions": [
+        "centered",
+        "editorial",
+        "floating"
+      ],
+      "stylePacks": [
+        "enterprise",
+        "editorial",
+        "glass",
+        "minimal",
+        "startup"
+      ],
+      "compatibleRecipes": [
+        "social_proof_strip",
+        "statistic_hero",
+        "offer_hero",
+        "case_study"
+      ],
+      "assets": [
+        {
+          "id": "testimonial-card",
+          "kind": "ui",
+          "role": "primary"
+        },
+        {
+          "id": "quote-highlight",
+          "kind": "ui",
+          "role": "variant"
+        },
+        {
+          "id": "logo-wall",
+          "kind": "ui",
+          "role": "logos"
+        },
+        {
+          "id": "star-review",
+          "kind": "ui",
+          "role": "rating"
+        },
+        {
+          "id": "case-study-card",
+          "kind": "ui",
+          "role": "case"
+        },
+        {
+          "id": "trust-badges",
+          "kind": "ui",
+          "role": "badges"
+        },
+        {
+          "id": "avatar-stack",
+          "kind": "ui",
+          "role": "social"
+        }
+      ],
+      "illustrationTags": [
+        "testimonial",
+        "review",
+        "customer",
+        "trust",
+        "feedback",
+        "people"
+      ],
+      "slots": {
+        "quote": {
+          "required": true
+        },
+        "name": {
+          "optional": true
+        },
+        "role": {
+          "optional": true
+        }
+      }
+    }
+  ],
+  "blockBundles": [
+    {
+      "id": "feature-launch",
+      "purpose": "Explain a new capability with product proof",
+      "contains": [
+        {
+          "family": "product",
+          "hierarchy": "hero",
+          "density": "medium"
+        },
+        {
+          "family": "benefits",
+          "hierarchy": "supporting",
+          "density": "compact"
+        }
+      ],
+      "worksFor": [
+        "linkedin-square",
+        "linkedin-landscape",
+        "instagram-square"
+      ],
+      "campaigns": [
+        "feature_release",
+        "product_launch",
+        "announcement"
+      ],
+      "compatibleRecipes": [
+        "problem_solution_flow",
+        "announcement_hero_layout",
+        "offer_hero"
+      ]
+    },
+    {
+      "id": "growth-proof",
+      "purpose": "Build trust with a quantified outcome",
+      "contains": [
+        {
+          "family": "metric",
+          "hierarchy": "hero",
+          "density": "medium"
+        },
+        {
+          "family": "proof",
+          "hierarchy": "supporting",
+          "density": "compact"
+        }
+      ],
+      "worksFor": [
+        "linkedin-square",
+        "linkedin-landscape",
+        "instagram-square"
+      ],
+      "campaigns": [
+        "promotion",
+        "product_launch",
+        "advertisement",
+        "case_study",
+        "feature_release"
+      ],
+      "compatibleRecipes": [
+        "offer_hero",
+        "comparison_switch",
+        "statistic_hero",
+        "social_proof_strip"
+      ]
+    },
+    {
+      "id": "pricing-offer",
+      "purpose": "Present an offer with clear pricing and CTA",
+      "contains": [
+        {
+          "family": "pricing",
+          "hierarchy": "hero",
+          "density": "medium"
+        },
+        {
+          "family": "benefits",
+          "hierarchy": "supporting",
+          "density": "compact"
+        }
+      ],
+      "worksFor": [
+        "linkedin-square",
+        "linkedin-landscape",
+        "instagram-square"
+      ],
+      "campaigns": [
+        "promotion",
+        "advertisement"
+      ],
+      "compatibleRecipes": [
+        "offer_hero",
+        "discount_focus"
+      ]
+    },
+    {
+      "id": "process-explain",
+      "purpose": "Walk through a process or workflow",
+      "contains": [
+        {
+          "family": "process",
+          "hierarchy": "hero",
+          "density": "medium"
+        },
+        {
+          "family": "diagram",
+          "hierarchy": "supporting",
+          "density": "compact"
+        }
+      ],
+      "worksFor": [
+        "linkedin-square",
+        "linkedin-landscape"
+      ],
+      "campaigns": [
+        "product_launch",
+        "feature_release",
+        "thought_leadership",
+        "webinar"
+      ],
+      "compatibleRecipes": [
+        "problem_solution_flow",
+        "announcement_hero_layout"
+      ]
+    },
+    {
+      "id": "social-proof",
+      "purpose": "Establish trust via quotes and social signals",
+      "contains": [
+        {
+          "family": "proof",
+          "hierarchy": "hero",
+          "density": "medium"
+        },
+        {
+          "family": "metric",
+          "hierarchy": "supporting",
+          "density": "compact"
+        }
+      ],
+      "worksFor": [
+        "linkedin-square",
+        "linkedin-landscape"
+      ],
+      "campaigns": [
+        "case_study",
+        "product_launch",
+        "advertisement",
+        "thought_leadership"
+      ],
+      "compatibleRecipes": [
+        "social_proof_strip",
+        "statistic_hero"
+      ]
+    }
+  ],
+  "stylePacks": [
+    {
+      "id": "bold",
+      "label": "Bold",
+      "radius": "md",
+      "shadow": "bold",
+      "border": "strong",
+      "spacing": "comfortable",
+      "typography": "display",
+      "elevation": "high",
+      "surface": "solid"
+    },
+    {
+      "id": "editorial",
+      "label": "Editorial",
+      "radius": "sm",
+      "shadow": "none",
+      "border": "hairline",
+      "spacing": "airy",
+      "typography": "editorial",
+      "elevation": "flat",
+      "surface": "minimal"
+    },
+    {
+      "id": "enterprise",
+      "label": "Enterprise",
+      "radius": "md",
+      "shadow": "soft",
+      "border": "hairline",
+      "spacing": "comfortable",
+      "typography": "sans-tight",
+      "elevation": "low",
+      "surface": "solid"
+    },
+    {
+      "id": "glass",
+      "label": "Glass",
+      "radius": "lg",
+      "shadow": "soft",
+      "border": "hairline",
+      "spacing": "comfortable",
+      "typography": "sans-tight",
+      "elevation": "low",
+      "surface": "glass"
+    },
+    {
+      "id": "gradient",
+      "label": "Gradient",
+      "radius": "lg",
+      "shadow": "medium",
+      "border": "none",
+      "spacing": "comfortable",
+      "typography": "display",
+      "elevation": "medium",
+      "surface": "gradient"
+    },
+    {
+      "id": "minimal",
+      "label": "Minimal",
+      "radius": "sm",
+      "shadow": "none",
+      "border": "none",
+      "spacing": "tight",
+      "typography": "sans-tight",
+      "elevation": "flat",
+      "surface": "minimal"
+    },
+    {
+      "id": "startup",
+      "label": "Startup",
+      "radius": "lg",
+      "shadow": "medium",
+      "border": "none",
+      "spacing": "comfortable",
+      "typography": "sans-roomy",
+      "elevation": "medium",
+      "surface": "solid"
+    }
+  ],
+  "illustrationMap": {
+    "families": {
+      "metric": [
+        "metric",
+        "chart",
+        "growth",
+        "analytics",
+        "success",
+        "data",
+        "statistics",
+        "roi"
+      ],
+      "comparison": [
+        "comparison",
+        "versus",
+        "choice",
+        "decision",
+        "contrast"
+      ],
+      "benefits": [
+        "features",
+        "checklist",
+        "benefits",
+        "list",
+        "teamwork"
+      ],
+      "proof": [
+        "testimonial",
+        "review",
+        "customer",
+        "trust",
+        "feedback",
+        "people",
+        "quote"
+      ],
+      "pricing": [
+        "pricing",
+        "payment",
+        "shopping",
+        "commerce",
+        "money"
+      ],
+      "process": [
+        "process",
+        "steps",
+        "workflow",
+        "timeline",
+        "journey",
+        "path"
+      ],
+      "product": [
+        "app",
+        "interface",
+        "dashboard",
+        "software",
+        "device",
+        "screen"
+      ],
+      "diagram": [
+        "network",
+        "connect",
+        "integration",
+        "system",
+        "architecture"
+      ]
     }
   }
 } as const;

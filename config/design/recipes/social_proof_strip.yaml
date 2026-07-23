@@ -19,3 +19,8 @@ preferredLayouts:
   - logo-footer-bar
   - brand-stack
   - deck-sidebar
+bundles:
+  - social-proof
+families:
+  - proof
+  - metric

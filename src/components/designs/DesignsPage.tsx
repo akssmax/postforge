@@ -66,7 +66,7 @@ export function DesignsPage() {
 
   return (
     <div className="flex min-h-svh flex-col bg-surface-primary text-text-primary">
-      <DesignToolHeader>
+      <DesignToolHeader showQuickNew={false}>
         <Button
           variant="primary"
           size="sm"

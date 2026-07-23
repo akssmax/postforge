@@ -20,3 +20,9 @@ preferredLayouts:
   - visual-first
   - product-focus
   - balanced-split
+bundles:
+  - growth-proof
+  - pricing-offer
+families:
+  - metric
+  - pricing

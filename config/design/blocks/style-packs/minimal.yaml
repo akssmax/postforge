@@ -1,0 +1,9 @@
+id: minimal
+label: Minimal
+radius: sm
+shadow: none
+border: none
+spacing: tight
+typography: sans-tight
+elevation: flat
+surface: minimal

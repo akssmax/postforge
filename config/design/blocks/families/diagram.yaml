@@ -1,0 +1,15 @@
+id: diagram
+label: Diagram
+purpose: [structure, connect, integrate]
+supports: [hub, network, trend]
+hierarchy: supporting
+density: [compact, medium, hero]
+compositions: [centered, floating]
+stylePacks: [enterprise, minimal, editorial, startup]
+compatibleRecipes: [problem_solution_flow, process-explain, feature-launch]
+assets:
+  - { id: integration-hub, kind: diagram, role: primary }
+  - { id: line-chart, kind: diagram, role: trend }
+illustrationTags: [network, connect, integration, system, architecture]
+slots:
+  title: { optional: true }

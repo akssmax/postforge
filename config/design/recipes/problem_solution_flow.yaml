@@ -20,3 +20,10 @@ preferredLayouts:
   - split-feature-right
   - split-feature-left
   - product-focus
+bundles:
+  - feature-launch
+  - process-explain
+families:
+  - product
+  - benefits
+  - process

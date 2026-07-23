@@ -1,0 +1,20 @@
+id: benefits
+label: Benefits
+purpose: [explain, list, persuade]
+supports: [features, benefits, checklist]
+hierarchy: supporting
+density: [compact, medium, hero]
+compositions: [vertical, centered, editorial]
+stylePacks: [enterprise, startup, minimal, editorial, glass]
+compatibleRecipes: [offer_hero, problem_solution_flow, feature_launch, announcement_hero_layout]
+assets:
+  - { id: feature-list, kind: ui, role: primary }
+  - { id: checklist-benefits, kind: ui, role: checklist }
+  - { id: icon-benefit-row, kind: ui, role: icons }
+  - { id: benefit-pills, kind: ui, role: pills }
+illustrationTags: [features, checklist, benefits, list, teamwork]
+slots:
+  title: { optional: true }
+  item1: { optional: true }
+  item2: { optional: true }
+  item3: { optional: true }

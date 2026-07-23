@@ -1,0 +1,56 @@
+families:
+  metric:
+    - metric
+    - chart
+    - growth
+    - analytics
+    - success
+    - data
+    - statistics
+    - roi
+  comparison:
+    - comparison
+    - versus
+    - choice
+    - decision
+    - contrast
+  benefits:
+    - features
+    - checklist
+    - benefits
+    - list
+    - teamwork
+  proof:
+    - testimonial
+    - review
+    - customer
+    - trust
+    - feedback
+    - people
+    - quote
+  pricing:
+    - pricing
+    - payment
+    - shopping
+    - commerce
+    - money
+  process:
+    - process
+    - steps
+    - workflow
+    - timeline
+    - journey
+    - path
+  product:
+    - app
+    - interface
+    - dashboard
+    - software
+    - device
+    - screen
+  diagram:
+    - network
+    - connect
+    - integration
+    - system
+    - architecture

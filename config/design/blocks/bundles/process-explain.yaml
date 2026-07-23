@@ -1,0 +1,8 @@
+id: process-explain
+purpose: Walk through a process or workflow
+contains:
+  - { family: process, hierarchy: hero, density: medium }
+  - { family: diagram, hierarchy: supporting, density: compact }
+worksFor: [linkedin-square, linkedin-landscape]
+campaigns: [product_launch, feature_release, thought_leadership, webinar]
+compatibleRecipes: [problem_solution_flow, announcement_hero_layout]

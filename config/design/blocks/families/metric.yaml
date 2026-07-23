@@ -1,0 +1,26 @@
+id: metric
+label: Metric
+purpose: [prove, quantify]
+supports: [roi, percentage, growth, revenue, kpi]
+hierarchy: hero
+density: [compact, medium, hero]
+compositions: [centered, split, editorial, floating]
+stylePacks: [enterprise, startup, editorial, glass, bold, minimal, gradient]
+compatibleRecipes: [offer_hero, comparison_switch, statistic_hero, social_proof_strip, problem_solution_flow]
+assets:
+  - { id: stat-highlight, kind: ui, role: primary }
+  - { id: kpi-hero, kind: ui, role: hero }
+  - { id: growth-badge, kind: ui, role: badge }
+  - { id: revenue-stat, kind: ui, role: revenue }
+  - { id: roi-callout, kind: ui, role: callout }
+  - { id: percent-split, kind: ui, role: split }
+  - { id: progress-ring, kind: ui, role: variant }
+  - { id: metric-cards-row, kind: ui, role: row }
+  - { id: dashboard-metrics, kind: ui, role: dashboard }
+  - { id: donut-chart, kind: diagram, role: chart }
+  - { id: bar-chart, kind: diagram, role: chart }
+illustrationTags: [metric, chart, growth, analytics, success, data, statistics]
+slots:
+  metric: { required: true }
+  description: { optional: true }
+  cta: { optional: true }

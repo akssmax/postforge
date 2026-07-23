@@ -19,3 +19,8 @@ preferredLayouts:
   - centered-announcement
   - brand-stack
   - classic-hero
+bundles:
+  - feature-launch
+families:
+  - product
+  - benefits

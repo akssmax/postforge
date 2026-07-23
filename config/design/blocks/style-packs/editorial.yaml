@@ -1,0 +1,9 @@
+id: editorial
+label: Editorial
+radius: sm
+shadow: none
+border: hairline
+spacing: airy
+typography: editorial
+elevation: flat
+surface: minimal

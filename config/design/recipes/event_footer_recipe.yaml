@@ -18,3 +18,8 @@ preferredLayouts:
   - footer-mark
   - logo-footer-bar
   - centered-announcement
+bundles:
+  - process-explain
+families:
+  - process
+  - product

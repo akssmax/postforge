@@ -1,0 +1,8 @@
+id: social-proof
+purpose: Establish trust via quotes and social signals
+contains:
+  - { family: proof, hierarchy: hero, density: medium }
+  - { family: metric, hierarchy: supporting, density: compact }
+worksFor: [linkedin-square, linkedin-landscape]
+campaigns: [case_study, product_launch, advertisement, thought_leadership]
+compatibleRecipes: [social_proof_strip, statistic_hero]

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 156 40" fill="none" role="img" aria-label="Linear">
+  <title>Linear</title>
+  <path fill="#5E6AD2" d="M4.81 6.967A19.97 19.97 0 0 1 19.983 0C31.04 0 40 8.96 40 20.015c0 6.067-2.7 11.505-6.967 15.175L4.812 6.967Zm-1.782 2.41L30.623 36.98a19.9 19.9 0 0 1-2.75 1.443L1.585 12.128c.412-.958.895-1.877 1.443-2.75ZM.537 15.272l24.192 24.191a20.1 20.1 0 0 1-3.658.537L0 18.93a20 20 0 0 1 .537-3.658Zm-.284 8.103 16.372 16.373A20.033 20.033 0 0 1 .253 23.375Z"/>
+  <text x="48" y="28" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="22" font-weight="650" letter-spacing="-0.04em" fill="#5E6AD2">Linear</text>
+</svg>

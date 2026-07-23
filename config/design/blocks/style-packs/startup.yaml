@@ -1,0 +1,9 @@
+id: startup
+label: Startup
+radius: lg
+shadow: medium
+border: none
+spacing: comfortable
+typography: sans-roomy
+elevation: medium
+surface: solid

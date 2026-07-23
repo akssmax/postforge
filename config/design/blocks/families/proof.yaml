@@ -1,0 +1,22 @@
+id: proof
+label: Proof
+purpose: [trust, social_proof, testify]
+supports: [quote, testimonial, review]
+hierarchy: supporting
+density: [compact, medium, hero]
+compositions: [centered, editorial, floating]
+stylePacks: [enterprise, editorial, glass, minimal, startup]
+compatibleRecipes: [social_proof_strip, statistic_hero, offer_hero, case_study]
+assets:
+  - { id: testimonial-card, kind: ui, role: primary }
+  - { id: quote-highlight, kind: ui, role: variant }
+  - { id: logo-wall, kind: ui, role: logos }
+  - { id: star-review, kind: ui, role: rating }
+  - { id: case-study-card, kind: ui, role: case }
+  - { id: trust-badges, kind: ui, role: badges }
+  - { id: avatar-stack, kind: ui, role: social }
+illustrationTags: [testimonial, review, customer, trust, feedback, people]
+slots:
+  quote: { required: true }
+  name: { optional: true }
+  role: { optional: true }

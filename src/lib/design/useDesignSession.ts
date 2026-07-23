@@ -79,9 +79,12 @@ import { applyDesignPlanToSession } from "@/lib/llm/services/applyDesignPlan";
 import { applyCanvasPatchToSession, repairDesignDocument } from "@/lib/llm/services/applyCanvasPatch";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
-import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
+import type { VisualBlockRecord, VisualBlockGenerateInput } from "@/lib/social-tool/visualBlocks/types";
 import { buildVisualPickIntentFromText } from "@/lib/social-tool/visualBlocks/library/scoring";
 import { inferFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
+import { campaignPlanFromBrief } from "@/lib/social-tool/engine/campaignPlanFromBrief";
+import { retrieveDesignSystem } from "@/lib/social-tool/engine/designSystemRetriever";
+import { resolveRecipe } from "@/lib/social-tool/engine/recipeResolver";
 import {
   activeVisualBlock,
   appendVisualBlocks,
@@ -110,6 +113,32 @@ function visualBlockPickPayload(
     session.document.featuredVisualKind ??
     inferFeaturedVisualKind(brief);
 
+  // Derive semantic pick context from brief (campaign-first block retrieval)
+  let semantic: VisualBlockGenerateInput["semantic"];
+  try {
+    const plan = campaignPlanFromBrief(brief, session.document.platformId);
+    const system = retrieveDesignSystem(plan);
+    const { recipe, pattern } = resolveRecipe(plan, system);
+    semantic = {
+      campaignType: plan.campaign.type,
+      recipeId: recipe.id,
+      patternId: pattern.id,
+      designSystemId: system.id,
+      contentDensity: plan.communication.contentDensity,
+      readingPattern: plan.communication.readingPattern,
+      colorMood: plan.visual.colorMood,
+      brandTone: plan.brand.tone,
+      featuredKind: featuredVisualKind,
+      proof: plan.visual.proof,
+      platformId: session.document.platformId,
+    };
+  } catch {
+    semantic = {
+      featuredKind: featuredVisualKind,
+      platformId: session.document.platformId,
+    };
+  }
+
   return {
     headline,
     subheading,
@@ -124,6 +153,7 @@ function visualBlockPickPayload(
       ...buildVisualPickIntentFromText(headline, subheading, theme, brief),
       featuredVisualKind,
     },
+    semantic,
   };
 }
 

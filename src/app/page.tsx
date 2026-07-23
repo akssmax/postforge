@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { LandingPage } from "@/components/landing/LandingPage";
 
 export const metadata: Metadata = {
-  title: "Postforge — Design branded posts and slides",
+  title: "Postforge — From logo to finished post",
   description:
-    "A focused canvas for social posts and slide decks. Template, tweak, and export — PNG, JPG, or PDF.",
+    "Upload your brand, shuffle layouts until it looks right, and export social posts — PNG, JPG, or PDF. No blank canvas.",
 };
 
 export default function Home() {

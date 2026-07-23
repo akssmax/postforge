@@ -88,6 +88,10 @@ export const recipeConfigSchema = z.object({
   readingPattern: readingPatternSchema.default("F"),
   campaigns: z.array(z.string()).default([]),
   preferredLayouts: z.array(z.string()).default([]),
+  /** Named visual bundles preferred for featured composition. */
+  bundles: z.array(z.string()).default([]),
+  /** Semantic family fallbacks when bundles miss. */
+  families: z.array(z.string()).default([]),
 });
 
 export type RecipeConfig = z.infer<typeof recipeConfigSchema>;
@@ -152,6 +156,82 @@ export const formatOverlaySchema = z.object({
 });
 
 export type FormatOverlay = z.infer<typeof formatOverlaySchema>;
+
+export const blockHierarchySchema = z.enum([
+  "hero",
+  "supporting",
+  "secondary",
+  "decorative",
+]);
+
+export const blockDensitySchema = z.enum(["compact", "medium", "hero"]);
+
+export const blockFamilyAssetSchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum(["ui", "diagram", "illustration"]),
+  role: z.string().default("primary"),
+});
+
+export const blockFamilySlotSchema = z.object({
+  required: z.boolean().optional(),
+  optional: z.boolean().optional(),
+});
+
+export const blockFamilySchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1).optional(),
+  purpose: z.array(z.string()).default([]),
+  supports: z.array(z.string()).default([]),
+  hierarchy: blockHierarchySchema.default("supporting"),
+  density: z.array(blockDensitySchema).default(["compact", "medium", "hero"]),
+  compositions: z.array(z.string()).default(["centered"]),
+  stylePacks: z.array(z.string()).default(["enterprise", "minimal"]),
+  compatibleRecipes: z.array(z.string()).default([]),
+  assets: z.array(blockFamilyAssetSchema).default([]),
+  illustrationTags: z.array(z.string()).default([]),
+  slots: z.record(z.string(), blockFamilySlotSchema).default({}),
+});
+
+export type BlockFamilyConfig = z.infer<typeof blockFamilySchema>;
+
+export const bundlePartSchema = z.object({
+  family: z.string().min(1),
+  hierarchy: blockHierarchySchema.default("supporting"),
+  density: blockDensitySchema.default("medium"),
+});
+
+export const blockBundleSchema = z.object({
+  id: z.string().min(1),
+  purpose: z.string().min(1),
+  contains: z.array(bundlePartSchema).min(1),
+  worksFor: z.array(z.string()).default([]),
+  campaigns: z.array(z.string()).default([]),
+  compatibleRecipes: z.array(z.string()).default([]),
+});
+
+export type BlockBundleConfig = z.infer<typeof blockBundleSchema>;
+
+export const stylePackSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1).optional(),
+  radius: z.enum(["none", "sm", "md", "lg", "full"]).default("md"),
+  shadow: z.enum(["none", "soft", "medium", "bold"]).default("soft"),
+  border: z.enum(["none", "hairline", "strong"]).default("hairline"),
+  spacing: z.enum(["tight", "comfortable", "airy"]).default("comfortable"),
+  typography: z
+    .enum(["sans-tight", "sans-roomy", "editorial", "display"])
+    .default("sans-tight"),
+  elevation: z.enum(["flat", "low", "medium", "high"]).default("low"),
+  surface: z.enum(["solid", "glass", "gradient", "minimal"]).default("solid"),
+});
+
+export type StylePackConfig = z.infer<typeof stylePackSchema>;
+
+export const illustrationFamilyMapSchema = z.object({
+  families: z.record(z.string(), z.array(z.string())).default({}),
+});
+
+export type IllustrationFamilyMap = z.infer<typeof illustrationFamilyMapSchema>;
 
 export const visualsStrategySchema = z.object({
   featured: z.record(z.string(), z.string()).default({}),

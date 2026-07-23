@@ -32,6 +32,27 @@ function card(_ctx: VisualTemplateContext, inner: string): string {
   return svgFrame(inner);
 }
 
+/** Catalog stub for HeroUI React patterns — runtime uses React, not this SVG. */
+function uiCatalogEntry(
+  id: string,
+  label: string,
+  tags: string[],
+  description: string,
+): ParametricVisualPattern {
+  return {
+    id,
+    label,
+    kind: "ui",
+    tags,
+    description,
+    render: (ctx) =>
+      svgFrame(
+        `<text x="48" y="140" fill="${ctx.primary}" font-family="system-ui,sans-serif" font-size="22" font-weight="700">${truncate(label, 28)}</text>
+  <text x="48" y="176" fill="${ctx.primary}" fill-opacity="0.65" font-family="system-ui,sans-serif" font-size="14">${truncate(ctx.theme, 40)}</text>`,
+      ),
+  };
+}
+
 const PARAMETRIC_VISUAL_LIBRARY: ParametricVisualPattern[] = [
   {
     id: "stat-highlight",
@@ -383,6 +404,35 @@ const PARAMETRIC_VISUAL_LIBRARY: ParametricVisualPattern[] = [
   <rect x="96" y="156" width="256" height="16" rx="8" fill="${ctx.primary}" fill-opacity="0.08"/>
   <text x="240" y="206" text-anchor="middle" fill="${ctx.primary}" font-family="system-ui,sans-serif" font-size="13">${truncate(ctx.theme, 28)}</text>`),
   },
+  uiCatalogEntry("kpi-hero", "KPI hero", ["metric", "kpi", "growth", "stat"], "Oversized single KPI with title."),
+  uiCatalogEntry("growth-badge", "Growth badge", ["metric", "growth", "percent", "badge"], "Inline growth delta badge with caption."),
+  uiCatalogEntry("revenue-stat", "Revenue stat", ["metric", "revenue", "money", "kpi"], "Revenue figure with MoM delta."),
+  uiCatalogEntry("roi-callout", "ROI callout", ["metric", "roi", "hero", "result"], "Filled ROI callout panel."),
+  uiCatalogEntry("percent-split", "Percent split", ["metric", "percent", "before", "after"], "Two percentage cards side by side."),
+  uiCatalogEntry("logo-wall", "Logo wall", ["proof", "logos", "trust", "brands"], "Grid of trusted brand marks."),
+  uiCatalogEntry("star-review", "Star review", ["proof", "rating", "review", "stars"], "Five-star rating with score."),
+  uiCatalogEntry("case-study-card", "Case study card", ["proof", "case", "result", "story"], "Case study result highlight card."),
+  uiCatalogEntry("trust-badges", "Trust badges", ["proof", "security", "compliance", "trust"], "Compliance and trust badge row."),
+  uiCatalogEntry("avatar-stack", "Avatar stack", ["proof", "social", "teams", "community"], "Stacked avatars with social count."),
+  uiCatalogEntry("vs-split-card", "VS split card", ["comparison", "vs", "before", "after"], "Before vs after comparison cards."),
+  uiCatalogEntry("competitor-row", "Competitor row", ["comparison", "competitive", "features", "table"], "Us vs them feature checklist."),
+  uiCatalogEntry("switch-reason", "Switch reason", ["comparison", "switch", "reasons", "migrate"], "Why teams switch reason list."),
+  uiCatalogEntry("checklist-benefits", "Checklist benefits", ["benefits", "checklist", "features"], "Checked benefit rows."),
+  uiCatalogEntry("icon-benefit-row", "Icon benefit row", ["benefits", "icons", "features", "row"], "Three icon benefit tiles."),
+  uiCatalogEntry("benefit-pills", "Benefit pills", ["benefits", "pills", "tags", "perks"], "Wrapped benefit pill cluster."),
+  uiCatalogEntry("dual-pricing", "Dual pricing", ["pricing", "plans", "tiers", "compare"], "Starter vs Pro pricing pair."),
+  uiCatalogEntry("offer-badge-card", "Offer badge card", ["pricing", "offer", "discount", "promo"], "Discounted offer card with badge."),
+  uiCatalogEntry("discount-strip", "Discount strip", ["pricing", "discount", "promo", "banner"], "Bold discount banner strip."),
+  uiCatalogEntry("numbered-steps", "Numbered steps", ["process", "steps", "sequence", "guide"], "Three numbered horizontal steps."),
+  uiCatalogEntry("process-cards", "Process cards", ["process", "steps", "cards", "workflow"], "Numbered process card row."),
+  uiCatalogEntry("roadmap-strip", "Roadmap strip", ["process", "roadmap", "progress", "plan"], "Progress bar with roadmap labels."),
+  uiCatalogEntry("calendar-preview", "Calendar preview", ["product", "calendar", "schedule", "ui"], "Mini week calendar UI."),
+  uiCatalogEntry("chat-thread", "Chat thread", ["product", "chat", "messages", "ui"], "Two-bubble chat thread."),
+  uiCatalogEntry("form-card", "Form card", ["product", "form", "signup", "cta"], "Simple form card with submit."),
+  uiCatalogEntry("crm-list", "CRM list", ["product", "crm", "pipeline", "list"], "CRM account list with status."),
+  uiCatalogEntry("inbox-preview", "Inbox preview", ["product", "inbox", "notifications", "ui"], "Inbox notification preview."),
+  uiCatalogEntry("cta-banner", "CTA banner", ["cta", "hero", "convert", "action"], "Primary CTA banner with button."),
+  uiCatalogEntry("value-prop-card", "Value prop card", ["cta", "value", "message", "hero"], "Short value proposition card."),
 ];
 
 export const VISUAL_LIBRARY: VisualLibraryPattern[] = [

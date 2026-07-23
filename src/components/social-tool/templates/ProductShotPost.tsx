@@ -179,6 +179,16 @@ function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
 }
 
+/** SVG illustrations should sit on the post color — not a gray photo plate. */
+function isIllustrationFeaturedAsset(
+  imageSrc: string | null | undefined,
+  svgMarkup: string | null | undefined,
+): boolean {
+  if (svgMarkup) return true;
+  if (!imageSrc) return false;
+  return /\.svg([?#]|$)/i.test(imageSrc);
+}
+
 function featuredRadiusStyle(
   corner: FeaturedFrameRadius,
   radius: number,
@@ -1037,7 +1047,7 @@ export function ProductShotPost({
             </div>
           ) : (
             <div
-              className={`social-post-product-frame${dragging ? " is-dragging" : ""}`}
+              className={`social-post-product-frame${isIllustrationFeaturedAsset(featuredImageSrc, featuredSvgMarkup) ? " social-post-product-frame--illustration" : ""}${dragging ? " is-dragging" : ""}`}
               style={featuredFrameRadius}
               onPointerEnter={() => {
                 if (canDrag) setHovered(true);

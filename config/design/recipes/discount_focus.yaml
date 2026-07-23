@@ -18,3 +18,8 @@ preferredLayouts:
   - centered-announcement
   - brand-stack
   - classic-hero
+bundles:
+  - pricing-offer
+families:
+  - pricing
+  - metric

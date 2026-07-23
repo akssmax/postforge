@@ -1,0 +1,8 @@
+id: feature-launch
+purpose: Explain a new capability with product proof
+contains:
+  - { family: product, hierarchy: hero, density: medium }
+  - { family: benefits, hierarchy: supporting, density: compact }
+worksFor: [linkedin-square, linkedin-landscape, instagram-square]
+campaigns: [feature_release, product_launch, announcement]
+compatibleRecipes: [problem_solution_flow, announcement_hero_layout, offer_hero]

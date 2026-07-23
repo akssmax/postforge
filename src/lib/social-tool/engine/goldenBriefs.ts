@@ -4,6 +4,8 @@ import { resolveRecipe } from "@/lib/social-tool/engine/recipeResolver";
 import { retrieveLayouts } from "@/lib/social-tool/engine/layoutRetriever";
 import { resolveDesignRulesForPlan } from "@/lib/llm/rules";
 import { getLayoutRetrievalMeta } from "@/lib/social-tool/engine/layoutRetrievalMeta";
+import { retrieveBundle } from "@/lib/social-tool/visualBlocks/engine/bundleRetriever";
+import { composeFeaturedSemantic } from "@/lib/social-tool/visualBlocks/engine/featuredComposer";
 import type { PlatformId } from "@/lib/social-tool/presets";
 
 export type GoldenBriefExpectation = {
@@ -15,6 +17,10 @@ export type GoldenBriefExpectation = {
   recipeFamily?: string[];
   densityClass?: Array<"visualFirst" | "balanced" | "copyHeavy">;
   designSystemId?: string;
+  /** Expected named visual bundle (optional). */
+  visualBundle?: string | string[];
+  /** Expected primary visual family (optional). */
+  visualFamily?: string | string[];
 };
 
 /** Offline golden briefs for campaign-first stability checks. */
@@ -29,6 +35,8 @@ export const GOLDEN_BRIEFS: GoldenBriefExpectation[] = [
     recipeFamily: ["comparison_switch", "offer_hero", "problem_solution_flow"],
     densityClass: ["visualFirst", "balanced"],
     designSystemId: "offer",
+    visualBundle: ["growth-proof", "feature-launch", "pricing-offer"],
+    visualFamily: ["comparison", "product", "metric", "pricing"],
   },
   {
     id: "product-launch",
@@ -39,6 +47,8 @@ export const GOLDEN_BRIEFS: GoldenBriefExpectation[] = [
     recipeFamily: ["problem_solution_flow", "comparison_switch", "offer_hero"],
     densityClass: ["visualFirst", "balanced"],
     designSystemId: "enterprise_saas",
+    visualBundle: ["feature-launch", "process-explain", "growth-proof"],
+    visualFamily: ["product", "benefits", "process", "metric"],
   },
   {
     id: "promotion-offer",
@@ -49,6 +59,8 @@ export const GOLDEN_BRIEFS: GoldenBriefExpectation[] = [
     recipeFamily: ["offer_hero", "discount_focus"],
     densityClass: ["visualFirst", "balanced", "copyHeavy"],
     designSystemId: "offer",
+    visualBundle: ["pricing-offer", "growth-proof"],
+    visualFamily: ["pricing", "metric"],
   },
   {
     id: "announcement",
@@ -127,6 +139,8 @@ export type GoldenBriefResult = {
     designSystemId: string;
     layoutId: string;
     densityClass: string;
+    visualBundle?: string;
+    visualFamily?: string;
   };
 };
 
@@ -138,7 +152,7 @@ export function runGoldenBrief(expectation: GoldenBriefExpectation): GoldenBrief
   const plan = campaignPlanFromBrief(expectation.brief, expectation.platformId);
   const rules = resolveDesignRulesForPlan(plan, expectation.brief);
   const system = retrieveDesignSystem(plan);
-  const { recipe } = resolveRecipe(plan, system);
+  const { recipe, pattern } = resolveRecipe(plan, system);
   const candidates = retrieveLayouts(
     plan,
     expectation.platformId,
@@ -152,6 +166,44 @@ export function runGoldenBrief(expectation: GoldenBriefExpectation): GoldenBrief
   const layout = candidates[0]?.layout;
   const meta = layout ? getLayoutRetrievalMeta(layout) : null;
 
+  const bundle = retrieveBundle(
+    {
+      campaignType: plan.campaign.type,
+      recipeId: recipe.id,
+      patternId: pattern.id,
+      designSystemId: system.id,
+      platformId: expectation.platformId,
+    },
+    recipe,
+  );
+
+  const composition = composeFeaturedSemantic({
+    ctx: {
+      campaignType: plan.campaign.type,
+      recipeId: recipe.id,
+      patternId: pattern.id,
+      designSystemId: system.id,
+      contentDensity: plan.communication.contentDensity,
+      readingPattern: plan.communication.readingPattern,
+      colorMood: plan.visual.colorMood,
+      brandTone: plan.brand.tone,
+      featuredKind: plan.visual.featuredKind,
+      proof: plan.visual.proof,
+      platformId: expectation.platformId,
+    },
+    generateInput: {
+      headline: expectation.brief.slice(0, 60),
+      brief: expectation.brief,
+      preferredKind: plan.visual.featuredKind,
+      semantic: {
+        campaignType: plan.campaign.type,
+        recipeId: recipe.id,
+        patternId: pattern.id,
+      },
+    },
+    recipe,
+  });
+
   const actual = {
     campaignType: plan.campaign.type,
     pattern: plan.communication.pattern,
@@ -159,6 +211,8 @@ export function runGoldenBrief(expectation: GoldenBriefExpectation): GoldenBrief
     designSystemId: system.id,
     layoutId: layout?.id ?? "none",
     densityClass: meta?.densityClass ?? "none",
+    visualBundle: composition?.bundleId ?? bundle?.id,
+    visualFamily: composition?.parts[0]?.familyId,
   };
 
   const failures: string[] = [];
@@ -195,6 +249,24 @@ export function runGoldenBrief(expectation: GoldenBriefExpectation): GoldenBrief
   ) {
     failures.push(
       `densityClass: expected one of [${expectation.densityClass.join(", ")}], got ${meta.densityClass}`,
+    );
+  }
+  if (
+    expectation.visualBundle &&
+    actual.visualBundle &&
+    !matchesExpected(actual.visualBundle, expectation.visualBundle)
+  ) {
+    failures.push(
+      `visualBundle: expected ${JSON.stringify(expectation.visualBundle)}, got ${actual.visualBundle}`,
+    );
+  }
+  if (
+    expectation.visualFamily &&
+    actual.visualFamily &&
+    !matchesExpected(actual.visualFamily, expectation.visualFamily)
+  ) {
+    failures.push(
+      `visualFamily: expected ${JSON.stringify(expectation.visualFamily)}, got ${actual.visualFamily}`,
     );
   }
 

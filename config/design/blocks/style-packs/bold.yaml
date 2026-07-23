@@ -1,0 +1,9 @@
+id: bold
+label: Bold
+radius: md
+shadow: bold
+border: strong
+spacing: comfortable
+typography: display
+elevation: high
+surface: solid

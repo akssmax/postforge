@@ -21,3 +21,9 @@ preferredLayouts:
   - split-feature-right
   - professional-left
   - product-focus
+bundles:
+  - growth-proof
+  - feature-launch
+families:
+  - comparison
+  - product

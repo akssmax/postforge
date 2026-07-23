@@ -1,0 +1,24 @@
+id: product
+label: Product
+purpose: [show, demonstrate, product_ui]
+supports: [ui, dashboard, kanban, table]
+hierarchy: hero
+density: [compact, medium, hero]
+compositions: [centered, frame, split]
+stylePacks: [enterprise, startup, glass, minimal, bold]
+compatibleRecipes: [problem_solution_flow, offer_hero, announcement_hero_layout, comparison_switch]
+assets:
+  - { id: product-frame, kind: ui, role: primary }
+  - { id: kanban-board, kind: ui, role: board }
+  - { id: table-preview, kind: ui, role: table }
+  - { id: notification-stack, kind: ui, role: notifications }
+  - { id: calendar-preview, kind: ui, role: calendar }
+  - { id: chat-thread, kind: ui, role: chat }
+  - { id: form-card, kind: ui, role: form }
+  - { id: crm-list, kind: ui, role: crm }
+  - { id: inbox-preview, kind: ui, role: inbox }
+  - { id: cta-banner, kind: ui, role: cta }
+  - { id: value-prop-card, kind: ui, role: value }
+illustrationTags: [app, interface, dashboard, software, device, screen]
+slots:
+  title: { optional: true }

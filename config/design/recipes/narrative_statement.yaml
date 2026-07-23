@@ -17,3 +17,8 @@ preferredLayouts:
   - copy-statement
   - deck-sidebar
   - professional-left
+bundles:
+  - social-proof
+families:
+  - proof
+  - diagram

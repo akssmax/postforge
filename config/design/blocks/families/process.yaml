@@ -1,0 +1,23 @@
+id: process
+label: Process
+purpose: [explain, sequence, guide]
+supports: [steps, timeline, funnel, pipeline]
+hierarchy: supporting
+density: [compact, medium, hero]
+compositions: [horizontal, vertical, centered]
+stylePacks: [enterprise, startup, minimal, editorial]
+compatibleRecipes: [problem_solution_flow, process-explain, announcement_hero_layout]
+assets:
+  - { id: numbered-steps, kind: ui, role: primary }
+  - { id: process-cards, kind: ui, role: cards }
+  - { id: roadmap-strip, kind: ui, role: roadmap }
+  - { id: timeline, kind: diagram, role: timeline }
+  - { id: workflow-steps, kind: diagram, role: steps }
+  - { id: pipeline-flow, kind: diagram, role: pipeline }
+  - { id: funnel, kind: diagram, role: funnel }
+illustrationTags: [process, steps, workflow, timeline, journey, path]
+slots:
+  title: { optional: true }
+  step1: { optional: true }
+  step2: { optional: true }
+  step3: { optional: true }

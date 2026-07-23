@@ -1,0 +1,9 @@
+id: enterprise
+label: Enterprise
+radius: md
+shadow: soft
+border: hairline
+spacing: comfortable
+typography: sans-tight
+elevation: low
+surface: solid

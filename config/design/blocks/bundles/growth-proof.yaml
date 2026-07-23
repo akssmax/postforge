@@ -1,0 +1,8 @@
+id: growth-proof
+purpose: Build trust with a quantified outcome
+contains:
+  - { family: metric, hierarchy: hero, density: medium }
+  - { family: proof, hierarchy: supporting, density: compact }
+worksFor: [linkedin-square, linkedin-landscape, instagram-square]
+campaigns: [promotion, product_launch, advertisement, case_study, feature_release]
+compatibleRecipes: [offer_hero, comparison_switch, statistic_hero, social_proof_strip]

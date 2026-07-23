@@ -17,3 +17,8 @@ preferredLayouts:
   - classic-hero
   - visual-first
   - product-focus
+bundles:
+  - feature-launch
+families:
+  - product
+  - metric

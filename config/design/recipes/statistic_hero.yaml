@@ -19,3 +19,9 @@ preferredLayouts:
   - centered-announcement
   - copy-statement
   - professional-left
+bundles:
+  - growth-proof
+  - social-proof
+families:
+  - metric
+  - proof

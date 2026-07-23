@@ -1,0 +1,20 @@
+id: comparison
+label: Comparison
+purpose: [compare, contrast, switch]
+supports: [before_after, vs, competitive]
+hierarchy: hero
+density: [compact, medium, hero]
+compositions: [split, side-by-side, centered]
+stylePacks: [enterprise, startup, bold, minimal, editorial]
+compatibleRecipes: [comparison_switch, problem_solution_flow, offer_hero]
+assets:
+  - { id: vs-split-card, kind: ui, role: primary }
+  - { id: competitor-row, kind: ui, role: table }
+  - { id: switch-reason, kind: ui, role: reasons }
+  - { id: comparison-cards, kind: diagram, role: cards }
+  - { id: before-after, kind: diagram, role: variant }
+illustrationTags: [comparison, versus, choice, decision, contrast]
+slots:
+  left: { optional: true }
+  right: { optional: true }
+  title: { optional: true }

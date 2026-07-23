@@ -26,6 +26,8 @@ import {
   scoreVisualPattern,
 } from "./scoring";
 import type { VisualTemplateContext } from "./templateContext";
+import { composeFeaturedSemantic } from "@/lib/social-tool/visualBlocks/engine/featuredComposer";
+import { tryGetRecipe } from "@/lib/design-config/registry";
 
 export { VISUAL_LIBRARY, VISUAL_LIBRARY_BY_ID, isAssetPattern, isParametricPattern, type VisualLibraryPattern } from "./catalog";
 export {
@@ -78,6 +80,69 @@ export function getLibraryPattern(id: string): VisualLibraryPattern | undefined 
 
 const FEATURED_SLOT_KINDS: VisualBlockKind[] = ["ui", "illustration"];
 
+function trySemanticFeaturedPick(
+  input: VisualBlockGenerateInput,
+  excludeLibraryIds: string[],
+): VisualBlockRecord | null {
+  const semantic = input.semantic;
+  if (!semantic?.campaignType && !semantic?.recipeId && !semantic?.patternId) {
+    return null;
+  }
+
+  const recipe = semantic.recipeId ? tryGetRecipe(semantic.recipeId) : undefined;
+  const composition = composeFeaturedSemantic({
+    ctx: {
+      campaignType: semantic.campaignType,
+      recipeId: semantic.recipeId,
+      patternId: semantic.patternId,
+      designSystemId: semantic.designSystemId,
+      contentDensity: semantic.contentDensity,
+      readingPattern: semantic.readingPattern,
+      colorMood: semantic.colorMood,
+      brandTone: semantic.brandTone,
+      featuredKind: semantic.featuredKind ?? input.preferredKind,
+      proof: semantic.proof,
+      platformId: semantic.platformId,
+    },
+    generateInput: input,
+    recipe,
+    excludeLibraryIds,
+  });
+
+  if (!composition || composition.parts.length === 0) return null;
+
+  const primary = composition.parts[0]!;
+  const pattern = getLibraryPattern(primary.assetId);
+  if (!pattern || !isDeployableVisualPattern(pattern)) return null;
+
+  const block = instantiateLibraryPattern(pattern, input);
+  if (!block) return null;
+
+  // Prefer primary part content from composer when present
+  if (primary.content && Object.keys(primary.content).length > 0) {
+    block.content = primary.content;
+  }
+
+  block.semantic = {
+    familyId: primary.familyId,
+    bundleId: composition.bundleId,
+    density: primary.density,
+    composition: primary.composition,
+    stylePackId: composition.stylePackId,
+    hierarchy: primary.hierarchy,
+    compositionParts: composition.parts.map((part) => ({
+      familyId: part.familyId,
+      assetId: part.assetId,
+      kind: part.kind,
+      density: part.density,
+      hierarchy: part.hierarchy,
+    })),
+  };
+  block.prompt = composition.reason;
+
+  return block;
+}
+
 export function pickFeaturedVisualFromLibrary(
   input: VisualBlockGenerateInput,
   options?: { excludeLibraryIds?: string[] },
@@ -92,14 +157,31 @@ export function pickShuffleFeaturedVisual(
   excludeLibraryIds: string[] = [],
   options?: { randomize?: boolean },
 ): VisualBlockRecord | null {
+  const semanticHit = trySemanticFeaturedPick(input, excludeLibraryIds);
+  if (semanticHit && options?.randomize === false) {
+    return semanticHit;
+  }
+  // On shuffle with semantic context, still prefer family-ranked assets
+  if (semanticHit && options?.randomize !== false && input.semantic) {
+    // Fall through to kind-filtered ranking but bias via exclude of non-family later
+  }
+
   const excluded = new Set(excludeLibraryIds.filter(Boolean));
   const preferredKind = resolvePreferredVisualKind(input);
   const deployableLibrary = getDeployableVisualLibrary();
 
+  // Allow diagrams in featured when semantic path asked for them via composition
   let candidates = deployableLibrary.filter(
     (pattern) =>
-      FEATURED_SLOT_KINDS.includes(pattern.kind) && !excluded.has(pattern.id),
+      (FEATURED_SLOT_KINDS.includes(pattern.kind) || pattern.kind === "diagram") &&
+      !excluded.has(pattern.id),
   );
+  // Legacy featured path: ui + illustration only unless semantic present
+  if (!input.semantic) {
+    candidates = candidates.filter((pattern) =>
+      FEATURED_SLOT_KINDS.includes(pattern.kind),
+    );
+  }
   if (preferredKind) {
     const kindMatches = candidates.filter((pattern) => pattern.kind === preferredKind);
     if (kindMatches.length > 0) candidates = kindMatches;
@@ -112,7 +194,16 @@ export function pickShuffleFeaturedVisual(
   if (candidates.length === 0) return null;
 
   const ranked = rankVisualPatterns(candidates, input);
-  return instantiateFirstAvailable(ranked, input, options);
+  const block = instantiateFirstAvailable(ranked, input, options);
+  if (block && semanticHit?.semantic) {
+    // Preserve style pack from semantic resolver when shuffling within family
+    block.semantic = {
+      ...semanticHit.semantic,
+      familyId: block.semantic?.familyId ?? semanticHit.semantic.familyId,
+      stylePackId: semanticHit.semantic.stylePackId,
+    };
+  }
+  return block ?? semanticHit;
 }
 
 function instantiateFirstAvailable(

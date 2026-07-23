@@ -1,0 +1,19 @@
+id: pricing
+label: Pricing
+purpose: [offer, convert, price]
+supports: [pricing, plan, tier]
+hierarchy: hero
+density: [compact, medium, hero]
+compositions: [centered, card, floating]
+stylePacks: [enterprise, startup, bold, glass, gradient]
+compatibleRecipes: [offer_hero, discount_focus, pricing-offer]
+assets:
+  - { id: pricing-card, kind: ui, role: primary }
+  - { id: dual-pricing, kind: ui, role: compare }
+  - { id: offer-badge-card, kind: ui, role: offer }
+  - { id: discount-strip, kind: ui, role: discount }
+illustrationTags: [pricing, payment, shopping, commerce, money]
+slots:
+  tier: { optional: true }
+  price: { required: true }
+  cta: { optional: true }

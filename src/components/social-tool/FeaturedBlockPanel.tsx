@@ -184,6 +184,26 @@ export function FeaturedBlockPanel({
                     {generatingVisualBlocks ? "Shuffling…" : "Shuffle"}
                   </Button>
                 </div>
+                {activeBlock?.semantic ? (
+                  <p className="text-[11px] leading-4 text-text-tertiary">
+                    {[
+                      activeBlock.semantic.bundleId
+                        ? `Bundle: ${activeBlock.semantic.bundleId}`
+                        : null,
+                      activeBlock.semantic.familyId
+                        ? `Family: ${activeBlock.semantic.familyId}`
+                        : null,
+                      activeBlock.semantic.stylePackId
+                        ? `Style: ${activeBlock.semantic.stylePackId}`
+                        : null,
+                      activeBlock.semantic.density
+                        ? `Density: ${activeBlock.semantic.density}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                ) : null}
               </>
             ) : (
               <div className="flex items-center gap-2">

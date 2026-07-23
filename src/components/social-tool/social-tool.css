@@ -1081,6 +1081,30 @@
   will-change: transform;
 }
 
+/* Illustrations (SVG) float on the post background — no photo plate */
+.social-post-product-frame--illustration {
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.social-post-product-frame--illustration .social-post-product-inner--image {
+  overflow: visible;
+  align-items: center;
+  justify-content: center;
+}
+
+.social-post-product-frame--illustration .social-post-featured-image {
+  object-fit: contain;
+  object-position: center;
+  padding: 4%;
+  box-sizing: border-box;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+}
+
 .social-post-product-frame.is-dragging {
   cursor: grabbing;
 }
