@@ -41,7 +41,7 @@ Reference for agents and contributors building UI in this repo. Prefer these con
   - `"copy"` → `ContentPanel`; `"logo"` → `BrandPanel`; `"featured"` → `FeaturedBlockPanel`.
   - **Background** and **Pattern** are canvas-level settings — always pinned at the bottom of the sidebar (`FixedCanvasPanels` in `DesignInspector.tsx`), not swapped by selection.
   - Implemented in `DesignInspector.tsx`. Escape clears selection.
-- **Canvas toolbar:** `.canvas-preview-toolbar` — shuffle left, spacing + contrast badge right; pills use `.canvas-tool-pill-btn`. Hidden until onboarding `ready`.
+- **Canvas toolbar:** `.canvas-preview-toolbar` — shuffle left; **Generate variants** + spacing + contrast badge right; pills use `.canvas-tool-pill-btn`. Hidden until onboarding `ready`. Multi-artboard rows use `.canvas-artboard-row` / `.canvas-variant-artboard` with per-board shuffle; follow-up/export target the active board (`data-artboard-id`). Stage chrome (`.canvas-stage-chrome`) holds hand/zoom plus an artboard switcher when multiple boards exist.
 - **Design session storage:** `localStorage` key `postforge:design:{id}`; logo/featured blobs in IndexedDB as `{designId}:logo:{id}` / `{designId}:featured:{id}`; thumbnails as `{designId}:thumbnail` in the same IDB store.
 - **Design index:** `postforge:design-index` — array of `DesignSummary` metadata for `/designs`. Updated via `designRepository.upsert()` on meaningful save (logo uploaded or onboarding past `needsLogo`). Lazy migration scans existing session keys when index is empty.
 

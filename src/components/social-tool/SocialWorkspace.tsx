@@ -179,8 +179,8 @@ function ToolSocialWorkspace() {
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [stageEl, setStageEl] = useState<HTMLElement | null>(null);
   const [canvasRoot, setCanvasRoot] = useState<HTMLElement | null>(null);
   const [overlayContainer, setOverlayContainer] = useState<HTMLElement | null>(
     null,
@@ -202,8 +202,9 @@ function ToolSocialWorkspace() {
     resetZoom,
     setActualSize,
     toggleHandMode,
+    stagePanProps,
   } = useCanvasPreviewViewport({
-    stageRef,
+    stageEl,
     platformWidth: platform.width,
     platformHeight: platform.height,
   });
@@ -716,9 +717,10 @@ function ToolSocialWorkspace() {
 
         {/* Preview stage */}
         <div
-          ref={stageRef}
+          ref={setStageEl}
           className="social-tool-canvas-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden overscroll-none bg-[color-mix(in_oklab,var(--gray-950)_6%,var(--surface-primary))] p-6 dark:bg-[color-mix(in_oklab,var(--white)_4%,var(--surface-primary))]"
           onPointerDown={handleStagePointerDown}
+          {...stagePanProps}
         >
           <CanvasZoomControls
             zoomPercent={zoomPercent}
@@ -732,7 +734,7 @@ function ToolSocialWorkspace() {
             onActualSize={setActualSize}
           />
           <div
-            className="flex w-max max-w-none shrink-0 flex-col items-center gap-3 will-change-transform"
+            className="canvas-pan-layer flex w-max max-w-none shrink-0 flex-col items-center gap-3"
             style={panStyle}
           >
             <div

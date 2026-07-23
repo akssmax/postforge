@@ -8,44 +8,28 @@ import { DesignToolHeader } from "@/components/social-tool/DesignToolHeader";
 import { CanvasPlatformPicker } from "@/components/social-tool/CanvasPlatformPicker";
 import { CanvasDesignOverlay } from "@/components/social-tool/CanvasDesignOverlay";
 import { ContrastIssuesToggle } from "@/components/social-tool/ContrastIssuesToggle";
-import {
-  ProductShotPost,
-  type FeaturedImageTransform,
-} from "@/components/social-tool/templates/ProductShotPost";
+import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
 import {
   getPlatform,
-  getTemplate,
   type PlatformId,
   type PostCopy,
 } from "@/lib/social-tool/presets";
 import { exportPost, type ExportFormat } from "@/lib/social-tool/exportPost";
 import { useBrandToolTheme } from "@/lib/brand/useBrandToolTheme";
 import { LayoutPreviewEmptyState } from "@/components/social-tool/LayoutPreviewEmptyState";
-import { LayoutShuffleButton } from "@/components/social-tool/LayoutShuffleButton";
-import { LayoutSpacingToggle } from "@/components/social-tool/LayoutSpacingToggle";
 import { CanvasZoomControls } from "@/components/social-tool/CanvasZoomControls";
+import { CanvasArtboardSwitcher } from "@/components/social-tool/CanvasArtboardSwitcher";
+import {
+  AnimatePresence,
+  CanvasVariantArtboard,
+  CanvasVariantSkeleton,
+} from "@/components/social-tool/CanvasVariantArtboard";
 import { useCanvasPreviewViewport } from "@/lib/social-tool/useCanvasPreviewViewport";
-import {
-  getLayoutStatePatch,
-  getPostLayout,
-  seedCopyForLayout,
-  type PostLayoutId,
-} from "@/lib/social-tool/postLayouts";
-import {
-  getRandomPlaygroundLayout,
-  loadLayoutReviews,
-  resolveLayoutSpacing,
-  type LayoutReviewRecord,
-} from "@/lib/social-tool/layoutReviews";
-import { pickRandomShuffleSurface } from "@/lib/social-tool/shuffleSurface";
-import { pickNextCopyVariant } from "@/lib/social-tool/shuffleCopy";
 import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
-import { resolveLayoutHierarchyFromIds } from "@/lib/social-tool/layoutHierarchy";
-import {
-  resolveVisualBlockDimensions,
-  parseSvgViewBox,
-  VISUAL_LIBRARY_FRAME,
-} from "@/lib/social-tool/visualBlocks/dimensions";
+import { applyShuffleToSession } from "@/lib/social-tool/applyShuffle";
+import { shuffleFeaturedVisualForSession } from "@/lib/social-tool/generateDesignVariants";
+import { useDesignVariantGroup } from "@/lib/design/useDesignVariantGroup";
+import { loadDesignSession } from "@/lib/design/designSession";
 import {
   canvasSelectionFromContrastBlock,
   isCanvasSelectableTarget,
@@ -64,32 +48,28 @@ import {
   hasLogoSvgContrastFix,
 } from "@/lib/brand/logoContrastFix";
 import {
-  getMonogramOnlyMarkup,
-  hasMonogramSvg,
   kitHasAnyLogo,
-  logoVariantColorMode,
   resolveCanvasLogo,
 } from "@/lib/brand/logoVariants";
 import { useDesignSession } from "@/lib/design/useDesignSession";
 import { designRepository } from "@/lib/design/repository";
-import type { DesignDocument } from "@/lib/design/types";
+import type { DesignDocument, DesignSessionPersisted } from "@/lib/design/types";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
-import { resolveDocumentLayout, layoutIdForDocument } from "@/lib/social-tool/layoutRegistry";
-import { catalogLayoutRef, catalogLayoutToDynamic, textSlotsFromCopy } from "@/lib/social-tool/layoutAdapter";
 import { useBriefChat } from "@/lib/llm/useBriefChat";
 import { buildDesignSnapshot } from "@/lib/design/buildDesignSnapshot";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import { FloatingBriefComposer } from "@/components/social-tool/FloatingBriefComposer";
 import { VariantPicker } from "@/components/social-tool/VariantPicker";
-import { activeVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
 
 type Props = {
   designId: string;
 };
 
 export function DesignSessionSocialWorkspace({ designId }: Props) {
-  const session = useDesignSession(designId);
+  const originDesignId = designId;
+  const variantGroup = useDesignVariantGroup(originDesignId);
+  const session = useDesignSession(variantGroup.activeDesignId);
   const doc = session.document;
 
   const [exportScale, setExportScale] = useState<1 | 2>(2);
@@ -102,6 +82,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     null,
   );
 
+  useEffect(() => {
+    if (session.session) variantGroup.syncBoard(session.session);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync live active session into board list
+  }, [session.session]);
+
   const toolThemeRef = useBrandToolTheme({
     colors: session.kit.colors,
     active: kitHasAnyLogo(session.kit),
@@ -111,15 +96,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const isReady = doc.onboarding.phase === "ready";
   const isNeedsLogo = doc.onboarding.phase === "needsLogo";
   const isNeedsBrief = doc.onboarding.phase === "needsBrief";
-  const resolvedLayout = useMemo(
-    () => resolveDocumentLayout(doc),
-    [doc],
-  );
-
   const showCanvasBlocks = !isNeedsLogo;
-  const template = getTemplate(doc.templateId);
   const platform = getPlatform(doc.platformId);
-  const activeLayout = getPostLayout(layoutIdForDocument(doc));
 
   useEffect(() => {
     setSelectedBlock(null);
@@ -151,7 +129,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
     if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
     thumbnailTimerRef.current = setTimeout(() => {
-      void designRepository.captureThumbnail(designId, node).catch((err) => {
+      if (variantGroup.activeDesignId !== originDesignId) return;
+      void designRepository.captureThumbnail(originDesignId, node).catch((err) => {
         console.warn("[postforge] thumbnail capture failed", err);
       });
     }, 450);
@@ -160,7 +139,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
     };
   }, [
-    designId,
+    originDesignId,
+    variantGroup.activeDesignId,
     doc.copy.heading,
     doc.layoutId,
     doc.platformId,
@@ -189,8 +169,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const thumbnailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [stageEl, setStageEl] = useState<HTMLElement | null>(null);
   const [canvasRoot, setCanvasRoot] = useState<HTMLElement | null>(null);
   const [overlayContainer, setOverlayContainer] = useState<HTMLElement | null>(
     null,
@@ -209,159 +189,154 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     resetZoom,
     setActualSize,
     toggleHandMode,
+    nudgePan,
+    panElementIntoView,
+    stagePanProps,
   } = useCanvasPreviewViewport({
-    stageRef,
+    stageEl,
     platformWidth: platform.width,
     platformHeight: platform.height,
   });
 
+  const artboardSwitcherItems = useMemo(() => {
+    const boards =
+      variantGroup.boards.length > 0
+        ? variantGroup.boards
+        : session.session
+          ? [session.session]
+          : [];
+    return boards.map((board, i) => {
+      const isOrigin = board.designId === originDesignId;
+      const optionIndex = isOrigin
+        ? 0
+        : boards
+            .filter((b) => b.designId !== originDesignId)
+            .findIndex((b) => b.designId === board.designId) + 1;
+      return {
+        id: board.designId,
+        label: isOrigin ? "Original" : String(optionIndex),
+      };
+    });
+  }, [variantGroup.boards, session.session, originDesignId]);
+
+  useEffect(() => {
+    if (variantGroup.phase !== "revealing") return;
+    // Nudge stage so newly revealed variants sit in view
+    nudgePan({ x: -(platform.width * previewScale * 0.35) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- settle pan once per generate reveal
+  }, [variantGroup.phase]);
+
+  useEffect(() => {
+    if (!session.session?.brand || variantGroup.boards.length <= 1) return;
+    variantGroup.broadcastBrandIdentity(session.session.brand);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keep logos/colors shared across artboards
+  }, [logoRevision]);
+
   const patchDocument = session.patchDocument;
 
-  const composedBlockDimensions = useMemo(() => {
-    if (session.featured.mode !== "composed") return undefined;
-    const block = activeVisualBlock(
-      session.featured.visualBlocks ?? [],
-      session.featured.activeBlockId,
-    );
-    return block ? resolveVisualBlockDimensions(block) : VISUAL_LIBRARY_FRAME;
-  }, [session.featured.mode, session.featured.visualBlocks, session.featured.activeBlockId]);
-
-  const applyPostLayout = useCallback(
-    (nextId: PostLayoutId, record: LayoutReviewRecord = loadLayoutReviews()) => {
-      const layout = getPostLayout(nextId);
-      const patch = getLayoutStatePatch(layout);
-      const nextSpacing = resolveLayoutSpacing(record, doc.platformId, nextId);
-      const nextCopy = seedCopyForLayout(doc.copy, layout);
-      const hierarchy = resolveLayoutHierarchyFromIds({
-        platformId: doc.platformId,
-        layoutId: nextId,
-        copy: nextCopy,
-        spacing: nextSpacing,
-        showLogo: doc.showBrand,
-        showFeaturedImage: doc.showFeaturedImage,
-        featuredMode: session.featured.mode,
-        productPage: session.featured.productPage,
-        hasUploadedFeaturedImage: !!session.featured.image,
-        visualBlockDimensions: composedBlockDimensions,
-      });
-      patchDocument({
-        layoutId: nextId,
-        layoutRef: catalogLayoutRef(nextId),
-        logoPlacement: patch.logoPlacement,
-        logoAlign: patch.logoAlign,
-        textAlign: patch.textAlign,
-        layoutSpacing: nextSpacing,
-        copy: nextCopy,
-        typeScale: hierarchy.typeScale,
-        logoScale: hierarchy.logoScale,
-        featuredTransform: hierarchy.featuredTransform,
-      });
-    },
-    [
-      composedBlockDimensions,
-      doc.copy,
-      doc.platformId,
-      doc.showBrand,
-      doc.showFeaturedImage,
-      patchDocument,
-      session.featured.mode,
-      session.featured.productPage,
-    ],
-  );
-
-  function shufflePostLayout(prefs: ShufflePreferences) {
-    const record = loadLayoutReviews();
-    const currentLayoutId = layoutIdForDocument(doc);
-    const nextLayout = prefs.layout
-      ? getRandomPlaygroundLayout(doc.platformId, currentLayoutId, record)
-      : getPostLayout(currentLayoutId);
-    const layout = nextLayout;
-    const patch = getLayoutStatePatch(layout);
-    const nextSpacing = prefs.layout
-      ? resolveLayoutSpacing(record, doc.platformId, nextLayout.id)
-      : doc.layoutSpacing;
-    let nextCopy = seedCopyForLayout(doc.copy, layout);
-    let nextCopyVariantIndex = doc.copyVariantIndex ?? 0;
-    if (prefs.content) {
-      const shuffled = pickNextCopyVariant(
-        doc.copy,
-        layout,
-        doc.copyVariants,
-        doc.copyVariantIndex,
-      );
-      nextCopy = shuffled.copy;
-      nextCopyVariantIndex = shuffled.nextIndex;
-    }
-    const hierarchy = resolveLayoutHierarchyFromIds({
-      platformId: doc.platformId,
-      layoutId: nextLayout.id,
-      copy: nextCopy,
-      spacing: nextSpacing,
-      showLogo: doc.showBrand,
-      showFeaturedImage: doc.showFeaturedImage,
-      featuredMode: session.featured.mode,
-      productPage: session.featured.productPage,
-      hasUploadedFeaturedImage: !!session.featured.image,
-      visualBlockDimensions: composedBlockDimensions,
-    });
-    const surface = pickRandomShuffleSurface({
-      backgrounds: session.backgroundPresets,
-      currentBackgroundId: session.kit.activeBackgroundPresetId,
-      currentPattern: doc.pattern,
-      currentShowPattern: doc.showPattern,
-      currentPatternOpacity: doc.patternOpacity,
-      currentPatternScale: doc.patternScale,
-      layoutId: nextLayout.id,
-      shuffleBackground: prefs.background,
-      shufflePattern: prefs.pattern,
-      includeBrandPatterns: hasMonogramSvg(session.kit),
-    });
-
-    if (prefs.background) {
-      session.setBackgroundPreset(surface.backgroundPresetId);
-    }
-
-    patchDocument({
-      ...(prefs.layout
-        ? {
-            layoutId: nextLayout.id,
-            layoutRef: catalogLayoutRef(nextLayout.id),
-            logoPlacement: patch.logoPlacement,
-            logoAlign: patch.logoAlign,
-            textAlign: patch.textAlign,
-            layoutSpacing: nextSpacing,
-            textSlots: textSlotsFromCopy(nextCopy, catalogLayoutToDynamic(nextLayout)),
-          }
-        : {}),
-      copy: nextCopy,
-      copyVariantIndex: nextCopyVariantIndex,
-      typeScale: hierarchy.typeScale,
-      logoScale: hierarchy.logoScale,
-      ...(prefs.featuredPosition || session.featured.mode === "composed"
-        ? { featuredTransform: hierarchy.featuredTransform }
-        : {}),
-      ...(prefs.pattern
-        ? {
-            pattern: surface.pattern,
-            showPattern: surface.showPattern,
-            patternOpacity: surface.patternOpacity,
-            patternScale: surface.patternScale,
-          }
-        : {}),
-      ...(prefs.background ? { showBackground: true } : {}),
-    });
-
+  function boardSessionFor(boardId: string): DesignSessionPersisted | null {
     if (
-      prefs.featuredPosition &&
-      session.featured.mode === "composed" &&
-      (session.featured.visualBlocks?.length ?? 0) > 0
+      boardId === variantGroup.activeDesignId &&
+      session.session
     ) {
-      void session.shuffleFeaturedVisualBlock({
-        headline: nextCopy.heading,
-        subheading: nextCopy.subheading,
-      });
+      return session.session;
     }
+    return (
+      variantGroup.boards.find((b) => b.designId === boardId) ??
+      (boardId === originDesignId ? loadDesignSession(originDesignId) : null)
+    );
   }
+
+  async function shuffleBoard(boardId: string, prefs: ShufflePreferences) {
+    const source = boardSessionFor(boardId);
+    if (!source) return;
+    const result = applyShuffleToSession(source, {
+      prefs,
+      backgrounds: session.backgroundPresets,
+    });
+
+    if (boardId === variantGroup.activeDesignId) {
+      if (prefs.background) {
+        session.setBackgroundPreset(result.session.brand.activeBackgroundPresetId);
+      }
+      patchDocument(result.session.document);
+      if (result.shouldShuffleFeaturedVisual) {
+        void session.shuffleFeaturedVisualBlock({
+          headline: result.session.document.copy.heading,
+          subheading: result.session.document.copy.subheading,
+        });
+      }
+      return;
+    }
+
+    let next = result.session;
+    if (result.shouldShuffleFeaturedVisual) {
+      next = (await shuffleFeaturedVisualForSession(next)).session;
+    }
+    variantGroup.replaceBoard(next);
+  }
+
+  async function handleGenerateVariants() {
+    const originLive =
+      variantGroup.activeDesignId === originDesignId && session.session
+        ? session.session
+        : (variantGroup.boards.find((b) => b.designId === originDesignId) ??
+          loadDesignSession(originDesignId));
+    setAdjustSpacing(false);
+    clearInspectorSelection();
+    await variantGroup.generateVariants(originLive);
+  }
+
+  function handleActivateBoard(boardId: string) {
+    if (boardId !== variantGroup.activeDesignId) {
+      setAdjustSpacing(false);
+      clearInspectorSelection();
+      variantGroup.setActiveDesignId(boardId);
+    }
+    // Bring the artboard into the stage center (works even when off-screen)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const node = stageEl?.querySelector<HTMLElement>(
+          `[data-artboard-id="${boardId}"]`,
+        );
+        if (node) panElementIntoView(node);
+      });
+    });
+  }
+
+  // 0 = Original, 1–6 = options (matches artboard switcher pills)
+  useEffect(() => {
+    if (!isReady || artboardSwitcherItems.length <= 1) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target;
+      if (target instanceof HTMLElement) {
+        const tag = target.tagName;
+        if (
+          target.isContentEditable ||
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          target.closest("[contenteditable='true']")
+        ) {
+          return;
+        }
+      }
+
+      const digit = e.code.match(/^Digit([0-6])$/)?.[1] ?? e.code.match(/^Numpad([0-6])$/)?.[1];
+      if (digit == null) return;
+      const index = Number(digit);
+      const board = artboardSwitcherItems[index];
+      if (!board) return;
+      e.preventDefault();
+      handleActivateBoard(board.id);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activate via latest handleActivateBoard
+  }, [isReady, artboardSwitcherItems, stageEl, variantGroup.activeDesignId]);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -412,10 +387,6 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     ? (session.kit.logoSrcs?.[canvasLogo.variant] ??
       (canvasLogo.variant === "primary" ? session.kit.logoSrc : null))
     : null;
-  const canvasLogoColorMode = canvasLogo
-    ? logoVariantColorMode(canvasLogo.variant, canvasLogo.record)
-    : "inherit";
-  const patternLogoSvgMarkup = getMonogramOnlyMarkup(session.kit);
   const textColor =
     doc.showBrand && (session.kit.activeBackgroundPresetId || doc.textContrastBoost)
       ? doc.textContrastBoost
@@ -506,7 +477,12 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   }
 
   async function handleExport(format: ExportFormat) {
-    const node = canvasRef.current;
+    const node =
+      stageEl?.querySelector<HTMLElement>(
+        `[data-artboard-id="${variantGroup.activeDesignId}"] .social-post`,
+      ) ??
+      canvasRef.current?.querySelector<HTMLElement>(".social-post") ??
+      canvasRef.current;
     if (!node || exporting) return;
     setExporting(format);
     setExportOpen(false);
@@ -641,15 +617,6 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   const showFloatingComposer = isReady && inspectorSelection === null;
 
-  const activeComposedBlock = useMemo(
-    () =>
-      activeVisualBlock(
-        session.featured.visualBlocks ?? [],
-        session.featured.activeBlockId,
-      ),
-    [session.featured.visualBlocks, session.featured.activeBlockId],
-  );
-
   function handlePlatformChange(next: PlatformId) {
     const patch: Partial<DesignDocument> = { platformId: next };
     if (next === "event-standee") {
@@ -657,6 +624,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       patch.logoAlign = "left";
     }
     patchDocument(patch);
+    variantGroup.broadcastPlatform(next);
   }
 
   function handleFeaturedTransformChange(value: FeaturedImageTransform) {
@@ -854,9 +822,10 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         </aside>
 
         <div
-          ref={stageRef}
+          ref={setStageEl}
           className="social-tool-canvas-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden overscroll-none bg-[color-mix(in_oklab,var(--gray-950)_6%,var(--surface-primary))] p-6 dark:bg-[color-mix(in_oklab,var(--white)_4%,var(--surface-primary))]"
           onPointerDown={handleStagePointerDown}
+          {...stagePanProps}
         >
           <CanvasZoomControls
             zoomPercent={zoomPercent}
@@ -868,189 +837,194 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             onZoomOut={zoomOut}
             onReset={resetZoom}
             onActualSize={setActualSize}
+            trailing={
+              <CanvasArtboardSwitcher
+                boards={artboardSwitcherItems}
+                activeId={variantGroup.activeDesignId}
+                onSelect={handleActivateBoard}
+              />
+            }
           />
           <div
-            className="flex w-max max-w-none shrink-0 flex-col items-center gap-3 will-change-transform"
+            className="canvas-pan-layer flex w-max max-w-none shrink-0 flex-col items-center gap-3"
             style={panStyle}
           >
-            <div
-              className="canvas-preview-stack"
-              style={{ width: platform.width * previewScale }}
-            >
-              {isReady ? (
-                <div className="canvas-preview-toolbar">
-                  <LayoutShuffleButton
-                    layoutName={activeLayout.name}
-                    onShuffle={shufflePostLayout}
-                  />
-                  <div className="canvas-preview-toolbar-end">
-                    <LayoutSpacingToggle
-                      enabled={adjustSpacing}
-                      onToggle={() => setAdjustSpacing((on) => !on)}
-                    />
-                    {contrastEnabled && contrastFailingCount > 0 ? (
-                      <ContrastIssuesToggle
-                        results={contrastResults}
-                        open={contrastPanelOpen}
-                        onOpenChange={setContrastPanelOpen}
-                        selectedBlock={selectedBlock}
-                        onSelectBlock={(id) => {
-                          setSelectedBlock(id);
-                          if (id) {
-                            handleCanvasSelect(canvasSelectionFromContrastBlock(id));
-                          }
-                        }}
-                        logoBackdrop={doc.logoBackdrop}
-                        logoInvert={doc.logoInvert}
-                        hasSvgLogo={canvasLogo?.record.mime === "image/svg+xml"}
-                        canFixLogoSvg={canFixLogoSvg}
-                        hasLogoSvgFix={hasLogoSvgFix}
-                        onFixLogoBackdrop={() => patchDocument({ logoBackdrop: true })}
-                        onFixLogoInvert={() =>
-                          patchDocument({ logoInvert: !doc.logoInvert })
-                        }
-                        onFixLogoSvgContrast={() =>
-                          session.fixLogoSvgContrast(activeBgCss, doc.logoBackdrop)
-                        }
-                        onRestoreLogoSvg={() => session.restoreLogoSvg()}
-                        onFixBackground={() => {
-                          session.setBackgroundPreset(suggestHighContrastBackgroundId());
-                          patchDocument({ logoBackdrop: false });
-                        }}
-                        onFixTextContrast={() => {
-                          session.setBackgroundPreset(suggestHighContrastBackgroundId());
-                          patchDocument({ textContrastBoost: true });
-                        }}
-                      />
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-              {briefChat.pendingVariants?.length ? (
-                <VariantPicker
-                  variants={briefChat.pendingVariants}
-                  activeTheme={briefChat.activeVariantTheme}
-                  onApply={briefChat.applyVariant}
-                />
-              ) : null}
+            {isNeedsLogo ? (
               <div
-                ref={viewportRef}
-                className="relative overflow-hidden"
-                style={{
-                  width: platform.width * previewScale,
-                  height: platform.height * previewScale,
-                }}
+                className="canvas-preview-stack"
+                style={{ width: platform.width * previewScale }}
               >
                 <div
-                  className="origin-top-left"
+                  ref={viewportRef}
+                  className="relative overflow-hidden"
                   style={{
-                    width: platform.width,
-                    height: platform.height,
-                    transform: `scale(${previewScale})`,
-                    transformOrigin: "top left",
+                    width: platform.width * previewScale,
+                    height: platform.height * previewScale,
                   }}
                 >
-                  <div
-                    className="relative"
-                    style={{ width: platform.width, height: platform.height }}
-                  >
-                    <div ref={canvasRef}>
-                      {isNeedsLogo ? (
-                        <LayoutPreviewEmptyState
-                          width={platform.width}
-                          height={platform.height}
-                          previewScale={previewScale}
-                        />
-                      ) : (
-                      <ProductShotPost
-                        width={platform.width}
-                        height={platform.height}
-                        copy={doc.copy}
-                        pattern={doc.pattern}
-                        designId={designId}
-                        showPattern={doc.showPattern && showCanvasBlocks}
-                        showBackground={doc.showBackground && showCanvasBlocks}
-                        exporting={!!exporting}
-                        patternOpacity={doc.patternOpacity}
-                        patternScale={doc.patternScale}
-                        patternAnimated={doc.patternAnimated && !exporting && isReady}
-                        productPage={session.featured.productPage}
-                        featuredMode={session.featured.mode}
-                        composedSvgMarkup={
-                          session.featured.mode === "composed"
-                            ? activeComposedBlock?.svgMarkup ?? null
-                            : null
-                        }
-                        composedBlock={
-                          session.featured.mode === "composed" ? activeComposedBlock ?? null : null
-                        }
-                        brandColors={{
-                          primary: session.kit.colors.primary,
-                          accent: session.kit.colors.accent,
-                        }}
-                        visualBlocks={session.featured.visualBlocks ?? []}
-                        activeVisualBlockId={session.featured.activeBlockId}
-                        generatingVisualBlocks={session.generatingVisualBlocks}
-                        onGenerateVisualBlocks={(source, options) =>
-                          void session.generateVisualBlocks({
-                            source,
-                            pickFeatured: options?.pickFeatured,
-                          })
-                        }
-                        onSelectVisualBlock={session.selectVisualBlock}
-                        featuredImageSrc={session.featuredImageSrc}
-                        featuredSvgMarkup={session.featured.image?.svgMarkup ?? null}
-                        hasFeaturedImage={!!session.featured.image}
-                        typeScale={doc.typeScale}
-                        logoScale={doc.logoScale}
-                        logoAlign={doc.logoAlign}
-                        logoPlacement={doc.logoPlacement}
-                        showLogo={doc.showBrand}
-                        showFeaturedImage={doc.showFeaturedImage && showCanvasBlocks}
-                        featuredTransform={doc.featuredTransform}
-                        onFeaturedTransformChange={handleFeaturedTransformChange}
-                        previewScale={previewScale}
-                        interactive={!exporting && isReady}
-                        textAlign={doc.textAlign}
-                        headingFont={doc.headingFont}
-                        subFont={doc.subFont}
-                        accentPeriod={template.accentPeriod}
-                        logoSrc={canvasLogoSrc}
-                        logoSvgMarkup={canvasLogo?.record.svgMarkup ?? null}
-                        patternLogoSvgMarkup={patternLogoSvgMarkup}
-                        hasUploadedLogo={!!canvasLogo}
-                        backgroundPreset={
-                          doc.showBackground && session.kit.activeBackgroundPresetId
-                            ? session.activeBackground.css
-                            : undefined
-                        }
-                        designMode={showContrastOverlay}
-                        onSelectBlock={setSelectedBlock}
-                        logoBackdrop={doc.logoBackdrop}
-                        logoInvert={doc.logoInvert}
-                        logoUsesExplicitColors={
-                          canvasLogo?.record.usesExplicitColors ?? false
-                        }
-                        logoColorMode={canvasLogoColorMode}
-                        textColorOverride={textColor}
-                        subTextColorOverride={subTextColor}
-                        layoutId={doc.layoutId}
-                        dynamicLayout={resolvedLayout}
-                        textSlots={doc.textSlots}
-                        featuredSlots={doc.featuredSlots}
-                        spacing={doc.layoutSpacing}
-                        onSpacingChange={(v) => patchDocument({ layoutSpacing: v })}
-                        showSpacingControls={adjustSpacing && isReady}
-                        canvasSelection={inspectorSelection}
-                        onCanvasSelect={handleCanvasSelect}
-                        showContent={
-                          (doc.showContent || isNeedsBrief) && showCanvasBlocks
-                        }
-                      />
-                      )}
-                    </div>
+                  <div ref={canvasRef}>
+                    <LayoutPreviewEmptyState
+                      width={platform.width}
+                      height={platform.height}
+                      previewScale={previewScale}
+                    />
                   </div>
                 </div>
+              </div>
+            ) : (
+              <div className="canvas-artboard-row flex items-start gap-8">
+                {(variantGroup.boards.length > 0
+                  ? variantGroup.boards
+                  : session.session
+                    ? [session.session]
+                    : []
+                ).map((board, index) => {
+                  const isActive = board.designId === variantGroup.activeDesignId;
+                  const isOrigin = board.designId === originDesignId;
+                  const liveBoard =
+                    isActive &&
+                    session.session?.designId === board.designId
+                      ? session.session
+                      : board;
+                  const variantIndex = isOrigin
+                    ? 0
+                    : variantGroup.boards
+                        .filter((b) => b.designId !== originDesignId)
+                        .findIndex((b) => b.designId === board.designId) + 1;
+
+                  return (
+                    <CanvasVariantArtboard
+                      key={board.designId}
+                      board={liveBoard}
+                      originDesignId={originDesignId}
+                      index={variantIndex}
+                      isActive={isActive}
+                      isOrigin={isOrigin}
+                      previewScale={previewScale}
+                      adjustSpacing={adjustSpacing}
+                      onToggleSpacing={() => setAdjustSpacing((on) => !on)}
+                      onActivate={() => handleActivateBoard(board.designId)}
+                      onShuffle={(prefs) => {
+                        void shuffleBoard(board.designId, prefs);
+                      }}
+                      onGenerateVariants={() => {
+                        void handleGenerateVariants();
+                      }}
+                      generatingVariants={variantGroup.generating}
+                      canGenerate={isReady}
+                      showGenerateButton={
+                        isReady &&
+                        variantGroup.canGenerateMore &&
+                        (variantGroup.boards.length <= 1
+                          ? isOrigin
+                          : board.designId ===
+                            variantGroup.boards[variantGroup.boards.length - 1]
+                              ?.designId)
+                      }
+                      liveFeaturedImageSrc={
+                        isActive ? session.featuredImageSrc : undefined
+                      }
+                      liveLogoSrc={isActive ? canvasLogoSrc : undefined}
+                      interactive={!exporting && isReady && !handActive}
+                      handActive={handActive}
+                      exporting={!!exporting}
+                      canvasSelection={inspectorSelection}
+                      onCanvasSelect={handleCanvasSelect}
+                      onFeaturedTransformChange={handleFeaturedTransformChange}
+                      onSpacingChange={(v) =>
+                        patchDocument({ layoutSpacing: v })
+                      }
+                      onSelectVisualBlock={session.selectVisualBlock}
+                      onGenerateVisualBlocks={(source, options) =>
+                        void session.generateVisualBlocks({
+                          source,
+                          pickFeatured: options?.pickFeatured,
+                        })
+                      }
+                      generatingVisualBlocks={session.generatingVisualBlocks}
+                      canvasRef={isActive ? canvasRef : undefined}
+                      viewportRef={isActive ? viewportRef : undefined}
+                      reveal={variantGroup.phase === "ready" || variantGroup.phase === "revealing"}
+                      showContent={
+                        (liveBoard.document.showContent || isNeedsBrief) &&
+                        showCanvasBlocks
+                      }
+                      toolbarEndExtra={
+                        isActive &&
+                        contrastEnabled &&
+                        contrastFailingCount > 0 ? (
+                          <ContrastIssuesToggle
+                            results={contrastResults}
+                            open={contrastPanelOpen}
+                            onOpenChange={setContrastPanelOpen}
+                            selectedBlock={selectedBlock}
+                            onSelectBlock={(id) => {
+                              setSelectedBlock(id);
+                              if (id) {
+                                handleCanvasSelect(
+                                  canvasSelectionFromContrastBlock(id),
+                                );
+                              }
+                            }}
+                            logoBackdrop={doc.logoBackdrop}
+                            logoInvert={doc.logoInvert}
+                            hasSvgLogo={
+                              canvasLogo?.record.mime === "image/svg+xml"
+                            }
+                            canFixLogoSvg={canFixLogoSvg}
+                            hasLogoSvgFix={hasLogoSvgFix}
+                            onFixLogoBackdrop={() =>
+                              patchDocument({ logoBackdrop: true })
+                            }
+                            onFixLogoInvert={() =>
+                              patchDocument({ logoInvert: !doc.logoInvert })
+                            }
+                            onFixLogoSvgContrast={() =>
+                              session.fixLogoSvgContrast(
+                                activeBgCss,
+                                doc.logoBackdrop,
+                              )
+                            }
+                            onRestoreLogoSvg={() => session.restoreLogoSvg()}
+                            onFixBackground={() => {
+                              session.setBackgroundPreset(
+                                suggestHighContrastBackgroundId(),
+                              );
+                              patchDocument({ logoBackdrop: false });
+                            }}
+                            onFixTextContrast={() => {
+                              session.setBackgroundPreset(
+                                suggestHighContrastBackgroundId(),
+                              );
+                              patchDocument({ textContrastBoost: true });
+                            }}
+                          />
+                        ) : null
+                      }
+                    />
+                  );
+                })}
+
+                <AnimatePresence>
+                  {variantGroup.phase === "preparing" &&
+                  variantGroup.pendingBatchSize > 0
+                    ? Array.from(
+                        { length: variantGroup.pendingBatchSize },
+                        (_, i) => (
+                          <CanvasVariantSkeleton
+                            key={`skeleton-${i}`}
+                            width={platform.width}
+                            height={platform.height}
+                            previewScale={previewScale}
+                            index={
+                              Math.max(0, variantGroup.boards.length - 1) + i + 1
+                            }
+                          />
+                        ),
+                      )
+                    : null}
+                </AnimatePresence>
+
                 {showContrastOverlay ? (
                   <CanvasDesignOverlay
                     containerRoot={overlayContainer}
@@ -1062,7 +1036,15 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                   />
                 ) : null}
               </div>
-            </div>
+            )}
+
+            {briefChat.pendingVariants?.length ? (
+              <VariantPicker
+                variants={briefChat.pendingVariants}
+                activeTheme={briefChat.activeVariantTheme}
+                onApply={briefChat.applyVariant}
+              />
+            ) : null}
           </div>
           {showFloatingComposer ? (
             <FloatingBriefComposer {...briefChat} mode="follow-up" />

@@ -336,17 +336,17 @@ export function getApprovedShuffleLayouts(
 function buildShuffleLayoutPool(
   record: LayoutReviewRecord,
   platformId: PlatformId,
-  excludeId?: PostLayoutId,
+  excludeIds: ReadonlySet<PostLayoutId> = new Set(),
 ): PostLayout[] {
   const approved = getApprovedShuffleLayouts(record, platformId).filter(
-    (layout) => layout.id !== excludeId,
+    (layout) => !excludeIds.has(layout.id),
   );
   if (approved.length > 0) return approved;
 
   return POST_LAYOUTS.filter(
     (layout) =>
       isShuffleableLayout(layout) &&
-      layout.id !== excludeId &&
+      !excludeIds.has(layout.id) &&
       getLayoutDecision(getLayoutReviewEntry(record, platformId, layout.id)) ===
         "approved",
   );
@@ -367,23 +367,35 @@ export function getRandomPlaygroundLayout(
   platformId: PlatformId,
   excludeId?: PostLayoutId,
   record: LayoutReviewRecord = getCommittedLayoutReviews(),
+  options?: {
+    excludeIds?: readonly PostLayoutId[];
+    excludeFamilies?: readonly string[];
+  },
 ): PostLayout {
+  const excludeIds = new Set<PostLayoutId>(options?.excludeIds ?? []);
+  if (excludeId) excludeIds.add(excludeId);
+
   const current = excludeId ? getPostLayout(excludeId) : undefined;
   const currentFamily = current ? getLayoutShuffleFamily(current) : undefined;
-  let pool = buildShuffleLayoutPool(record, platformId, excludeId);
+  const excludeFamilies = new Set(options?.excludeFamilies ?? []);
+  if (currentFamily) excludeFamilies.add(currentFamily);
 
-  if (currentFamily && pool.length > 1) {
+  let pool = buildShuffleLayoutPool(record, platformId, excludeIds);
+
+  if (excludeFamilies.size > 0 && pool.length > 1) {
     const alternateFamilies = pool.filter(
-      (layout) => getLayoutShuffleFamily(layout) !== currentFamily,
+      (layout) => !excludeFamilies.has(getLayoutShuffleFamily(layout)),
     );
     if (alternateFamilies.length > 0) {
       pool = alternateFamilies;
     }
   }
 
+  const fallbackId =
+    excludeId ?? options?.excludeIds?.[0] ?? ("classic-hero" as PostLayoutId);
+
   return (
-    pool[Math.floor(Math.random() * pool.length)] ??
-    getPostLayout(excludeId ?? "classic-hero")
+    pool[Math.floor(Math.random() * pool.length)] ?? getPostLayout(fallbackId)
   );
 }
 

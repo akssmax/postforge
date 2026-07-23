@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Hand, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { Button, Tooltip } from "@heroui/react";
 
@@ -13,6 +14,8 @@ type Props = {
   onZoomOut: () => void;
   onReset: () => void;
   onActualSize: () => void;
+  /** Optional pill group rendered after zoom controls (e.g. artboard switcher) */
+  trailing?: ReactNode;
 };
 
 export function CanvasZoomControls({
@@ -25,6 +28,7 @@ export function CanvasZoomControls({
   onZoomOut,
   onReset,
   onActualSize,
+  trailing,
 }: Props) {
   return (
     <div className="canvas-stage-chrome" role="toolbar" aria-label="Canvas tools">
@@ -126,6 +130,17 @@ export function CanvasZoomControls({
           </Tooltip>
         ) : null}
       </div>
+
+      {trailing ? (
+        <>
+          <div
+            className="canvas-stage-chrome-separator"
+            role="separator"
+            aria-orientation="vertical"
+          />
+          {trailing}
+        </>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 const MIN_USER_ZOOM = 0.5;
 const MAX_USER_ZOOM = 3;
@@ -23,16 +29,28 @@ function isEditableTarget(target: EventTarget | null) {
   );
 }
 
+function isChromeTarget(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    Boolean(
+      target.closest(
+        ".canvas-stage-chrome, .canvas-preview-toolbar, .canvas-artboard-label-btn",
+      ),
+    )
+  );
+}
+
 export type CanvasPan = { x: number; y: number };
 
 export type UseCanvasPreviewViewportArgs = {
-  stageRef: RefObject<HTMLElement | null>;
+  /** Mounted stage element from a callback ref. Null until the stage is in the DOM. */
+  stageEl: HTMLElement | null;
   platformWidth: number;
   platformHeight: number;
 };
 
 export function useCanvasPreviewViewport({
-  stageRef,
+  stageEl,
   platformWidth,
   platformHeight,
 }: UseCanvasPreviewViewportArgs) {
@@ -47,12 +65,21 @@ export function useCanvasPreviewViewport({
   const panRef = useRef(pan);
   const handModeRef = useRef(handMode);
   const spaceDownRef = useRef(spaceDown);
-  const panningRef = useRef(false);
+  const stageElRef = useRef(stageEl);
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+
   fitScaleRef.current = fitScale;
   userZoomRef.current = userZoom;
   panRef.current = pan;
   handModeRef.current = handMode;
   spaceDownRef.current = spaceDown;
+  stageElRef.current = stageEl;
 
   const previewScale = fitScale * userZoom;
   const zoomPercent = Math.round(userZoom * 100);
@@ -65,7 +92,7 @@ export function useCanvasPreviewViewport({
   }, [platformWidth, platformHeight]);
 
   useEffect(() => {
-    const el = stageRef.current;
+    const el = stageEl;
     if (!el) return;
 
     const update = () => {
@@ -80,10 +107,10 @@ export function useCanvasPreviewViewport({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [stageRef, platformWidth, platformHeight]);
+  }, [stageEl, platformWidth, platformHeight]);
 
   useEffect(() => {
-    const el = stageRef.current;
+    const el = stageEl;
     if (!el) return;
 
     const onWheel = (e: WheelEvent) => {
@@ -114,14 +141,13 @@ export function useCanvasPreviewViewport({
 
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [stageRef]);
+  }, [stageEl]);
 
-  // Space (hold) / H (toggle) — restore normal pointer on Space up or hand off
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isEditableTarget(e.target)) return;
 
-      const stage = stageRef.current;
+      const stage = stageElRef.current;
       const overStage = stage?.matches(":hover") ?? false;
       const inTool =
         e.target instanceof Element &&
@@ -135,8 +161,7 @@ export function useCanvasPreviewViewport({
       }
 
       if (e.code !== "Space" || e.repeat) return;
-      // Hold-to-pan while over the stage, or keep Space while mid-drag
-      if (!overStage && !panningRef.current && !spaceDownRef.current) return;
+      if (!overStage && !dragRef.current && !spaceDownRef.current) return;
       e.preventDefault();
       setSpaceDown(true);
     };
@@ -161,110 +186,75 @@ export function useCanvasPreviewViewport({
       window.removeEventListener("blur", clearSpace);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [stageRef]);
-
-  // Capture-phase pan so hand tool wins over canvas selection / featured drag.
-  // Pan is transform-based (infinite canvas) — stage must not use native scroll.
-  useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
-
-    let pointerId = 0;
-    let startX = 0;
-    let startY = 0;
-    let origin = { x: 0, y: 0 };
-
-    const shouldPan = (e: PointerEvent) => {
-      if (e.target instanceof Element && e.target.closest(".canvas-stage-chrome")) {
-        return false;
-      }
-      if (e.button === 1) return true;
-      if (e.button !== 0) return false;
-      return spaceDownRef.current || handModeRef.current;
-    };
-
-    const onPointerDown = (e: PointerEvent) => {
-      if (!shouldPan(e)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      // Kill any leftover native scroll from older overflow-auto stages
-      el.scrollTop = 0;
-      el.scrollLeft = 0;
-      panningRef.current = true;
-      pointerId = e.pointerId;
-      startX = e.clientX;
-      startY = e.clientY;
-      origin = { ...panRef.current };
-      el.dataset.canvasPanning = "true";
-      try {
-        el.setPointerCapture(pointerId);
-      } catch {
-        /* capture unsupported */
-      }
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
-      if (!panningRef.current || e.pointerId !== pointerId) return;
-      e.preventDefault();
-      e.stopPropagation();
-      setPan({
-        x: origin.x + (e.clientX - startX),
-        y: origin.y + (e.clientY - startY),
-      });
-    };
-
-    const endDrag = (e: PointerEvent) => {
-      if (!panningRef.current || e.pointerId !== pointerId) return;
-      e.preventDefault();
-      e.stopPropagation();
-      panningRef.current = false;
-      delete el.dataset.canvasPanning;
-      try {
-        if (el.hasPointerCapture(pointerId)) {
-          el.releasePointerCapture(pointerId);
-        }
-      } catch {
-        /* already released */
-      }
-    };
-
-    // lostpointercapture: release ended elsewhere (browser / OS)
-    const onLostCapture = (e: PointerEvent) => {
-      if (!panningRef.current || e.pointerId !== pointerId) return;
-      panningRef.current = false;
-      delete el.dataset.canvasPanning;
-    };
-
-    el.addEventListener("pointerdown", onPointerDown, { capture: true });
-    el.addEventListener("pointermove", onPointerMove, { capture: true });
-    el.addEventListener("pointerup", endDrag, { capture: true });
-    el.addEventListener("pointercancel", endDrag, { capture: true });
-    el.addEventListener("lostpointercapture", onLostCapture);
-    return () => {
-      el.removeEventListener("pointerdown", onPointerDown, { capture: true });
-      el.removeEventListener("pointermove", onPointerMove, { capture: true });
-      el.removeEventListener("pointerup", endDrag, { capture: true });
-      el.removeEventListener("pointercancel", endDrag, { capture: true });
-      el.removeEventListener("lostpointercapture", onLostCapture);
-      panningRef.current = false;
-      delete el.dataset.canvasPanning;
-    };
-  }, [stageRef]);
+  }, []);
 
   useEffect(() => {
-    const el = stageRef.current;
+    const el = stageEl;
     if (!el) return;
     if (handActive) {
       el.dataset.canvasHandTool = "true";
     } else {
       delete el.dataset.canvasHandTool;
-      // Ensure pan cursor doesn't stick after Space release / hand toggle off
-      if (!panningRef.current) delete el.dataset.canvasPanning;
+      if (!dragRef.current) delete el.dataset.canvasPanning;
     }
     return () => {
       delete el.dataset.canvasHandTool;
     };
-  }, [stageRef, handActive]);
+  }, [stageEl, handActive]);
+
+  const onPointerDownCapture = useCallback(
+    (e: ReactPointerEvent<HTMLElement>) => {
+      if (isChromeTarget(e.target)) return;
+
+      const middle = e.button === 1;
+      const primary = e.button === 0;
+      if (!middle && !primary) return;
+      if (primary && !(spaceDownRef.current || handModeRef.current)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const stage = stageElRef.current;
+      if (stage) {
+        stage.scrollTop = 0;
+        stage.scrollLeft = 0;
+        stage.dataset.canvasPanning = "true";
+      }
+
+      const pointerId = e.pointerId;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const originX = panRef.current.x;
+      const originY = panRef.current.y;
+      dragRef.current = { pointerId, startX, startY, originX, originY };
+
+      const move = (ev: PointerEvent) => {
+        const drag = dragRef.current;
+        if (!drag || ev.pointerId !== drag.pointerId) return;
+        ev.preventDefault();
+        setPan({
+          x: drag.originX + (ev.clientX - drag.startX),
+          y: drag.originY + (ev.clientY - drag.startY),
+        });
+      };
+
+      const up = (ev: PointerEvent) => {
+        const drag = dragRef.current;
+        if (!drag || ev.pointerId !== drag.pointerId) return;
+        dragRef.current = null;
+        const s = stageElRef.current;
+        if (s) delete s.dataset.canvasPanning;
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
+      };
+
+      window.addEventListener("pointermove", move, { passive: false });
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
+    },
+    [],
+  );
 
   function zoomBy(factor: number) {
     setUserZoom((z) => clamp(z * factor, MIN_USER_ZOOM, MAX_USER_ZOOM));
@@ -293,6 +283,29 @@ export function useCanvasPreviewViewport({
     setHandMode((on) => !on);
   }
 
+  function nudgePan(delta: { x?: number; y?: number }) {
+    setPan((p) => ({
+      x: p.x + (delta.x ?? 0),
+      y: p.y + (delta.y ?? 0),
+    }));
+  }
+
+  /** Center an element (e.g. artboard) in the stage viewport. */
+  function panElementIntoView(el: HTMLElement) {
+    const stage = stageElRef.current;
+    if (!stage) return;
+    const stageRect = stage.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const stageCx = stageRect.left + stageRect.width / 2;
+    const stageCy = stageRect.top + stageRect.height / 2;
+    const elCx = elRect.left + elRect.width / 2;
+    const elCy = elRect.top + elRect.height / 2;
+    setPan((p) => ({
+      x: p.x + (stageCx - elCx),
+      y: p.y + (stageCy - elCy),
+    }));
+  }
+
   return {
     fitScale,
     userZoom,
@@ -308,6 +321,11 @@ export function useCanvasPreviewViewport({
     resetZoom,
     setActualSize,
     toggleHandMode,
+    nudgePan,
+    panElementIntoView,
+    stagePanProps: {
+      onPointerDownCapture,
+    },
     panStyle: {
       transform: `translate3d(${pan.x}px, ${pan.y}px, 0)`,
     } as const,
