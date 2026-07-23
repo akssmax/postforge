@@ -62,7 +62,8 @@ import {
   hasLogoSvgContrastFix,
 } from "@/lib/brand/logoContrastFix";
 import {
-  getMonogramMarkup,
+  getMonogramOnlyMarkup,
+  hasMonogramSvg,
   kitHasAnyLogo,
   logoVariantColorMode,
   resolveCanvasLogo,
@@ -292,6 +293,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       layoutId: nextLayout.id,
       shuffleBackground: prefs.background,
       shufflePattern: prefs.pattern,
+      includeBrandPatterns: hasMonogramSvg(session.kit),
     });
 
     if (prefs.background) {
@@ -411,8 +413,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const canvasLogoColorMode = canvasLogo
     ? logoVariantColorMode(canvasLogo.variant, canvasLogo.record)
     : "inherit";
-  const patternLogoSvgMarkup =
-    getMonogramMarkup(session.kit) ?? canvasLogo?.record.svgMarkup ?? null;
+  const patternLogoSvgMarkup = getMonogramOnlyMarkup(session.kit);
   const textColor =
     doc.showBrand && (session.kit.activeBackgroundPresetId || doc.textContrastBoost)
       ? doc.textContrastBoost
@@ -750,7 +751,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       </DesignToolHeader>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-        <aside className="social-tool-aside flex min-h-0 w-full shrink-0 flex-col overflow-y-auto overscroll-contain border-b border-leap-line lg:h-full lg:w-[360px] lg:border-r lg:border-b-0">
+        <aside
+          className={`social-tool-aside flex min-h-0 w-full shrink-0 flex-col overflow-y-auto overscroll-contain border-b border-leap-line lg:h-full lg:w-[360px] lg:border-r lg:border-b-0${
+            isNeedsBrief ? " social-tool-aside--brief" : ""
+          }`}
+        >
           <DesignInspector
             phase={doc.onboarding.phase}
             platformId={doc.platformId}
@@ -828,6 +833,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                   pickFeatured: options?.pickFeatured,
                   preferredKind: options?.preferredKind,
                 }),
+              onShuffleVisualBlock: () => void session.shuffleFeaturedVisualBlock(),
               onSelectVisualBlock: session.selectVisualBlock,
               image: session.featured.image,
               imageSrc: session.featuredImageSrc,
@@ -1041,7 +1047,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               </div>
             </div>
           </div>
-          {showFloatingComposer ? <FloatingBriefComposer {...briefChat} /> : null}
+          {showFloatingComposer ? (
+            <FloatingBriefComposer {...briefChat} mode="follow-up" />
+          ) : null}
         </div>
       </div>
     </div>

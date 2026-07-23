@@ -1024,10 +1024,19 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
 
       const active = activeVisualBlock(blocks, featured.activeBlockId);
       const activeId = active?.id ?? null;
+      const activeKind: "ui" | "illustration" | undefined =
+        active?.kind === "ui" || active?.kind === "illustration"
+          ? active.kind
+          : session.document.featuredVisualKind ??
+            inferFeaturedVisualKind(session.document.copy.heading);
 
-      if (blocks.length > 1 && activeId) {
-        const activeIndex = blocks.findIndex((block) => block.id === activeId);
-        const next = blocks[(activeIndex + 1) % blocks.length]!;
+      const sameKindBlocks = activeKind
+        ? blocks.filter((block) => block.kind === activeKind)
+        : blocks;
+
+      if (sameKindBlocks.length > 1 && activeId) {
+        const activeIndex = sameKindBlocks.findIndex((block) => block.id === activeId);
+        const next = sameKindBlocks[(activeIndex + 1) % sameKindBlocks.length]!;
         updateSession((prev) => syncComposedFeaturedSlots(prev, next.id));
         return;
       }
@@ -1047,6 +1056,7 @@ export function useDesignSession(designId: string): UseDesignSessionResult {
               subheading,
               theme: headline,
               brief: [headline, subheading].filter(Boolean).join(" "),
+              preferredKind: activeKind,
             }),
             pickFeatured: true,
             excludeLibraryIds: active?.libraryId ? [active.libraryId] : [],

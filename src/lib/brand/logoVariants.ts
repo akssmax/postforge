@@ -150,6 +150,18 @@ export function getMonogramMarkup(kit: BrandKitPersisted): string | null {
   );
 }
 
+/** Monogram variant only — used for logo-derived brand patterns (tile, watermark, etc.). */
+export function getMonogramOnlyMarkup(kit: BrandKitPersisted): string | null {
+  const record = getLogoRecord(kit, "monogram");
+  if (!record?.svgMarkup?.trim()) return null;
+  if (record.mime !== "image/svg+xml") return null;
+  return record.svgMarkup;
+}
+
+export function hasMonogramSvg(kit: BrandKitPersisted): boolean {
+  return getMonogramOnlyMarkup(kit) != null;
+}
+
 export function getKitCompleteness(kit: BrandKitPersisted): {
   ready: boolean;
   missing: BrandLogoVariant[];

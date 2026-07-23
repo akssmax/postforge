@@ -79,7 +79,7 @@ import {
   hasLogoSvgContrastFix,
 } from "@/lib/brand/logoContrastFix";
 import {
-  getMonogramMarkup,
+  getMonogramOnlyMarkup,
   kitHasAnyLogo,
   logoVariantColorMode,
   resolveCanvasLogo,
@@ -272,6 +272,7 @@ function ToolSocialWorkspace() {
       layoutId: nextLayout.id,
       shuffleBackground: prefs.background,
       shufflePattern: prefs.pattern,
+      includeBrandPatterns: getMonogramOnlyMarkup(brand.kit) != null,
     });
 
     if (prefs.background) {
@@ -363,8 +364,7 @@ function ToolSocialWorkspace() {
   const canvasLogoColorMode = canvasLogo
     ? logoVariantColorMode(canvasLogo.variant, canvasLogo.record)
     : "inherit";
-  const patternLogoSvgMarkup =
-    getMonogramMarkup(brand.kit) ?? canvasLogo?.record.svgMarkup ?? null;
+  const patternLogoSvgMarkup = getMonogramOnlyMarkup(brand.kit);
   const textColor =
     showBrand && (brand.kit.activeBackgroundPresetId || textContrastBoost)
       ? textContrastBoost
@@ -698,6 +698,7 @@ function ToolSocialWorkspace() {
               activeBlockId: null,
               generatingVisualBlocks: false,
               onGenerateVisualBlocks: () => {},
+              onShuffleVisualBlock: () => {},
               onSelectVisualBlock: () => {},
               image: featured.image,
               imageSrc: featured.imageSrc,

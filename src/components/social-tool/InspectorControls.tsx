@@ -78,6 +78,7 @@ type InspectorSelectProps = {
   options: SelectOption[];
   placeholder?: string;
   className?: string;
+  hideLabel?: boolean;
 };
 
 export function InspectorSelect({
@@ -87,6 +88,7 @@ export function InspectorSelect({
   options,
   placeholder = "Select…",
   className = "",
+  hideLabel = false,
 }: InspectorSelectProps) {
   return (
     <Select
@@ -97,9 +99,11 @@ export function InspectorSelect({
         if (next != null) onChange(String(next));
       }}
     >
-      <Label className="social-tool-label !mb-1.5 !normal-case !tracking-normal">
-        {label}
-      </Label>
+      {hideLabel ? null : (
+        <Label className="social-tool-label !mb-1.5 !normal-case !tracking-normal">
+          {label}
+        </Label>
+      )}
       <Select.Trigger className="w-full">
         <Select.Value />
         <Select.Indicator />

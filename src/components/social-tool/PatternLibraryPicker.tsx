@@ -189,7 +189,7 @@ export function PatternLibraryPicker({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const hasSvgLogo =
+  const hasMonogramSvg =
     logoMime === "image/svg+xml" && !!logoSvgMarkup?.trim();
 
   const refreshCustom = useCallback(() => {
@@ -220,8 +220,11 @@ export function PatternLibraryPicker({
   }, []);
 
   const brandPatterns = useMemo(
-    () => (hasSvgLogo && logoSvgMarkup ? generateBrandPatterns(logoSvgMarkup, patternTint) : []),
-    [hasSvgLogo, logoSvgMarkup, patternTint],
+    () =>
+      hasMonogramSvg && logoSvgMarkup
+        ? generateBrandPatterns(logoSvgMarkup, patternTint)
+        : [],
+    [hasMonogramSvg, logoSvgMarkup, patternTint],
   );
 
   const handleUpload = async (file: File | undefined) => {
@@ -282,7 +285,7 @@ export function PatternLibraryPicker({
         }}
       >
         <Popover.Dialog className="pattern-lib-popover">
-          {hasSvgLogo ? (
+          {hasMonogramSvg ? (
             <div className="pattern-lib-popover-section">
               <p className="pattern-lib-popover-heading">Brand</p>
               <div className="pattern-lib-grid">
@@ -309,7 +312,7 @@ export function PatternLibraryPicker({
             <div className="pattern-lib-popover-section">
               <p className="pattern-lib-popover-heading">Brand</p>
               <p className="pattern-lib-hint">
-                Upload an SVG logo to unlock brand patterns.
+                Upload a monogram SVG in Brand to unlock logo-based patterns.
               </p>
             </div>
           )}

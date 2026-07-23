@@ -41,6 +41,8 @@ export type ShuffleSurfaceInput = {
   layoutId: PostLayoutId;
   shuffleBackground?: boolean;
   shufflePattern?: boolean;
+  /** Logo-derived brand patterns require a monogram SVG in brand assets. */
+  includeBrandPatterns?: boolean;
 };
 
 export type ShuffleSurfaceResult = {
@@ -51,15 +53,15 @@ export type ShuffleSurfaceResult = {
   patternScale: number;
 };
 
-function buildShufflePatternPool(): PatternRef[] {
+function buildShufflePatternPool(includeBrandPatterns = false): PatternRef[] {
   return [
     ...SHUFFLE_LEGACY_PATTERNS.map((id) => legacyPatternRef(id)),
     ...LIBRARY_PATTERNS.map((pattern) => libraryPatternRef(pattern.id)),
-    ...BRAND_PATTERN_OPTIONS.map((option) => brandPatternRef(option.id)),
+    ...(includeBrandPatterns
+      ? BRAND_PATTERN_OPTIONS.map((option) => brandPatternRef(option.id))
+      : []),
   ];
 }
-
-const SHUFFLE_PATTERN_POOL = buildShufflePatternPool();
 
 function pickRandom<T>(pool: T[], exclude?: T | null): T {
   const filtered =
@@ -93,6 +95,7 @@ export function pickRandomShuffleSurface(
   const shuffleBackground = input.shuffleBackground ?? true;
   const shufflePattern = input.shufflePattern ?? true;
   const backgrounds = input.backgrounds.filter(Boolean);
+  const patternPool = buildShufflePatternPool(input.includeBrandPatterns ?? false);
 
   const backgroundPresetId = shuffleBackground
     ? (pickRandomBackground(backgrounds, input.currentBackgroundId)?.id ??
@@ -112,7 +115,7 @@ export function pickRandomShuffleSurface(
 
   return {
     backgroundPresetId,
-    pattern: pickRandom(SHUFFLE_PATTERN_POOL, input.currentPattern),
+    pattern: pickRandom(patternPool, input.currentPattern),
     showPattern: shouldShowPattern(input.layoutId),
     patternOpacity: pickRandom([...SHUFFLE_PATTERN_OPACITIES]),
     patternScale: pickRandom([...SHUFFLE_PATTERN_SCALES]),

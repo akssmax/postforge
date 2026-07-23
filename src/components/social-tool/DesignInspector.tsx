@@ -12,7 +12,7 @@ import {
   PatternLibraryPicker,
 } from "@/components/social-tool/PatternLibraryPicker";
 import { InspectorSlider } from "@/components/social-tool/InspectorControls";
-import { getMonogramMarkup } from "@/lib/brand/logoVariants";
+import { getMonogramOnlyMarkup } from "@/lib/brand/logoVariants";
 import type { UseBrandKitReturn } from "@/lib/brand/useBrandKit";
 import type { UseFeaturedBlockReturn } from "@/lib/social-tool/useFeaturedBlock";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
@@ -61,6 +61,7 @@ type FeaturedPanelProps = {
     source?: "library" | "generate",
     options?: { pickFeatured?: boolean; preferredKind?: "ui" | "illustration" },
   ) => void;
+  onShuffleVisualBlock: () => void;
   onSelectVisualBlock: (blockId: string) => void;
   image: import("@/lib/social-tool/featuredBlock").FeaturedImageRecord | null;
   imageSrc: string | null;
@@ -182,12 +183,8 @@ function PatternSection({
             onPatternChange={onPatternChange}
             patternTint={patternTint}
             designId={designId}
-            logoSvgMarkup={getMonogramMarkup(brand.kit) ?? brand.kit.logo?.svgMarkup ?? null}
-            logoMime={
-              brand.kit.logos?.monogram?.mime ??
-              brand.kit.logo?.mime ??
-              null
-            }
+            logoSvgMarkup={getMonogramOnlyMarkup(brand.kit)}
+            logoMime={brand.kit.logos?.monogram?.mime ?? null}
           />
           {!isPatternNone(pattern) ? (
             <>
@@ -246,6 +243,7 @@ function BlockPanelsOverview(props: Props) {
       featuredVisualKind={props.featured.featuredVisualKind}
       brandColors={props.featured.brandColors}
       onGenerateVisualBlocks={props.featured.onGenerateVisualBlocks}
+      onShuffleVisualBlock={props.featured.onShuffleVisualBlock}
       onSelectVisualBlock={props.featured.onSelectVisualBlock}
       image={props.featured.image}
       imageSrc={props.featured.imageSrc}
@@ -375,16 +373,15 @@ export function DesignInspector(props: Props) {
     if (!props.briefChat) return null;
 
     return (
-      <>
+      <div className="flex min-h-0 flex-1 flex-col">
         <BrandInspectorSection {...props} defaultExpanded={false} />
         <BriefChatPanel
           {...props.briefChat}
           onSkip={props.onBriefSkip}
           autoFocus
         />
-        <FixedCanvasPanels {...props} />
-        <BlockPanelsOverview {...props} />
-      </>
+        {/* Background, pattern, and visual slot controls appear after the brief generates. */}
+      </div>
     );
   }
 
@@ -441,6 +438,7 @@ export function DesignInspector(props: Props) {
           featuredVisualKind={featured.featuredVisualKind}
           brandColors={featured.brandColors}
           onGenerateVisualBlocks={featured.onGenerateVisualBlocks}
+          onShuffleVisualBlock={featured.onShuffleVisualBlock}
           onSelectVisualBlock={featured.onSelectVisualBlock}
           image={featured.image}
           imageSrc={featured.imageSrc}
