@@ -6,7 +6,7 @@ import {
   tool,
   type UIMessage,
 } from "ai";
-import { createMistralModel } from "@/lib/llm/mistral";
+import { createMistralModel, LLM_STREAM_TIMEOUT_MS } from "@/lib/llm/mistral";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 import { resolveDesignRulesForBrief, rulesProfilePrompt, detectFormatFromBrief } from "@/lib/llm/rules";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
@@ -333,6 +333,7 @@ export async function handleCanvasAgentRequest(input: {
   const result = streamText({
     model,
     temperature: 0.2,
+    timeout: LLM_STREAM_TIMEOUT_MS,
     // Default stopWhen is isStepCount(1), which ends after the first tool call and
     // never produces a user-facing text reply. Allow a follow-up text step.
     stopWhen: isStepCount(5),
@@ -388,6 +389,7 @@ export async function handleClarifyRequest(question: string) {
   const result = streamText({
     model,
     temperature: 0.3,
+    timeout: LLM_STREAM_TIMEOUT_MS,
     prompt: `Ask the user this clarifying question in a friendly sentence: ${question}`,
   });
   return createUIMessageStreamResponse({

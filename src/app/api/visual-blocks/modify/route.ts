@@ -4,7 +4,8 @@ import {
   modifyVisualBlockBodySchema,
 } from "@/lib/llm/services/visualBlockService";
 
-export const maxDuration = 60;
+/** Mistral SVG modify can exceed the old 60s cap under cold starts / region latency. */
+export const maxDuration = 120;
 
 export async function POST(req: Request) {
   if (!getMistralApiKey()) {

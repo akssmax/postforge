@@ -1,7 +1,7 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import { sanitizeSvgMarkup } from "@/lib/brand/parseLogoFile";
-import { createMistralModel } from "@/lib/llm/mistral";
+import { createMistralModel, LLM_VISUAL_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import { libraryPatternSummaryForPrompt } from "@/lib/social-tool/visualBlocks/library";
 import { createVisualBlockId } from "@/lib/social-tool/visualBlocks/storage";
 import type {
@@ -110,6 +110,7 @@ export async function composeVisualBlocks(
       model,
       schema: generateBlocksSchema,
       temperature: 0.5,
+      abortSignal: llmAbortSignal(LLM_VISUAL_TIMEOUT_MS),
       system: [
         "You compose static marketing visual blocks as SVG markup for social ad featured slots.",
         "Output exactly 3 distinct blocks: one diagram, one ui card/tile, one illustration.",
@@ -156,6 +157,7 @@ export async function modifyVisualBlock(
       model,
       schema: generatedBlockSchema,
       temperature: 0.4,
+      abortSignal: llmAbortSignal(LLM_VISUAL_TIMEOUT_MS),
       system: [
         "You modify an existing static SVG visual block for a social ad featured slot.",
         "Preserve overall layout unless the instruction asks to change structure.",

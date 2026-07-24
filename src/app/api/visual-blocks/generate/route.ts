@@ -4,7 +4,8 @@ import {
   handleGenerateVisualBlocks,
 } from "@/lib/llm/services/visualBlockService";
 
-export const maxDuration = 60;
+/** Library picks are instant; source=generate waits on Mistral SVG compose. */
+export const maxDuration = 120;
 
 export async function POST(req: Request) {
   try {

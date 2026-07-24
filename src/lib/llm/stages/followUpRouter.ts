@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { createMistralModel } from "@/lib/llm/mistral";
+import { createMistralModel, LLM_CLASSIFY_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 
 export type FollowUpRoute =
@@ -94,6 +94,7 @@ export async function routeFollowUp(
       model,
       schema: routeSchema,
       temperature: 0,
+      abortSignal: llmAbortSignal(LLM_CLASSIFY_TIMEOUT_MS),
       system: [
         "Classify follow-up messages for a design canvas assistant.",
         "regen = full new design from scratch",

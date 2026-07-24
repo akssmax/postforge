@@ -13,3 +13,23 @@ export function createMistralModel() {
   const modelId = process.env.MISTRAL_MODEL?.trim() || "mistral-small-latest";
   return mistral(modelId);
 }
+
+/**
+ * Per-stage generateObject budget. Stages already fall back offline on failure;
+ * a hung Mistral call must not burn the whole Vercel function wall-clock.
+ * generateObject omits `timeout` from its options — use abortSignal instead.
+ */
+export const LLM_STAGE_TIMEOUT_MS = 25_000;
+
+/** Short classifier calls (follow-up router). */
+export const LLM_CLASSIFY_TIMEOUT_MS = 12_000;
+
+/** AI SVG compose/modify — larger structured output. */
+export const LLM_VISUAL_TIMEOUT_MS = 45_000;
+
+/** Final streamed chat / canvas agent reply after pipeline work. */
+export const LLM_STREAM_TIMEOUT_MS = 90_000;
+
+export function llmAbortSignal(ms: number): AbortSignal {
+  return AbortSignal.timeout(ms);
+}

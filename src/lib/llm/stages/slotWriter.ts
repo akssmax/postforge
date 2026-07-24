@@ -1,5 +1,5 @@
 import { generateObject } from "ai";
-import { createMistralModel } from "@/lib/llm/mistral";
+import { createMistralModel, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import { slotDraftSchema, type SlotDraft } from "@/lib/llm/schemas/slotDraft";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 import {
@@ -220,6 +220,7 @@ export async function writeSlots(input: {
       model,
       schema: slotDraftSchema,
       temperature: input.retryReasons?.length ? 0.2 : 0.4,
+      abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),
       system: [
         "You write marketing copy for social post slots.",
         "Fill each slot with compelling copy — never mention layout, positioning, or geometry.",

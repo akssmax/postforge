@@ -363,65 +363,55 @@ export async function runDesignPipelineVariants(
 
   const rulesProfile = resolveDesignRulesForPlan(basePlan, userMessage);
   const angles = themes.length > 0 ? themes : [undefined];
-  const variants: DesignVariant[] = [];
 
-  for (const theme of angles) {
-    const plan = theme
-      ? {
-          ...basePlan,
-          primaryMessage: `${basePlan.primaryMessage} — ${theme}`,
-          themes: [...new Set([...basePlan.themes, theme])],
+  // Run themed variants in parallel — sequential attempts were a common cause of
+  // FUNCTION_INVOCATION_TIMEOUT on /api/brief/chat (3× full pipeline wall-clock).
+  const variants = await Promise.all(
+    angles.map(async (theme): Promise<DesignVariant> => {
+      const plan = theme
+        ? {
+            ...basePlan,
+            primaryMessage: `${basePlan.primaryMessage} — ${theme}`,
+            themes: [...new Set([...basePlan.themes, theme])],
+          }
+        : basePlan;
+
+      let result = await runPipelineAttempt({
+        ...input,
+        userMessage,
+        plan,
+        rulesProfile,
+        themeAngle: theme,
+      });
+
+      if (!result.score.visualBalancePassed) {
+        const meta = getLayoutRetrievalMeta(getLayoutById(result.layoutId));
+        if (meta.densityClass === "copyHeavy") {
+          result = await runPipelineAttempt({
+            ...input,
+            userMessage,
+            plan,
+            rulesProfile,
+            themeAngle: theme,
+            layoutRetry: true,
+          });
         }
-      : basePlan;
-
-    const result = await runPipelineAttempt({
-      ...input,
-      userMessage,
-      plan,
-      rulesProfile,
-      themeAngle: theme,
-    });
-
-    if (!result.score.visualBalancePassed) {
-      const meta = getLayoutRetrievalMeta(getLayoutById(result.layoutId));
-      if (meta.densityClass === "copyHeavy") {
-        const retried = await runPipelineAttempt({
-          ...input,
-          userMessage,
-          plan,
-          rulesProfile,
-          themeAngle: theme,
-          layoutRetry: true,
-        });
-        variants.push({
-          theme: theme ?? "default",
-          planInput: retried.planInput,
-          validatedPlan: retried.validatedPlan,
-          score: retried.score,
-          summary: retried.summary,
-          layoutId: retried.layoutId,
-          rationale: retried.rationale,
-          campaignPlan: retried.campaignPlan,
-          recipeId: retried.recipeId,
-          designSystemId: retried.designSystemId,
-        });
-        continue;
       }
-    }
 
-    variants.push({
-      theme: theme ?? "default",
-      planInput: result.planInput,
-      validatedPlan: result.validatedPlan,
-      score: result.score,
-      summary: result.summary,
-      layoutId: result.layoutId,
-      rationale: result.rationale,
-      campaignPlan: result.campaignPlan,
-      recipeId: result.recipeId,
-      designSystemId: result.designSystemId,
-    });
-  }
+      return {
+        theme: theme ?? "default",
+        planInput: result.planInput,
+        validatedPlan: result.validatedPlan,
+        score: result.score,
+        summary: result.summary,
+        layoutId: result.layoutId,
+        rationale: result.rationale,
+        campaignPlan: result.campaignPlan,
+        recipeId: result.recipeId,
+        designSystemId: result.designSystemId,
+      };
+    }),
+  );
 
   return {
     intent: campaignPlanToIntent(basePlan),

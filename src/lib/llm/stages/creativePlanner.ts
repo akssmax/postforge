@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import type { UIMessage } from "ai";
-import { createMistralModel } from "@/lib/llm/mistral";
+import { createMistralModel, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import {
   campaignPlanSchema,
   type CampaignPlan,
@@ -58,6 +58,7 @@ export async function planCampaign(input: {
       model,
       schema: campaignPlanSchema,
       temperature: 0,
+      abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),
       system: [
         "You are the Creative Planner for a marketing design compiler.",
         "Convert the brief into a structured CampaignPlan — marketing strategy only.",

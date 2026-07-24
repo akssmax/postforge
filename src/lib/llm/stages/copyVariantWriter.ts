@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { createMistralModel } from "@/lib/llm/mistral";
+import { createMistralModel, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 import {
   campaignPlanToIntent,
@@ -179,6 +179,7 @@ export async function writeCopyVariants(input: {
       model,
       schema: copyVariantsResponseSchema,
       temperature: 0.65,
+      abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),
       system: [
         "You write alternate marketing copy options for social posts.",
         "Each variant needs a distinct headline angle — never repeat phrasing.",

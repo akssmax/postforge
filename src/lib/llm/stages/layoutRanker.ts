@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { createMistralModel } from "@/lib/llm/mistral";
+import { createMistralModel, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 import {
   campaignPlanToIntent,
@@ -63,6 +63,7 @@ export async function rankLayout(
       model,
       schema: layoutRankSchema,
       temperature: 0,
+      abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),
       system: [
         "You rank proven social post layouts for marketing communication.",
         "Pick exactly one layout ID from the candidate list.",
