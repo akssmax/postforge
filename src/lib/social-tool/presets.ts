@@ -329,6 +329,21 @@ export function getPlatform(id: PlatformId): PlatformPreset {
   return PLATFORM_PRESETS.find((p) => p.id === id) ?? PLATFORM_PRESETS[0];
 }
 
+/** True for ~1:1 artboards (e.g. LinkedIn / Instagram square 1080×1080). */
+export function isSquareArtboard(platformId: PlatformId): boolean {
+  const platform = getPlatform(platformId);
+  const aspect = platform.width / platform.height;
+  return aspect >= 0.9 && aspect <= 1.1;
+}
+
+/**
+ * Horizontal split layouts (copy | feature columns) need wider-than-square
+ * canvases. Square posts should use vertical stack layouts instead.
+ */
+export function platformAllowsHorizontalSplit(platformId: PlatformId): boolean {
+  return !isSquareArtboard(platformId);
+}
+
 const PLATFORM_IDS = new Set<PlatformId>(
   PLATFORM_PRESETS.map((p) => p.id as PlatformId),
 );

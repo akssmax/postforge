@@ -17,9 +17,10 @@ import {
   loadLayoutReviews,
   type LayoutReviewRecord,
 } from "@/lib/social-tool/layoutReviews";
-import type { PostLayout, PostLayoutId } from "@/lib/social-tool/postLayouts";
-import { getPostLayout, POST_LAYOUTS } from "@/lib/social-tool/postLayouts";
 import type { PlatformId } from "@/lib/social-tool/presets";
+import { platformAllowsHorizontalSplit } from "@/lib/social-tool/presets";
+import type { PostLayout, PostLayoutId } from "@/lib/social-tool/postLayouts";
+import { getPostLayout, layoutUsesSplit, POST_LAYOUTS } from "@/lib/social-tool/postLayouts";
 
 export type LayoutCandidate = {
   layout: PostLayout;
@@ -220,12 +221,16 @@ export function retrieveLayouts(
   recipe?: RecipeConfig,
   system?: DesignSystemConfig,
 ): LayoutCandidate[] {
-  const pool = getApprovedShuffleLayouts(record, platformId).filter((layout) =>
-    system ? designSystemAllowsLayout(system, layout.id) : true,
-  );
+  const allowSplit = platformAllowsHorizontalSplit(platformId);
+  const pool = getApprovedShuffleLayouts(record, platformId).filter((layout) => {
+    if (!allowSplit && layoutUsesSplit(layout)) return false;
+    return system ? designSystemAllowsLayout(system, layout.id) : true;
+  });
   const effectivePool = pool.length > 0
     ? pool
-    : getApprovedShuffleLayouts(record, platformId);
+    : getApprovedShuffleLayouts(record, platformId).filter(
+        (layout) => allowSplit || !layoutUsesSplit(layout),
+      );
 
   const keywords = tokenize(plan.keywords.join(" "));
 

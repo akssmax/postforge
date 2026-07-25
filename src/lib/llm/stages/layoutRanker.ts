@@ -68,6 +68,7 @@ export async function rankLayout(
         "You rank proven social post layouts for marketing communication.",
         "Pick exactly one layout ID from the candidate list.",
         "Do not invent layouts or specify geometry.",
+        "Never pick horizontal split layouts (split-feature-*, deck-sidebar) for square (~1:1) artboards — those are landscape-only.",
         recipe ? `Selected recipe: ${recipe.name} (${recipe.pattern}) — prefer layouts that fit this recipe.` : "",
         rulesProfile ? rulesProfilePrompt(rulesProfile) : "",
         rulesProfile?.layoutPolicy === "auto_by_density"

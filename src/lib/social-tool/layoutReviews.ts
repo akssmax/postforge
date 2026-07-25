@@ -9,11 +9,13 @@ import {
   getPostLayout,
   getLayoutShuffleFamily,
   isShuffleableLayout,
+  layoutUsesSplit,
   POST_LAYOUTS,
   type PostLayout,
   type PostLayoutId,
 } from "@/lib/social-tool/postLayouts";
 import type { PlatformId } from "@/lib/social-tool/presets";
+import { platformAllowsHorizontalSplit } from "@/lib/social-tool/presets";
 
 export type LayoutReviewDecision = "approved" | "rejected";
 
@@ -308,6 +310,9 @@ export function getSpacingTuneProgress(
 }
 
 export function layoutMatchesPlatform(layout: PostLayout, platformId: PlatformId): boolean {
+  if (!platformAllowsHorizontalSplit(platformId) && layoutUsesSplit(layout)) {
+    return false;
+  }
   return layout.bestFor === "all" || layout.bestFor.includes(platformId);
 }
 

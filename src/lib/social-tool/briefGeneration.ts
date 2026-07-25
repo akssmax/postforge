@@ -1,9 +1,10 @@
 import type { PlatformId, ProductPageId, PostCopy } from "@/lib/social-tool/presets";
-import { getPlatform } from "@/lib/social-tool/presets";
+import { getPlatform, platformAllowsHorizontalSplit } from "@/lib/social-tool/presets";
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
 import {
   getLayoutStatePatch,
   getPostLayout,
+  layoutUsesSplit,
   seedCopyForLayout,
   type PostLayout,
   type PostLayoutId,
@@ -191,6 +192,9 @@ function scoreLayout(
     if (brief.includes("right") && layout.textSide === "left") score += 2;
     if (brief.includes("left") && layout.textSide === "right") score += 2;
     if (brief.includes("sidebar") && layout.id === "deck-sidebar") score += 4;
+    if (!platformAllowsHorizontalSplit(platformId)) {
+      score -= 100;
+    }
   }
 
   return score;
@@ -201,7 +205,10 @@ function pickLayout(
   platformId: PlatformId,
   record: LayoutReviewRecord,
 ): PostLayout {
-  const pool = getApprovedShuffleLayouts(record, platformId);
+  const allowSplit = platformAllowsHorizontalSplit(platformId);
+  const pool = getApprovedShuffleLayouts(record, platformId).filter(
+    (layout) => allowSplit || !layoutUsesSplit(layout),
+  );
   const normalized = normalizeBrief(brief);
   let best = pool[0] ?? getPostLayout("classic-hero");
   let bestScore = -1;

@@ -3724,6 +3724,9 @@ html:has(.social-tool) body {
 
 .brief-chat-prompt__input::placeholder {
   color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .brief-chat-prompt__submit {

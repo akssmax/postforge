@@ -26,7 +26,8 @@ import {
 
 /** ~7 lines at 0.875rem / 1.375 line-height */
 const COMPOSER_MAX_HEIGHT_PX = 168;
-const COMPOSER_SINGLE_LINE_PX = 28;
+/** One line of text + vertical padding (0.35rem × 2 + 1.375lh). */
+const COMPOSER_SINGLE_LINE_PX = 36;
 
 export type BriefChatPanelMode = "onboarding" | "follow-up";
 
@@ -35,6 +36,29 @@ type Props = BriefChatState & {
   onSkip?: () => void;
   autoFocus?: boolean;
 };
+
+const ONBOARDING_SUGGESTIONS = [
+  {
+    label: "Product launch",
+    prompt:
+      "Announce a product launch for B2B buyers — confident, clear benefit headline, short proof-led subheading.",
+  },
+  {
+    label: "Feature highlight",
+    prompt:
+      "Highlight a new product feature that saves teams time — punchy headline, practical subheading, modern SaaS tone.",
+  },
+  {
+    label: "Customer win",
+    prompt:
+      "Share a customer success story with a measurable outcome — credible, benefit-led, enterprise-friendly tone.",
+  },
+  {
+    label: "Event invite",
+    prompt:
+      "Invite people to a webinar or product demo — clear date/value hook, approachable tone, strong CTA feel.",
+  },
+] as const;
 
 const FOLLOW_UP_SUGGESTIONS = [
   {
@@ -185,6 +209,7 @@ function BriefChatMessages({
 
   if (messages.length === 0 && !showThinking) {
     const isFollowUp = mode === "follow-up";
+    const suggestions = isFollowUp ? FOLLOW_UP_SUGGESTIONS : ONBOARDING_SUGGESTIONS;
     return (
       <ConversationEmptyState className="brief-chat-empty">
         <div className="text-muted-foreground">
@@ -200,13 +225,13 @@ function BriefChatMessages({
               : "Tell us about the launch, audience, or tone you want."}
           </p>
         </div>
-        {isFollowUp && onSuggest ? (
+        {onSuggest ? (
           <div
             className="brief-chat-suggestions"
             role="group"
-            aria-label="Suggested edits"
+            aria-label={isFollowUp ? "Suggested edits" : "Suggested briefs"}
           >
-            {FOLLOW_UP_SUGGESTIONS.map((suggestion) => (
+            {suggestions.map((suggestion) => (
               <button
                 key={suggestion.label}
                 type="button"
@@ -273,9 +298,7 @@ function BriefChatComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const heightRef = useRef(COMPOSER_SINGLE_LINE_PX);
   const isFollowUp = mode === "follow-up";
-  const placeholder = isFollowUp
-    ? "Ask a follow-up"
-    : "Describe your post — launch, audience, tone…";
+  const placeholder = isFollowUp ? "Ask a follow-up…" : "Describe a post…";
   const submitLabel = isGenerating
     ? "Generating"
     : isFollowUp
@@ -287,6 +310,16 @@ function BriefChatComposer({
     if (!el) return;
 
     const previous = heightRef.current;
+
+    // Empty field: lock to one line. Don't grow from a wrapping placeholder.
+    if (value.length === 0) {
+      el.style.height = `${COMPOSER_SINGLE_LINE_PX}px`;
+      el.style.overflowY = "hidden";
+      heightRef.current = COMPOSER_SINGLE_LINE_PX;
+      setMultiline(false);
+      return;
+    }
+
     el.style.height = "auto";
     const contentHeight = el.scrollHeight;
     const next = Math.max(
@@ -403,13 +436,9 @@ export function BriefChatPanel({
             messages={messages}
             isGenerating={isGenerating}
             mode={mode}
-            onSuggest={
-              isFollowUp
-                ? (prompt) => {
-                    submitText(prompt);
-                  }
-                : undefined
-            }
+            onSuggest={(prompt) => {
+              submitText(prompt);
+            }}
           />
         </ConversationContent>
         <ConversationScrollButton className="brief-chat-scroll-button" />

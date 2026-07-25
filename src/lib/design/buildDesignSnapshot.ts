@@ -1,17 +1,21 @@
 import type { DesignSessionPersisted } from "@/lib/design/types";
 import type { BackgroundPreset } from "@/lib/brand/types";
-import { POST_LAYOUTS } from "@/lib/social-tool/postLayouts";
+import {
+  getPostLayout,
+  layoutUsesSplit,
+  POST_LAYOUTS,
+} from "@/lib/social-tool/postLayouts";
 import { resolveDocumentLayout } from "@/lib/social-tool/layoutRegistry";
 import {
   catalogLayoutToDynamic,
   copyFromTextSlots,
   textSlotsFromCopy,
 } from "@/lib/social-tool/layoutAdapter";
-import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import type { DesignSnapshot, DesignSnapshotInput } from "@/lib/llm/schemas/designSnapshot";
 import { designSnapshotSchema } from "@/lib/llm/schemas/designSnapshot";
 import { kitHasAnyLogo } from "@/lib/brand/logoVariants";
 import { ensureFeaturedSlots } from "@/lib/social-tool/featuredSlots";
+import { platformAllowsHorizontalSplit } from "@/lib/social-tool/presets";
 
 const PRODUCT_PAGES = [
   "leads",
@@ -142,10 +146,13 @@ export function buildDesignSnapshotInput(input: {
 }
 
 export function serializeDesignSnapshot(input: DesignSnapshotInput): DesignSnapshot {
+  const allowSplit = platformAllowsHorizontalSplit(input.platformId);
   const snapshot: DesignSnapshot = {
     ...input,
     textSlotIds: input.textSlots.map((slot) => slot.slotId),
-    allowedLayouts: POST_LAYOUTS.map((layout) => layout.id),
+    allowedLayouts: POST_LAYOUTS.filter(
+      (layout) => allowSplit || !layoutUsesSplit(layout),
+    ).map((layout) => layout.id),
     allowedProductPages: [...PRODUCT_PAGES],
     allowedPatternRefs: [...PATTERN_REFS],
     selection: input.selection ?? null,

@@ -390,7 +390,7 @@ export const POST_LAYOUTS: PostLayout[] = [
     description:
       "Deck-style horizontal split: logo and headline stack in a left column while the product screenshot fills the right side. Common in B2B carousels, LinkedIn landscape posts, and pitch slides.",
     tags: ["split", "deck", "landscape", "product-demo", "b2b"],
-    bestFor: ["linkedin-landscape", "twitter", "linkedin-square"],
+    bestFor: ["linkedin-landscape", "twitter"],
     composition: "split",
     textSide: "left",
     textColumnRatio: 0.38,
@@ -420,7 +420,7 @@ export const POST_LAYOUTS: PostLayout[] = [
     description:
       "Visual-first horizontal split: lead with the product or hero image on the left, headline and logo in a right column. Works for UI demos and portfolio-style posts.",
     tags: ["split", "visual", "product-demo", "landscape"],
-    bestFor: ["linkedin-landscape", "twitter", "instagram-square"],
+    bestFor: ["linkedin-landscape", "twitter"],
     composition: "split",
     textSide: "right",
     textColumnRatio: 0.36,

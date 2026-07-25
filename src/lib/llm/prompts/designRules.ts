@@ -11,6 +11,8 @@ Postforge design rules (must follow):
 - textColumnRatio: share of width for copy column in split layouts (typically 0.38–0.52)
 - stack order: "text-first" or "featured-first"
 - Never overlap text and featured zones; text band expands before overlap
+- Square artboards (1080×1080 / ~1:1): NEVER use horizontal split layouts (split-feature-right, split-feature-left, deck-sidebar). Prefer vertical stack layouts (classic-hero, product-focus, professional-left, etc.).
+- Horizontal splits are for wider formats only (LinkedIn landscape, Twitter/X, event standees).
 
 2. Slots
 - Each layout has ordered slots with unique ids
