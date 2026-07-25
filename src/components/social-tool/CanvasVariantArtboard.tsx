@@ -60,16 +60,23 @@ type Props = {
   canvasSelection?: CanvasSelectionId | null;
   onCanvasSelect?: (id: CanvasSelectionId | null) => void;
   onTypeScaleChange?: (value: number) => void;
+  onLogoScaleChange?: (value: number) => void;
   showPropertyPills?: boolean;
-  onFeaturedTransformChange?: (t: FeaturedImageTransform) => void;
+  onFeaturedTransformChange?: (
+    t: FeaturedImageTransform,
+    slotId?: string,
+  ) => void;
   onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing") => void;
   onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing") => void;
   onSpacingChange?: (v: PostLayoutSpacing) => void;
-  onSelectVisualBlock?: (blockId: string) => void;
+  onSelectVisualBlock?: (blockId: string, slotId?: string) => void;
   onGenerateVisualBlocks?: (
     source?: "library" | "generate",
-    options?: { pickFeatured?: boolean },
+    options?: { pickFeatured?: boolean; slotId?: string },
   ) => void;
+  onAddFeaturedSlot?: () => void;
+  onReorderFeaturedSlot?: (slotId: string, direction: "left" | "right") => void;
+  onRemoveFeaturedSlot?: (slotId: string) => void;
   generatingVisualBlocks?: boolean;
   canvasRef?: React.Ref<HTMLDivElement>;
   viewportRef?: React.Ref<HTMLDivElement>;
@@ -104,6 +111,7 @@ export function CanvasVariantArtboard({
   canvasSelection = null,
   onCanvasSelect,
   onTypeScaleChange,
+  onLogoScaleChange,
   showPropertyPills = true,
   onFeaturedTransformChange,
   onHistoryCoalesceBegin,
@@ -111,6 +119,9 @@ export function CanvasVariantArtboard({
   onSpacingChange,
   onSelectVisualBlock,
   onGenerateVisualBlocks,
+  onAddFeaturedSlot,
+  onReorderFeaturedSlot,
+  onRemoveFeaturedSlot,
   generatingVisualBlocks = false,
   canvasRef,
   viewportRef,
@@ -316,7 +327,7 @@ export function CanvasVariantArtboard({
 
       <div
         ref={viewportRef}
-        className="relative overflow-hidden"
+        className="canvas-preview-viewport relative overflow-hidden"
         style={{
           width: platform.width * previewScale,
           height: platform.height * previewScale,
@@ -371,6 +382,13 @@ export function CanvasVariantArtboard({
                   isActive ? onGenerateVisualBlocks : undefined
                 }
                 onSelectVisualBlock={isActive ? onSelectVisualBlock : undefined}
+                onAddFeaturedSlot={isActive ? onAddFeaturedSlot : undefined}
+                onReorderFeaturedSlot={
+                  isActive ? onReorderFeaturedSlot : undefined
+                }
+                onRemoveFeaturedSlot={
+                  isActive ? onRemoveFeaturedSlot : undefined
+                }
                 featuredImageSrc={featuredImageSrc}
                 featuredSvgMarkup={board.featured.image?.svgMarkup ?? null}
                 hasFeaturedImage={!!board.featured.image}
@@ -378,6 +396,7 @@ export function CanvasVariantArtboard({
                 onTypeScaleChange={isActive ? onTypeScaleChange : undefined}
                 showPropertyPills={showPropertyPills && isActive}
                 logoScale={doc.logoScale}
+                onLogoScaleChange={isActive ? onLogoScaleChange : undefined}
                 logoAlign={doc.logoAlign}
                 logoPlacement={doc.logoPlacement}
                 showLogo={doc.showBrand}

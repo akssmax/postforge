@@ -66,12 +66,22 @@ type FeaturedPanelProps = {
   generatingVisualBlocks?: boolean;
   featuredVisualKind?: "ui" | "illustration";
   brandColors?: { primary?: string; accent?: string };
+  selectedSlotId?: string;
+  featuredSlotIds?: string[];
+  onSelectFeaturedSlot?: (slotId: string) => void;
   onGenerateVisualBlocks: (
     source?: "library" | "generate",
-    options?: { pickFeatured?: boolean; preferredKind?: "ui" | "illustration" },
+    options?: {
+      pickFeatured?: boolean;
+      preferredKind?: "ui" | "illustration";
+      slotId?: string;
+    },
   ) => void;
-  onShuffleVisualBlock: (preferredKind?: "ui" | "illustration") => void;
-  onSelectVisualBlock: (blockId: string) => void;
+  onShuffleVisualBlock: (
+    preferredKind?: "ui" | "illustration",
+    slotId?: string,
+  ) => void;
+  onSelectVisualBlock: (blockId: string, slotId?: string) => void;
   image: import("@/lib/social-tool/featuredBlock").FeaturedImageRecord | null;
   imageSrc: string | null;
   uploading: boolean;
@@ -255,6 +265,9 @@ function BlockPanelsOverview(props: Props) {
       generatingVisualBlocks={props.featured.generatingVisualBlocks}
       featuredVisualKind={props.featured.featuredVisualKind}
       brandColors={props.featured.brandColors}
+      selectedSlotId={props.featured.selectedSlotId}
+      featuredSlotIds={props.featured.featuredSlotIds}
+      onSelectFeaturedSlot={props.featured.onSelectFeaturedSlot}
       onGenerateVisualBlocks={props.featured.onGenerateVisualBlocks}
       onShuffleVisualBlock={props.featured.onShuffleVisualBlock}
       onSelectVisualBlock={props.featured.onSelectVisualBlock}
@@ -424,6 +437,9 @@ function ReadyDesignPanels(props: Props) {
           generatingVisualBlocks={featured.generatingVisualBlocks}
           featuredVisualKind={featured.featuredVisualKind}
           brandColors={featured.brandColors}
+          selectedSlotId={featured.selectedSlotId}
+          featuredSlotIds={featured.featuredSlotIds}
+          onSelectFeaturedSlot={featured.onSelectFeaturedSlot}
           onGenerateVisualBlocks={featured.onGenerateVisualBlocks}
           onShuffleVisualBlock={featured.onShuffleVisualBlock}
           onSelectVisualBlock={featured.onSelectVisualBlock}

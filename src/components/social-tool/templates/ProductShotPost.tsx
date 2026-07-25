@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
-import { Move } from "lucide-react";
+import { Move, Plus } from "lucide-react";
+import { Button, Tooltip } from "@heroui/react";
 import { BrandLogoSlot } from "@/components/social-tool/BrandLogoSlot";
 import { CanvasSlot, isEmptyCopyField } from "@/components/social-tool/CanvasSlot";
 import { FeaturedImageContent } from "@/components/social-tool/FeaturedImageContent";
@@ -27,6 +28,12 @@ import type {
 } from "@/lib/social-tool/dynamicLayout";
 import { dynamicLayoutAsPostLayout } from "@/lib/social-tool/layoutRegistry";
 import { textSlotsForLayout } from "@/lib/social-tool/dynamicLayout";
+import {
+  FEATURED_PRIMARY_SLOT_ID,
+  MAX_FEATURED_SLOTS,
+  migrateFeaturedSlotBlockIds,
+  resolveSlotBlock,
+} from "@/lib/social-tool/featuredSlots";
 import {
   DEFAULT_POST_LAYOUT_ID,
   getLayoutTextSide,
@@ -102,6 +109,7 @@ type Props = {
   /** Show floating property pills when selection + inspector are active */
   showPropertyPills?: boolean;
   logoScale?: number;
+  onLogoScaleChange?: (value: number) => void;
   logoAlign?: LogoAlign;
   logoPlacement?: LogoPlacement;
   textAlign?: TextAlign;
@@ -111,7 +119,10 @@ type Props = {
   showContent?: boolean;
   showFeaturedImage?: boolean;
   featuredTransform?: FeaturedImageTransform;
-  onFeaturedTransformChange?: (next: FeaturedImageTransform) => void;
+  onFeaturedTransformChange?: (
+    next: FeaturedImageTransform,
+    slotId?: string,
+  ) => void;
   /** Coalesce pointer-drag edits into one undo step */
   onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing") => void;
   onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing") => void;
@@ -153,8 +164,14 @@ type Props = {
   visualBlocks?: import("@/lib/social-tool/visualBlocks/types").VisualBlockRecord[];
   activeVisualBlockId?: string | null;
   generatingVisualBlocks?: boolean;
-  onGenerateVisualBlocks?: (source?: "library" | "generate", options?: { pickFeatured?: boolean }) => void;
-  onSelectVisualBlock?: (blockId: string) => void;
+  onGenerateVisualBlocks?: (
+    source?: "library" | "generate",
+    options?: { pickFeatured?: boolean; slotId?: string },
+  ) => void;
+  onSelectVisualBlock?: (blockId: string, slotId?: string) => void;
+  onAddFeaturedSlot?: () => void;
+  onReorderFeaturedSlot?: (slotId: string, direction: "left" | "right") => void;
+  onRemoveFeaturedSlot?: (slotId: string) => void;
   dynamicLayout?: DynamicLayout;
   textSlots?: TextSlotContent[];
   featuredSlots?: FeaturedSlotContent[];
@@ -233,6 +250,7 @@ export function ProductShotPost({
   onTypeScaleChange,
   showPropertyPills = true,
   logoScale = 1,
+  onLogoScaleChange,
   logoAlign = "left",
   logoPlacement = "top",
   textAlign = "center",
@@ -283,6 +301,9 @@ export function ProductShotPost({
   generatingVisualBlocks = false,
   onGenerateVisualBlocks,
   onSelectVisualBlock,
+  onAddFeaturedSlot,
+  onReorderFeaturedSlot,
+  onRemoveFeaturedSlot,
 }: Props) {
   const layout = dynamicLayout
     ? dynamicLayoutAsPostLayout(dynamicLayout)
@@ -310,6 +331,16 @@ export function ProductShotPost({
   const logoH = Math.max(12, Math.round(34 * canvasScale * logoScale));
   const showSpacingHandles =
     showSpacingControls && interactive && !!onSpacingChange;
+  const selectionKind = canvasSelectionKind(canvasSelection);
+  const hasPropertyPills =
+    interactive &&
+    showPropertyPills &&
+    ((selectionKind === "copy" && !!onTypeScaleChange) ||
+      (selectionKind === "logo" && !!onLogoScaleChange) ||
+      (selectionKind === "featured" &&
+        (!!onReorderFeaturedSlot ||
+          !!onRemoveFeaturedSlot ||
+          !!onAddFeaturedSlot)));
   const spacingHistoryCoalesce = {
     onHistoryCoalesceBegin: onHistoryCoalesceBegin
       ? () => onHistoryCoalesceBegin("spacing")
@@ -400,14 +431,19 @@ export function ProductShotPost({
   const headingFamily = getSocialFont(headingFont).family;
   const subFamily = getSocialFont(subFont).family;
 
-  const [hovered, setHovered] = useState(false);
-  const [dragging, setDragging] = useState(false);
+  const [hoveredSlotId, setHoveredSlotId] = useState<string | null>(null);
+  const [draggingSlotId, setDraggingSlotId] = useState<string | null>(null);
+  const [featuredZoneHovered, setFeaturedZoneHovered] = useState(false);
 
   const dragRef = useRef<{
     startX: number;
     startY: number;
     originX: number;
     originY: number;
+    slotId: string;
+    base: FeaturedImageTransform;
+    frameWidth: number;
+    productZone: number;
   } | null>(null);
   const fiRef = useRef(featuredTransform);
   const metricsRef = useRef({ frameWidth, productZone, previewScale });
@@ -435,18 +471,16 @@ export function ProductShotPost({
 
   const canDrag =
     interactive && typeof onFeaturedTransformChange === "function";
+  const dragging = draggingSlotId != null;
 
   useEffect(() => {
     if (!interactive) {
-      setHovered(false);
-      setDragging(false);
+      setHoveredSlotId(null);
+      setDraggingSlotId(null);
+      setFeaturedZoneHovered(false);
       dragRef.current = null;
     }
   }, [interactive]);
-
-  const featuredSelected =
-    canvasSelection === "featured" ||
-    (typeof canvasSelection === "string" && canvasSelection.startsWith("featured:"));
 
   function featuredSelectId(slotId: string): CanvasSelectionId {
     return slotId === "featured-primary" ? "featured" : `featured:${slotId}`;
@@ -487,49 +521,65 @@ export function ProductShotPost({
     const onChange = onChangeRef.current;
     if (!drag || !onChange) return;
 
-    const { frameWidth: fw, productZone: pz, previewScale: ps } =
-      metricsRef.current;
-    const scaleFactor = ps > 0 ? ps : 1;
+    const scaleFactor = metricsRef.current.previewScale > 0
+      ? metricsRef.current.previewScale
+      : 1;
     const dxPx = (clientX - drag.startX) / scaleFactor;
     const dyPx = (clientY - drag.startY) / scaleFactor;
     const nextX = clamp(
-      drag.originX + (dxPx / Math.max(fw, 1)) * 100,
+      drag.originX + (dxPx / Math.max(drag.frameWidth, 1)) * 100,
       -100,
       100,
     );
     const nextY = clamp(
-      drag.originY + (dyPx / Math.max(pz, 1)) * 100,
+      drag.originY + (dyPx / Math.max(drag.productZone, 1)) * 100,
       -100,
       100,
     );
 
-    onChange({
-      ...fiRef.current,
-      x: Math.round(nextX * 10) / 10,
-      y: Math.round(nextY * 10) / 10,
-    });
+    onChange(
+      {
+        ...drag.base,
+        x: Math.round(nextX * 10) / 10,
+        y: Math.round(nextY * 10) / 10,
+      },
+      drag.slotId,
+    );
   }
 
-  function renderFeaturedDragHandle(visible: boolean) {
+  function renderFeaturedDragHandle(
+    visible: boolean,
+    slot: FeaturedSlotContent,
+    viewportHeight: number,
+    viewportWidth: number | undefined,
+  ) {
     if (!canDrag || !visible) return null;
+    const slotDragging = draggingSlotId === slot.slotId;
 
     return (
       <button
         type="button"
-        className={`social-featured-drag-handle${dragging ? " is-dragging" : ""}`}
+        className={`social-featured-drag-handle${slotDragging ? " is-dragging" : ""}`}
         aria-label="Drag to move"
         onPointerDown={(ev) => {
           if (!canDrag) return;
           ev.preventDefault();
           ev.stopPropagation();
-          onCanvasSelect?.("featured");
+          const selectId = featuredSelectId(slot.slotId);
+          onCanvasSelect?.(selectId);
           onHistoryCoalesceBegin?.("featuredTransform");
-          setDragging(true);
+          const origin = slot.transform ?? fiRef.current;
+          const fallback = metricsRef.current;
+          setDraggingSlotId(slot.slotId);
           dragRef.current = {
             startX: ev.clientX,
             startY: ev.clientY,
-            originX: fiRef.current.x,
-            originY: fiRef.current.y,
+            originX: origin.x,
+            originY: origin.y,
+            slotId: slot.slotId,
+            base: origin,
+            frameWidth: viewportWidth ?? fallback.frameWidth,
+            productZone: viewportHeight || fallback.productZone,
           };
           ev.currentTarget.setPointerCapture(ev.pointerId);
         }}
@@ -546,7 +596,7 @@ export function ProductShotPost({
             ev.currentTarget.releasePointerCapture(ev.pointerId);
           }
           dragRef.current = null;
-          setDragging(false);
+          setDraggingSlotId(null);
           onHistoryCoalesceEnd?.("featuredTransform");
         }}
         onPointerCancel={(ev) => {
@@ -554,7 +604,7 @@ export function ProductShotPost({
             ev.currentTarget.releasePointerCapture(ev.pointerId);
           }
           dragRef.current = null;
-          setDragging(false);
+          setDraggingSlotId(null);
           onHistoryCoalesceEnd?.("featuredTransform");
         }}
       >
@@ -570,6 +620,16 @@ export function ProductShotPost({
       data-canvas-select="logo"
       onPointerDown={(ev) => handleCanvasSelect("logo", ev)}
     >
+      {hasPropertyPills && selectionKind === "logo" ? (
+        <CanvasPropertyPills
+          selection={canvasSelection}
+          enabled
+          typeScale={typeScale}
+          onTypeScaleChange={onTypeScaleChange}
+          logoScale={logoScale}
+          onLogoScaleChange={onLogoScaleChange}
+        />
+      ) : null}
       <BrandLogoSlot
         logoSrc={logoSrc}
         svgMarkup={logoSvgMarkup}
@@ -846,7 +906,6 @@ export function ProductShotPost({
       : {}),
   } as React.CSSProperties;
 
-  const chromeActive = hovered || featuredSelected || dragging;
   const featuredFrameRadius = featuredRadiusStyle(layout.featuredRadius, radius);
   const textZoneJustify =
     layout.textVerticalAlign === "center" && !isTallPrint
@@ -905,14 +964,14 @@ export function ProductShotPost({
             data-canvas-select="copy"
             onPointerDown={(ev) => handleCanvasSelect("copy", ev)}
           >
-            {interactive &&
-            showPropertyPills &&
-            canvasSelectionKind(canvasSelection) === "copy" ? (
+            {hasPropertyPills && selectionKind === "copy" ? (
               <CanvasPropertyPills
                 selection={canvasSelection}
                 enabled
                 typeScale={typeScale}
                 onTypeScaleChange={onTypeScaleChange}
+                logoScale={logoScale}
+                onLogoScaleChange={onLogoScaleChange}
               />
             ) : null}
             {renderCopyStack()}
@@ -938,16 +997,21 @@ export function ProductShotPost({
     viewportHeight: number,
     viewportWidth: number | undefined,
     slot: FeaturedSlotContent = {
-      slotId: "featured-primary",
+      slotId: FEATURED_PRIMARY_SLOT_ID,
       mode: featuredMode,
       productPage,
       visible: true,
       transform: fi,
     },
+    slotMeta?: { index: number; total: number },
   ) {
-    const slotTransform = fi;
+    const slotTransform = slot.transform ?? fi;
     const slotProductPage = slot.productPage ?? productPage;
     const slotMode = slot.mode ?? featuredMode;
+    const slotBlock = resolveSlotBlock(slot, visualBlocks);
+    const slotComposedMarkup =
+      slotBlock?.svgMarkup ??
+      (slot.slotId === FEATURED_PRIMARY_SLOT_ID ? composedSvgMarkup : null);
     const slotNativeWidth = getProductPageNativeWidth(slotProductPage);
     const slotFeaturedReady =
       slotMode === "placeholder" ||
@@ -959,25 +1023,30 @@ export function ProductShotPost({
     const isGenuiFeatured = slotMode === "genui" && slotShowFrame;
     const isPlaceholderFeatured = slotMode === "placeholder" && slotShowFrame;
     const isComposedFeatured = slotMode === "composed" && slotShowFrame;
-    const composedMarkup = composedSvgMarkup;
-    const composedSlotEmpty = !composedBlock && !composedMarkup;
-    const composedNativeSize = composedBlock
-      ? resolveVisualBlockDimensions(composedBlock)
-      : composedMarkup
-        ? parseSvgViewBox(composedMarkup) ?? VISUAL_LIBRARY_FRAME
+    const composedSlotEmpty = !slotBlock && !slotComposedMarkup;
+    const composedNativeSize = slotBlock
+      ? resolveVisualBlockDimensions(slotBlock)
+      : slotComposedMarkup
+        ? parseSvgViewBox(slotComposedMarkup) ?? VISUAL_LIBRARY_FRAME
         : VISUAL_LIBRARY_FRAME;
     const viewportEditable = slotShowFrame && (interactive || canDrag);
     const selectId = featuredSelectId(slot.slotId);
+    const slotSelected = isFeaturedSlotSelected(slot.slotId);
+    const showEmptyPicker =
+      interactive &&
+      onGenerateVisualBlocks &&
+      !exporting &&
+      (isPlaceholderFeatured || (isComposedFeatured && composedSlotEmpty));
 
     return (
       <div
-        className={`social-post-product-viewport${viewportEditable ? " is-editable" : ""}${isGenuiFeatured ? " social-post-product-viewport--genui" : ""} ${selectableClassForFeatured(slot.slotId)}${viewportWidth != null ? " social-post-product-viewport--split" : ""}`}
+        className={`social-post-product-viewport${viewportEditable ? " is-editable" : ""}${isGenuiFeatured ? " social-post-product-viewport--genui" : ""} ${selectableClassForFeatured(slot.slotId)}${viewportWidth != null ? " social-post-product-viewport--split" : ""}${slotSelected && hasPropertyPills ? " has-property-pills" : ""}`}
         data-canvas-select={selectId}
         onPointerDown={(ev) => handleCanvasSelect(selectId, ev)}
         style={
           {
             height: viewportHeight,
-            ...(viewportWidth != null ? { width: viewportWidth, flexShrink: 0 } : {}),
+            ...(viewportWidth != null ? { width: viewportWidth, flexShrink: 0 } : { flex: "1 1 0", minWidth: 0 }),
             ...(slotShowFrame
               ? {
                   "--fi-perspective": `${slotTransform.perspective}px`,
@@ -993,106 +1062,126 @@ export function ProductShotPost({
           } as React.CSSProperties
         }
       >
+        {hasPropertyPills && slotSelected ? (
+          <CanvasPropertyPills
+            selection={selectId}
+            enabled
+            typeScale={typeScale}
+            featuredSlotIndex={slotMeta?.index ?? 0}
+            featuredSlotCount={slotMeta?.total ?? 1}
+            onReorderFeaturedSlot={onReorderFeaturedSlot}
+            onRemoveFeaturedSlot={onRemoveFeaturedSlot}
+            onAddFeaturedSlot={onAddFeaturedSlot}
+          />
+        ) : null}
         {slotShowFrame ? (
-          isPlaceholderFeatured ? (
+          showEmptyPicker ? (
             <div
-              className="social-post-product-frame social-post-product-frame--slot social-post-product-frame--placeholder"
+              className="social-post-product-frame social-post-product-frame--composed social-post-product-frame--composed-empty social-post-product-frame--slot social-post-product-frame--placeholder"
               style={featuredFrameRadius}
             >
               <div className="social-post-featured-placeholder">
-                <span className="social-post-featured-placeholder__label">Visual slot</span>
-                <span className="social-post-featured-placeholder__hint">
-                  Generate UI to add diagrams, cards, or illustrations
-                </span>
+                <div className="social-post-featured-placeholder__actions">
+                  <VisualBlocksLibraryPicker
+                    blocks={visualBlocks}
+                    activeBlockId={slot.activeBlockId ?? activeVisualBlockId}
+                    generating={generatingVisualBlocks}
+                    brandColors={brandColors}
+                    onGenerate={(source) =>
+                      onGenerateVisualBlocks?.(source, {
+                        pickFeatured: true,
+                        slotId: slot.slotId,
+                      })
+                    }
+                    onSelect={(blockId) =>
+                      onSelectVisualBlock?.(blockId, slot.slotId)
+                    }
+                    triggerLabel="Choose visual"
+                    slotTrigger
+                    autoPick
+                  />
+                </div>
               </div>
             </div>
           ) : isComposedFeatured ? (
-            composedSlotEmpty ? (
-              <div
-                className="social-post-product-frame social-post-product-frame--composed social-post-product-frame--composed-empty social-post-product-frame--slot social-post-product-frame--placeholder"
-                style={featuredFrameRadius}
-              >
-                <div className="social-post-featured-placeholder">
-                  {interactive && onGenerateVisualBlocks && !exporting ? (
-                    <div className="social-post-featured-placeholder__actions">
-                      <VisualBlocksLibraryPicker
-                        blocks={visualBlocks}
-                        activeBlockId={activeVisualBlockId}
-                        generating={generatingVisualBlocks}
-                        brandColors={brandColors}
-                        onGenerate={(source) =>
-                          onGenerateVisualBlocks?.(source, { pickFeatured: true })
-                        }
-                        onSelect={(blockId) => onSelectVisualBlock?.(blockId)}
-                        triggerLabel="Choose visual"
-                        slotTrigger
-                        autoPick
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <span className="social-post-featured-placeholder__label">Visual slot</span>
-                      <span className="social-post-featured-placeholder__hint">
-                        Add a UI block or illustration from the library
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-            ) : (
             <div
-              className={`social-post-product-frame social-post-product-frame--composed${dragging ? " is-dragging" : ""}`}
+              className={`social-post-product-frame social-post-product-frame--composed${draggingSlotId === slot.slotId ? " is-dragging" : ""}`}
               style={featuredFrameRadius}
               onPointerEnter={() => {
-                if (canDrag) setHovered(true);
+                if (canDrag) setHoveredSlotId(slot.slotId);
               }}
               onPointerLeave={() => {
-                if (!dragging) setHovered(false);
+                if (draggingSlotId !== slot.slotId) {
+                  setHoveredSlotId((current) =>
+                    current === slot.slotId ? null : current,
+                  );
+                }
               }}
             >
               <div
-                className={`social-post-product-inner social-post-product-inner--composed${dragging ? " is-dragging" : ""}`}
+                className={`social-post-product-inner social-post-product-inner--composed${draggingSlotId === slot.slotId ? " is-dragging" : ""}`}
                 style={{
                   width: composedNativeSize.width,
                   height: composedNativeSize.height,
                 }}
               >
-                {composedBlock ? (
+                {slotBlock ? (
                   <VisualBlockRenderer
-                    block={composedBlock}
+                    block={slotBlock}
                     brandColors={brandColors}
                     canvasFit
                   />
                 ) : (
-                  <FeaturedImageContent imageSrc={null} svgMarkup={composedMarkup} />
+                  <FeaturedImageContent imageSrc={null} svgMarkup={slotComposedMarkup} />
                 )}
               </div>
-              {renderFeaturedDragHandle(chromeActive && isFeaturedSlotSelected(slot.slotId))}
+              {renderFeaturedDragHandle(
+                slotSelected ||
+                  hoveredSlotId === slot.slotId ||
+                  draggingSlotId === slot.slotId,
+                slot,
+                viewportHeight,
+                viewportWidth,
+              )}
             </div>
-            )
           ) : isGenuiFeatured ? (
             <div
-              className={`social-post-product-inner social-post-product-inner--genui${dragging ? " is-dragging" : ""}`}
+              className={`social-post-product-inner social-post-product-inner--genui${draggingSlotId === slot.slotId ? " is-dragging" : ""}`}
               style={featuredFrameRadius}
               onPointerEnter={() => {
-                if (canDrag) setHovered(true);
+                if (canDrag) setHoveredSlotId(slot.slotId);
               }}
               onPointerLeave={() => {
-                if (!dragging) setHovered(false);
+                if (draggingSlotId !== slot.slotId) {
+                  setHoveredSlotId((current) =>
+                    current === slot.slotId ? null : current,
+                  );
+                }
               }}
             >
               <ProductPreview page={slotProductPage} frameWidth={slotNativeWidth} />
-              {renderFeaturedDragHandle(chromeActive && isFeaturedSlotSelected(slot.slotId))}
+              {renderFeaturedDragHandle(
+                slotSelected ||
+                  hoveredSlotId === slot.slotId ||
+                  draggingSlotId === slot.slotId,
+                slot,
+                viewportHeight,
+                viewportWidth,
+              )}
             </div>
           ) : (
             <div
-              className={`social-post-product-frame${isIllustrationFeaturedAsset(featuredImageSrc, featuredSvgMarkup) ? " social-post-product-frame--illustration" : ""}${dragging ? " is-dragging" : ""}`}
+              className={`social-post-product-frame${isIllustrationFeaturedAsset(featuredImageSrc, featuredSvgMarkup) ? " social-post-product-frame--illustration" : ""}${draggingSlotId === slot.slotId ? " is-dragging" : ""}`}
               style={featuredFrameRadius}
               onPointerEnter={() => {
-                if (canDrag) setHovered(true);
+                if (canDrag) setHoveredSlotId(slot.slotId);
               }}
               onPointerLeave={() => {
-                if (!dragging) setHovered(false);
+                if (draggingSlotId !== slot.slotId) {
+                  setHoveredSlotId((current) =>
+                    current === slot.slotId ? null : current,
+                  );
+                }
               }}
             >
               <div className="social-post-product-inner social-post-product-inner--image">
@@ -1102,7 +1191,14 @@ export function ProductShotPost({
                 />
               </div>
 
-              {renderFeaturedDragHandle(chromeActive && isFeaturedSlotSelected(slot.slotId))}
+              {renderFeaturedDragHandle(
+                slotSelected ||
+                  hoveredSlotId === slot.slotId ||
+                  draggingSlotId === slot.slotId,
+                slot,
+                viewportHeight,
+                viewportWidth,
+              )}
             </div>
           )
         ) : (
@@ -1117,34 +1213,115 @@ export function ProductShotPost({
     );
   }
 
-  function renderAllFeaturedViewports(viewportHeight: number, viewportWidth?: number) {
-    const slots =
-      featuredSlots?.filter((slot) => slot.visible) ??
-      ([
-        {
-          slotId: "featured-primary",
-          mode: featuredMode,
-          productPage,
-          visible: showFeaturedImage,
-          transform: fi,
-        },
-      ] satisfies FeaturedSlotContent[]);
+  function renderAddFeaturedSlotControl(
+    viewportHeight: number,
+    visible: boolean,
+  ) {
+    if (!interactive || exporting || !onAddFeaturedSlot) return null;
+    const size = Math.max(52, Math.round(64 * canvasScale));
+    return (
+      <div
+        className={`social-post-featured-add-slot${visible ? " is-visible" : ""}`}
+        style={
+          {
+            height: viewportHeight,
+            "--featured-add-slot-size": `${size}px`,
+            "--featured-add-slot-gap": `${Math.max(6, Math.round(8 * canvasScale))}px`,
+          } as React.CSSProperties
+        }
+        aria-hidden={!visible}
+      >
+        <Tooltip delay={500}>
+          <Tooltip.Trigger>
+            <Button
+              variant="secondary"
+              size="sm"
+              isIconOnly
+              aria-label="Add visual slot"
+              className="social-post-featured-add-slot__btn"
+              isDisabled={!visible}
+              onPress={() => onAddFeaturedSlot()}
+            >
+              <Plus className="size-5" strokeWidth={2.25} aria-hidden />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content placement="left" offset={8}>
+            <p className="layout-shuffle-tooltip-title">Add visual slot</p>
+          </Tooltip.Content>
+        </Tooltip>
+      </div>
+    );
+  }
 
-    if (slots.length <= 1) {
-      return renderFeaturedViewport(viewportHeight, viewportWidth, slots[0]);
+  function renderAllFeaturedViewports(viewportHeight: number, viewportWidth?: number) {
+    const slots = migrateFeaturedSlotBlockIds(
+      featuredSlots?.filter((slot) => slot.visible),
+      activeVisualBlockId,
+    );
+
+    const canAdd =
+      interactive &&
+      !exporting &&
+      !!onAddFeaturedSlot &&
+      slots.length < MAX_FEATURED_SLOTS;
+    const featuredSelected =
+      canvasSelectionKind(canvasSelection) === "featured";
+    const showAddControl =
+      canAdd && (featuredZoneHovered || featuredSelected);
+    const gap = Math.max(6, Math.round(8 * canvasScale));
+
+    if (slots.length <= 1 && !canAdd) {
+      return renderFeaturedViewport(viewportHeight, viewportWidth, slots[0], {
+        index: 0,
+        total: 1,
+      });
     }
 
-    const gap = Math.max(6, Math.round(8 * canvasScale));
-    const eachHeight = (viewportHeight - gap * (slots.length - 1)) / slots.length;
+    const gaps = gap * Math.max(0, slots.length - 1);
+    const availableWidth =
+      viewportWidth != null && !canAdd
+        ? Math.max(0, viewportWidth - gaps)
+        : undefined;
+    const eachWidth =
+      availableWidth != null ? availableWidth / Math.max(1, slots.length) : undefined;
 
     return (
       <div
-        className="flex w-full flex-col"
-        style={{ height: viewportHeight, gap, ...(viewportWidth != null ? { width: viewportWidth } : {}) }}
+        className="social-post-featured-slots relative flex w-full flex-row items-stretch"
+        style={{
+          height: viewportHeight,
+          gap: canAdd ? 0 : gap,
+          ...(viewportWidth != null ? { width: viewportWidth } : {}),
+        }}
+        onPointerEnter={() => {
+          if (canAdd) setFeaturedZoneHovered(true);
+        }}
+        onPointerLeave={() => setFeaturedZoneHovered(false)}
       >
-        {slots.map((slot) =>
-          renderFeaturedViewport(eachHeight, viewportWidth, slot),
-        )}
+        {slots.map((slot, index) => (
+          <div
+            key={slot.slotId}
+            className="social-post-featured-slot-cell min-w-0"
+            style={
+              eachWidth != null
+                ? { width: eachWidth, flex: "0 0 auto" }
+                : {
+                    flex: "1 1 0",
+                    minWidth: 0,
+                    marginRight:
+                      canAdd && index < slots.length - 1 ? gap : undefined,
+                  }
+            }
+          >
+            {renderFeaturedViewport(viewportHeight, undefined, slot, {
+              index,
+              total: slots.length,
+            })}
+          </div>
+        ))}
+        {canAdd
+          ? renderAddFeaturedSlotControl(viewportHeight, showAddControl)
+          : null}
       </div>
     );
   }
@@ -1157,7 +1334,7 @@ export function ProductShotPost({
           : showBackground
             ? "social-post--dark"
             : `social-post--dark social-post--no-bg${exporting ? " social-post--exporting" : ""}`
-      } social-post--product`}
+      } social-post--product${hasPropertyPills ? " has-property-pills" : ""}`}
       style={surfaceStyle}
       onPointerDown={() => {
         if (interactive) {

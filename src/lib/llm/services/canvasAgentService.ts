@@ -208,7 +208,11 @@ function buildCanvasTools(
             ? composeVisualBlocksFromLibrary(payload, { libraryIds: input.libraryIds })
             : await composeVisualBlocks({ ...payload, source: "generate" });
         return attachArtboardTarget(
-          computeGeneratedVisualBlocksPatch(snapshot, blocks),
+          computeGeneratedVisualBlocksPatch(
+            snapshot,
+            blocks,
+            input.slotId ?? "featured-primary",
+          ),
           input,
         );
       },
@@ -243,7 +247,11 @@ function buildCanvasTools(
         }
         const fullBlock = { ...existing, ...modified, id: existing.id };
         return attachArtboardTarget(
-          computeModifiedVisualBlockPatch(snapshot, fullBlock),
+          computeModifiedVisualBlockPatch(
+            snapshot,
+            fullBlock,
+            input.slotId ?? "featured-primary",
+          ),
           input,
         );
       },

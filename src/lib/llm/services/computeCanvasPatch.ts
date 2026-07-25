@@ -171,6 +171,7 @@ function buildComposedFeaturedPatch(
   snapshot: DesignSnapshot,
   visualBlocks: VisualBlockRecord[],
   activeBlockId: string | null,
+  slotId = "featured-primary",
 ): CanvasPatchResult {
   return {
     success: true,
@@ -179,9 +180,10 @@ function buildComposedFeaturedPatch(
       showFeaturedImage: true,
       featuredSlots: [
         {
-          slotId: "featured-primary",
+          slotId,
           mode: "composed",
           visible: true,
+          activeBlockId,
         },
       ],
     },
@@ -201,26 +203,33 @@ export function computeSelectVisualBlockPatch(
   if (!block) {
     return { success: false, error: `Unknown visual block: ${input.blockId}` };
   }
-  return buildComposedFeaturedPatch(snapshot, snapshotVisualBlocks(snapshot), block.id);
+  return buildComposedFeaturedPatch(
+    snapshot,
+    snapshotVisualBlocks(snapshot),
+    block.id,
+    input.slotId ?? "featured-primary",
+  );
 }
 
 export function computeGeneratedVisualBlocksPatch(
   snapshot: DesignSnapshot,
   blocks: VisualBlockRecord[],
+  slotId = "featured-primary",
 ): CanvasPatchResult {
   const visualBlocks = appendVisualBlocks(snapshotVisualBlocks(snapshot), blocks);
   const activeBlockId = blocks[0]?.id ?? visualBlocks[0]?.id ?? null;
-  return buildComposedFeaturedPatch(snapshot, visualBlocks, activeBlockId);
+  return buildComposedFeaturedPatch(snapshot, visualBlocks, activeBlockId, slotId);
 }
 
 export function computeModifiedVisualBlockPatch(
   snapshot: DesignSnapshot,
   block: VisualBlockRecord,
+  slotId = "featured-primary",
 ): CanvasPatchResult {
   const visualBlocks = snapshotVisualBlocks(snapshot).map((entry) =>
     entry.id === block.id ? block : entry,
   );
-  return buildComposedFeaturedPatch(snapshot, visualBlocks, block.id);
+  return buildComposedFeaturedPatch(snapshot, visualBlocks, block.id, slotId);
 }
 
 export function computeUpdateFeaturedPatch(
@@ -236,36 +245,35 @@ export function computeUpdateFeaturedPatch(
   }
 
   const slotId = input.slotId ?? "featured-primary";
-  const nextFeaturedSlots = [
-    {
-      slotId,
-      mode: input.mode ?? snapshot.featured.mode,
-      productPage: input.productPage ?? snapshot.featured.productPage,
-      visible: input.showFeaturedImage ?? snapshot.featured.visible,
-    },
-  ];
-
+  const nextMode = input.mode ?? snapshot.featured.mode;
   const productPage = (input.productPage ?? snapshot.featured.productPage) as ProductPageId;
+  const visible = input.showFeaturedImage ?? snapshot.featured.visible;
 
   return {
     success: true,
     message: "Featured block updated",
     document: {
-      showFeaturedImage: input.showFeaturedImage ?? snapshot.featured.visible,
-      featuredSlots: nextFeaturedSlots.map((slot) => ({
-        ...slot,
-        productPage: input.mode === "placeholder" ? undefined : productPage,
-      })),
+      showFeaturedImage: visible,
+      featuredSlots: [
+        {
+          slotId,
+          mode: nextMode,
+          productPage: input.mode === "placeholder" ? undefined : productPage,
+          visible,
+        },
+      ],
     },
     featured: {
-      mode: (input.mode ?? snapshot.featured.mode) as "genui" | "image" | "placeholder",
+      mode: nextMode as "genui" | "image" | "placeholder" | "composed",
       productPage,
-      slots: nextFeaturedSlots.map((slot) => ({
-        slotId: slot.slotId,
-        mode: (input.mode ?? snapshot.featured.mode) as "genui" | "image" | "placeholder",
-        productPage: input.mode === "placeholder" ? undefined : productPage,
-        visible: slot.visible,
-      })),
+      slots: [
+        {
+          slotId,
+          mode: nextMode as "genui" | "image" | "placeholder" | "composed",
+          productPage: input.mode === "placeholder" ? undefined : productPage,
+          visible,
+        },
+      ],
     },
   };
 }

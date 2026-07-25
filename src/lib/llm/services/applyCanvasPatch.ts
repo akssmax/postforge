@@ -2,6 +2,7 @@ import type { DesignDocument, DesignSessionPersisted } from "@/lib/design/types"
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
+import type { FeaturedSlotContent } from "@/lib/social-tool/dynamicLayout";
 import { getPlatform } from "@/lib/social-tool/presets";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { resolveLayoutHierarchy } from "@/lib/social-tool/layoutHierarchy";
@@ -15,6 +16,24 @@ function omitUndefined<T extends Record<string, unknown>>(value: T): Partial<T> 
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined),
   ) as Partial<T>;
+}
+
+function mergeFeaturedSlots(
+  previous: FeaturedSlotContent[] | undefined,
+  incoming: FeaturedSlotContent[] | undefined,
+): FeaturedSlotContent[] | undefined {
+  if (!incoming) return previous;
+  if (!previous || previous.length === 0) return incoming;
+  const next = previous.map((slot) => ({ ...slot }));
+  for (const slot of incoming) {
+    const index = next.findIndex((entry) => entry.slotId === slot.slotId);
+    if (index >= 0) {
+      next[index] = { ...next[index]!, ...slot };
+    } else {
+      next.push(slot);
+    }
+  }
+  return next;
 }
 
 function finiteOr(fallback: number, value: number | undefined): number {
@@ -78,7 +97,14 @@ export function applyCanvasPatchToSession(
       : session.featured,
     document: documentPatch
       ? sanitizeDocument(
-          { ...session.document, ...documentPatch },
+          {
+            ...session.document,
+            ...documentPatch,
+            featuredSlots: mergeFeaturedSlots(
+              session.document.featuredSlots,
+              documentPatch.featuredSlots,
+            ),
+          },
           session.document,
         )
       : session.document,

@@ -46,9 +46,16 @@ import { useDesignVariantGroup } from "@/lib/design/useDesignVariantGroup";
 import { loadDesignSession } from "@/lib/design/designSession";
 import {
   canvasSelectionFromContrastBlock,
+  featuredSlotIdFromSelection,
   isCanvasSelectableTarget,
   type CanvasSelectionId,
 } from "@/lib/social-tool/canvasSelection";
+import {
+  FEATURED_PRIMARY_SLOT_ID,
+  ensureFeaturedSlots,
+  findFeaturedSlot,
+  patchFeaturedSlot,
+} from "@/lib/social-tool/featuredSlots";
 import {
   evaluateCanvasContrast,
   readableSubTextOnBackground,
@@ -540,9 +547,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       return;
     }
     setCanvasSelection(id);
-    if (id === "copy") patchDocument({ showContent: true });
+    if (id === "copy" || id.startsWith("copy:")) patchDocument({ showContent: true });
     if (id === "logo") patchDocument({ showBrand: true });
-    if (id === "featured") patchDocument({ showFeaturedImage: true });
+    if (id === "featured" || id.startsWith("featured:")) {
+      patchDocument({ showFeaturedImage: true });
+    }
     if (id === "pattern") patchDocument({ showPattern: true });
   }
 
@@ -761,15 +770,37 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     variantGroup.broadcastPlatform(next);
   }
 
-  function handleFeaturedTransformChange(value: FeaturedImageTransform) {
+  function handleFeaturedTransformChange(
+    value: FeaturedImageTransform,
+    slotId?: string,
+  ) {
+    const targetSlotId =
+      slotId ??
+      featuredSlotIdFromSelection(inspectorSelection) ??
+      FEATURED_PRIMARY_SLOT_ID;
     patchDocument({
       featuredTransform: value,
-      featuredSlots: (doc.featuredSlots ?? []).map((slot) => ({
-        ...slot,
+      featuredSlots: patchFeaturedSlot(doc.featuredSlots, targetSlotId, {
         transform: value,
-      })),
+      }),
     });
   }
+
+  const selectedFeaturedSlotId =
+    featuredSlotIdFromSelection(inspectorSelection) ?? FEATURED_PRIMARY_SLOT_ID;
+  const featuredSlotList = ensureFeaturedSlots(doc.featuredSlots, {
+    mode: session.featured.mode,
+    visible: doc.showFeaturedImage,
+    activeBlockId: session.featured.activeBlockId,
+    transform: doc.featuredTransform,
+  });
+  const selectedFeaturedSlot =
+    findFeaturedSlot(featuredSlotList, selectedFeaturedSlotId) ??
+    featuredSlotList[0];
+  const selectedSlotActiveBlockId =
+    selectedFeaturedSlot?.activeBlockId ?? session.featured.activeBlockId;
+  const selectedSlotTransform =
+    selectedFeaturedSlot?.transform ?? doc.featuredTransform;
 
   if (!session.ready) {
     return (
@@ -915,7 +946,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             onLogoAlignChange={(v) => patchDocument({ logoAlign: v })}
             showFeaturedImage={doc.showFeaturedImage}
             onShowFeaturedImageChange={(v) => patchDocument({ showFeaturedImage: v })}
-            featuredTransform={doc.featuredTransform}
+            featuredTransform={selectedSlotTransform}
             onFeaturedTransformChange={handleFeaturedTransformChange}
             pattern={doc.pattern}
             onPatternChange={(v) => patchDocument({ pattern: v })}
@@ -948,24 +979,41 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               setBackgroundPreset: session.setBackgroundPreset,
             }}
             featured={{
-              mode: session.featured.mode,
+              mode: selectedFeaturedSlot?.mode ?? session.featured.mode,
               visualBlocks: session.featured.visualBlocks ?? [],
-              activeBlockId: session.featured.activeBlockId,
+              activeBlockId: selectedSlotActiveBlockId,
               generatingVisualBlocks: session.generatingVisualBlocks,
               featuredVisualKind: doc.featuredVisualKind,
               brandColors: {
                 primary: session.kit.colors.primary,
                 accent: session.kit.colors.accent,
               },
+              selectedSlotId: selectedFeaturedSlotId,
+              featuredSlotIds: featuredSlotList.map((slot) => slot.slotId),
+              onSelectFeaturedSlot: (slotId) => {
+                handleCanvasSelect(
+                  slotId === FEATURED_PRIMARY_SLOT_ID
+                    ? "featured"
+                    : `featured:${slotId}`,
+                );
+              },
               onGenerateVisualBlocks: (source, options) =>
                 void session.generateVisualBlocks({
                   source,
                   pickFeatured: options?.pickFeatured,
                   preferredKind: options?.preferredKind,
+                  slotId: options?.slotId ?? selectedFeaturedSlotId,
                 }),
-              onShuffleVisualBlock: (preferredKind) =>
-                void session.shuffleFeaturedVisualBlock({ preferredKind }),
-              onSelectVisualBlock: session.selectVisualBlock,
+              onShuffleVisualBlock: (preferredKind, slotId) =>
+                void session.shuffleFeaturedVisualBlock({
+                  preferredKind,
+                  slotId: slotId ?? selectedFeaturedSlotId,
+                }),
+              onSelectVisualBlock: (blockId, slotId) =>
+                session.selectVisualBlock(
+                  blockId,
+                  slotId ?? selectedFeaturedSlotId,
+                ),
               image: session.featured.image,
               imageSrc: session.featuredImageSrc,
               uploading: session.featuredUploading,
@@ -1052,7 +1100,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               >
                 <div
                   ref={viewportRef}
-                  className="relative overflow-hidden"
+                  className="canvas-preview-viewport relative overflow-hidden"
                   style={{
                     width: platform.width * previewScale,
                     height: platform.height * previewScale,
@@ -1128,6 +1176,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       canvasSelection={inspectorSelection}
                       onCanvasSelect={handleCanvasSelect}
                       onTypeScaleChange={(v) => patchDocument({ typeScale: v })}
+                      onLogoScaleChange={(v) => patchDocument({ logoScale: v })}
                       showPropertyPills={
                         !asideCollapsed && asideTab === "design"
                       }
@@ -1137,13 +1186,38 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       onSpacingChange={(v) =>
                         patchDocument({ layoutSpacing: v })
                       }
-                      onSelectVisualBlock={session.selectVisualBlock}
+                      onSelectVisualBlock={(blockId, slotId) =>
+                        session.selectVisualBlock(
+                          blockId,
+                          slotId ?? selectedFeaturedSlotId,
+                        )
+                      }
                       onGenerateVisualBlocks={(source, options) =>
                         void session.generateVisualBlocks({
                           source,
                           pickFeatured: options?.pickFeatured,
+                          slotId: options?.slotId ?? selectedFeaturedSlotId,
                         })
                       }
+                      onAddFeaturedSlot={() => {
+                        const created = session.addFeaturedVisualSlot();
+                        if (created) {
+                          handleCanvasSelect(
+                            created === FEATURED_PRIMARY_SLOT_ID
+                              ? "featured"
+                              : `featured:${created}`,
+                          );
+                        }
+                      }}
+                      onReorderFeaturedSlot={(slotId, direction) =>
+                        session.reorderFeaturedVisualSlots(slotId, direction)
+                      }
+                      onRemoveFeaturedSlot={(slotId) => {
+                        session.removeFeaturedVisualSlot(slotId);
+                        if (selectedFeaturedSlotId === slotId) {
+                          handleCanvasSelect("featured");
+                        }
+                      }}
                       generatingVisualBlocks={session.generatingVisualBlocks}
                       canvasRef={isActive ? canvasRef : undefined}
                       viewportRef={isActive ? viewportRef : undefined}

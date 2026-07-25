@@ -1,11 +1,9 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import Link from "next/link";
 import { ImagePlus, RotateCcw, Shuffle, Trash2 } from "lucide-react";
 import { Button, Switch } from "@heroui/react";
 import {
-  InspectorSelect,
   InspectorSlider,
   InspectorTransformRow,
 } from "@/components/social-tool/InspectorControls";
@@ -23,6 +21,7 @@ import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 type GenerateOptions = {
   pickFeatured?: boolean;
   preferredKind?: FeaturedVisualKind;
+  slotId?: string;
 };
 
 type Props = {
@@ -34,12 +33,18 @@ type Props = {
   generatingVisualBlocks?: boolean;
   featuredVisualKind?: FeaturedVisualKind;
   brandColors?: { primary?: string; accent?: string };
+  selectedSlotId?: string;
+  featuredSlotIds?: string[];
+  onSelectFeaturedSlot?: (slotId: string) => void;
   onGenerateVisualBlocks: (
     source?: "library" | "generate",
     options?: GenerateOptions,
   ) => void;
-  onShuffleVisualBlock: (preferredKind?: FeaturedVisualKind) => void;
-  onSelectVisualBlock: (blockId: string) => void;
+  onShuffleVisualBlock: (
+    preferredKind?: FeaturedVisualKind,
+    slotId?: string,
+  ) => void;
+  onSelectVisualBlock: (blockId: string, slotId?: string) => void;
   image: {
     fileName?: string;
     svgMarkup?: string;
@@ -69,6 +74,9 @@ export function FeaturedBlockPanel({
   onGenerateVisualBlocks,
   onShuffleVisualBlock,
   onSelectVisualBlock,
+  selectedSlotId,
+  featuredSlotIds,
+  onSelectFeaturedSlot,
   image,
   imageSrc,
   uploading = false,
@@ -80,12 +88,11 @@ export function FeaturedBlockPanel({
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const showImageUpload = mode === "image";
+  const targetSlotId = selectedSlotId;
 
   const activeBlock = useMemo(() => {
-    if (visualBlocks.length === 0) return null;
-    return (
-      visualBlocks.find((block) => block.id === activeBlockId) ?? visualBlocks[0] ?? null
-    );
+    if (!activeBlockId) return null;
+    return visualBlocks.find((block) => block.id === activeBlockId) ?? null;
   }, [activeBlockId, visualBlocks]);
 
   const activeKind: FeaturedVisualKind =
@@ -95,30 +102,20 @@ export function FeaturedBlockPanel({
         ? "ui"
         : featuredVisualKind ?? "ui";
 
-  const kindBlocks = useMemo(
-    () => visualBlocks.filter((block) => block.kind === activeKind),
-    [activeKind, visualBlocks],
-  );
-
-  const selectOptions = useMemo(
-    () =>
-      kindBlocks.map((block) => ({
-        id: block.id,
-        label: block.label,
-      })),
-    [kindBlocks],
-  );
-
   function switchKind(nextKind: FeaturedVisualKind) {
     if (nextKind === activeKind && activeBlock) return;
-    const existing = visualBlocks.find((block) => block.kind === nextKind);
+    const existing =
+      visualBlocks.find(
+        (block) => block.kind === nextKind && block.id !== activeBlockId,
+      ) ?? visualBlocks.find((block) => block.kind === nextKind);
     if (existing) {
-      onSelectVisualBlock(existing.id);
+      onSelectVisualBlock(existing.id, targetSlotId);
       return;
     }
     onGenerateVisualBlocks("library", {
       pickFeatured: true,
       preferredKind: nextKind,
+      slotId: targetSlotId,
     });
   }
 
@@ -142,6 +139,28 @@ export function FeaturedBlockPanel({
 
       {showFeaturedBlock ? (
         <div className="social-transform-panel space-y-3">
+          {featuredSlotIds && featuredSlotIds.length > 1 ? (
+            <div className="featured-slot-chips flex gap-1 rounded-lg border border-leap-line p-1">
+              {featuredSlotIds.map((slotId, index) => {
+                const selected = (selectedSlotId ?? featuredSlotIds[0]) === slotId;
+                return (
+                  <button
+                    key={slotId}
+                    type="button"
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                      selected
+                        ? "bg-surface-secondary text-text-primary shadow-sm"
+                        : "text-text-tertiary hover:text-text-secondary"
+                    }`}
+                    onClick={() => onSelectFeaturedSlot?.(slotId)}
+                  >
+                    Slot {index + 1}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
           <div className="featured-visual-kind-toggle flex gap-1 rounded-lg border border-leap-line p-1">
             {KIND_OPTIONS.map((option) => (
               <button
@@ -160,143 +179,68 @@ export function FeaturedBlockPanel({
             ))}
           </div>
 
-          <div className="featured-visual-library-row space-y-1.5">
-            {kindBlocks.length > 0 ? (
-              <>
-                <p className="social-tool-label !mb-0 !normal-case !tracking-normal">
-                  {featuredVisualKindLabel(activeKind)} library
-                </p>
-                <div className="flex items-center gap-2">
-                  <InspectorSelect
-                    hideLabel
-                    label={`${featuredVisualKindLabel(activeKind)} library`}
-                    value={
-                      activeBlock?.kind === activeKind ? (activeBlock.id ?? "") : ""
-                    }
-                    onChange={onSelectVisualBlock}
-                    options={selectOptions}
-                    placeholder={`Select ${featuredVisualKindLabel(activeKind).toLowerCase()}`}
-                    className="min-w-0 flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    isDisabled={generatingVisualBlocks}
-                    onPress={() => onShuffleVisualBlock(activeKind)}
-                  >
-                    <Shuffle className="size-3.5" />
-                    {generatingVisualBlocks ? "Shuffling…" : "Shuffle"}
-                  </Button>
-                </div>
-                {activeBlock?.semantic ? (
-                  <p className="text-[11px] leading-4 text-text-tertiary">
-                    {[
-                      activeBlock.semantic.bundleId
-                        ? `Bundle: ${activeBlock.semantic.bundleId}`
-                        : null,
-                      activeBlock.semantic.familyId
-                        ? `Family: ${activeBlock.semantic.familyId}`
-                        : null,
-                      activeBlock.semantic.stylePackId
-                        ? `Style: ${activeBlock.semantic.stylePackId}`
-                        : null,
-                      activeBlock.semantic.density
-                        ? `Density: ${activeBlock.semantic.density}`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                ) : null}
-              </>
-            ) : (
-              <div className="flex items-center gap-2">
-                <p className="flex-1 text-[11px] leading-4 text-text-tertiary">
-                  No {featuredVisualKindLabel(activeKind).toLowerCase()} picked yet.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  isDisabled={generatingVisualBlocks}
-                  onPress={() => onShuffleVisualBlock(activeKind)}
-                >
-                  <Shuffle className="size-3.5" />
-                  {generatingVisualBlocks ? "Shuffling…" : "Shuffle"}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <div className="featured-visual-actions flex flex-wrap gap-2 border-t border-leap-line pt-3">
+          <div className="flex items-center gap-2">
+            <p className="min-w-0 flex-1 truncate text-xs text-text-tertiary">
+              {activeBlock
+                ? activeBlock.label
+                : `No ${featuredVisualKindLabel(activeKind).toLowerCase()} yet`}
+            </p>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
+              className="shrink-0"
               isDisabled={generatingVisualBlocks}
-              onPress={() => onGenerateVisualBlocks("generate")}
+              onPress={() => onShuffleVisualBlock(activeKind, targetSlotId)}
             >
-              Generate custom SVG
+              <Shuffle className="size-3.5" />
+              {generatingVisualBlocks ? "Shuffling…" : "Shuffle"}
             </Button>
-            <Link
-              href="/visuals"
-              className="inline-flex items-center text-xs text-brand-600 hover:underline dark:text-brand-400"
-            >
-              Browse all visuals
-            </Link>
           </div>
 
-          <div className="featured-image-upload-card">
-            <div className="featured-image-upload-meta">
-              <p className="text-sm font-medium text-text-primary">Upload asset</p>
-              <p className="text-xs text-text-tertiary">
-                PNG, JPG, WebP, or custom SVG.
-              </p>
-              <div className="featured-image-upload-actions">
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept=".svg,.png,.jpg,.jpeg,.webp,image/svg+xml,image/png,image/jpeg,image/webp"
-                  className="sr-only"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void onUploadImage(file);
-                    e.target.value = "";
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  isDisabled={uploading}
-                  onPress={() => inputRef.current?.click()}
-                >
-                  <ImagePlus className="size-4" />
-                  {image ? "Replace" : "Upload"}
-                </Button>
-                {image ? (
-                  <Button variant="outline" size="sm" onPress={() => void onRemoveImage()}>
-                    <Trash2 className="size-3.5" />
-                    Remove
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-            {showImageUpload && image ? (
-              <div className="featured-image-upload-preview">
-                {image.svgMarkup ? (
-                  <div
-                    className="featured-image-upload-thumb"
-                    dangerouslySetInnerHTML={{ __html: image.svgMarkup }}
-                  />
-                ) : imageSrc ? (
-                  <div className="featured-image-upload-thumb">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={imageSrc} alt="" className="featured-image-upload-thumb-img" />
-                  </div>
-                ) : null}
-              </div>
+          <div className="featured-image-upload-actions flex flex-wrap gap-2">
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".svg,.png,.jpg,.jpeg,.webp,image/svg+xml,image/png,image/jpeg,image/webp"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void onUploadImage(file);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              isDisabled={uploading}
+              onPress={() => inputRef.current?.click()}
+            >
+              <ImagePlus className="size-4" />
+              {image ? "Replace upload" : "Upload"}
+            </Button>
+            {image ? (
+              <Button variant="outline" size="sm" onPress={() => void onRemoveImage()}>
+                <Trash2 className="size-3.5" />
+                Remove
+              </Button>
             ) : null}
           </div>
+
+          {showImageUpload && image ? (
+            <div className="featured-image-upload-preview">
+              {image.svgMarkup ? (
+                <div
+                  className="featured-image-upload-thumb"
+                  dangerouslySetInnerHTML={{ __html: image.svgMarkup }}
+                />
+              ) : imageSrc ? (
+                <div className="featured-image-upload-thumb">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imageSrc} alt="" className="featured-image-upload-thumb-img" />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {error ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -310,11 +254,12 @@ export function FeaturedBlockPanel({
                     onGenerateVisualBlocks("library", {
                       pickFeatured: true,
                       preferredKind: featuredVisualKind,
+                      slotId: targetSlotId,
                     })
                   }
                 >
                   <RotateCcw className="size-3.5" />
-                  Retry pick
+                  Retry
                 </Button>
               ) : null}
             </div>
@@ -322,7 +267,7 @@ export function FeaturedBlockPanel({
 
           {showFeaturedBlock &&
           (mode === "composed" || mode === "genui" || mode === "image") ? (
-            <div className="social-transform-block">
+            <div className="social-transform-block border-t border-leap-line pt-3">
               <p className="social-transform-heading">Transform</p>
               <div className="space-y-3">
                 <InspectorTransformRow

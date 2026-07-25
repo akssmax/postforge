@@ -792,7 +792,7 @@ function ToolSocialWorkspace() {
               </div>
               <div
                 ref={viewportRef}
-                className="relative overflow-hidden"
+                className="canvas-preview-viewport relative overflow-hidden"
                 style={{
                   width: platform.width * previewScale,
                   height: platform.height * previewScale,
@@ -830,7 +830,9 @@ function ToolSocialWorkspace() {
                   hasFeaturedImage={!!featured.image}
                   typeScale={typeScale}
                   onTypeScaleChange={setTypeScale}
+                  showPropertyPills
                   logoScale={logoScale}
+                  onLogoScaleChange={setLogoScale}
                   logoAlign={logoAlign}
                   logoPlacement={logoPlacement}
                   showLogo={showBrand}

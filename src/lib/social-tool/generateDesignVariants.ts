@@ -18,6 +18,10 @@ import { layoutIdForDocument } from "@/lib/social-tool/layoutRegistry";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { inferFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import { activeVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
+import {
+  FEATURED_PRIMARY_SLOT_ID,
+  withAssignedVisualBlock,
+} from "@/lib/social-tool/featuredSlots";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 import { buildBackgroundPresets } from "@/lib/brand/backgroundPresets";
 
@@ -96,8 +100,12 @@ export async function shuffleFeaturedVisualForSession(
     const newBlock = payload.blocks[0];
     if (!newBlock) return { session };
 
-    const others = blocks.filter((b) => b.kind !== activeKind);
-    const visualBlocks = [...others, newBlock];
+    const visualBlocks = withAssignedVisualBlock(
+      blocks,
+      session.document.featuredSlots,
+      newBlock,
+      FEATURED_PRIMARY_SLOT_ID,
+    );
     return {
       session: {
         ...session,
@@ -111,6 +119,23 @@ export async function shuffleFeaturedVisualForSession(
           ...session.document,
           featuredVisualKind: activeKind,
           showFeaturedImage: true,
+          featuredSlots: (session.document.featuredSlots ?? [
+            {
+              slotId: FEATURED_PRIMARY_SLOT_ID,
+              mode: "composed" as const,
+              visible: true,
+              activeBlockId: session.featured.activeBlockId,
+            },
+          ]).map((slot) =>
+            slot.slotId === FEATURED_PRIMARY_SLOT_ID
+              ? {
+                  ...slot,
+                  mode: "composed" as const,
+                  visible: true,
+                  activeBlockId: newBlock.id,
+                }
+              : slot,
+          ),
         },
         updatedAt: Date.now(),
       },

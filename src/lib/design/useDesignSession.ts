@@ -87,6 +87,14 @@ import { campaignPlanFromBrief } from "@/lib/social-tool/engine/campaignPlanFrom
 import { retrieveDesignSystem } from "@/lib/social-tool/engine/designSystemRetriever";
 import { resolveRecipe } from "@/lib/social-tool/engine/recipeResolver";
 import {
+  FEATURED_PRIMARY_SLOT_ID,
+  addFeaturedSlot,
+  patchFeaturedSlot,
+  removeFeaturedSlot,
+  reorderFeaturedSlot,
+  withAssignedVisualBlock,
+} from "@/lib/social-tool/featuredSlots";
+import {
   activeVisualBlock,
   appendVisualBlocks,
   findVisualBlock,
@@ -204,14 +212,22 @@ export type UseDesignSessionResult = {
     libraryIds?: string[];
     pickFeatured?: boolean;
     preferredKind?: "ui" | "illustration";
+    slotId?: string;
   }) => Promise<void>;
-  selectVisualBlock: (blockId: string) => void;
+  selectVisualBlock: (blockId: string, slotId?: string) => void;
   modifyVisualBlock: (blockId: string, instruction: string) => Promise<void>;
   shuffleFeaturedVisualBlock: (copy?: {
     headline?: string;
     subheading?: string;
     preferredKind?: "ui" | "illustration";
+    slotId?: string;
   }) => Promise<void>;
+  addFeaturedVisualSlot: () => string | null;
+  removeFeaturedVisualSlot: (slotId: string) => void;
+  reorderFeaturedVisualSlots: (
+    slotId: string,
+    direction: "left" | "right",
+  ) => void;
   generatingVisualBlocks: boolean;
   advanceOnboarding: (phase: DesignOnboardingPhase) => void;
   skipBrief: () => void;
@@ -825,7 +841,12 @@ export function useDesignSession(
   );
 
   const syncComposedFeaturedSlots = useCallback(
-    (prev: DesignSessionPersisted, activeBlockId: string | null) => {
+    (
+      prev: DesignSessionPersisted,
+      activeBlockId: string | null,
+      options?: { slotId?: string },
+    ) => {
+      const slotId = options?.slotId ?? FEATURED_PRIMARY_SLOT_ID;
       const featuredTransform = composedFeaturedTransform(prev, activeBlockId);
 
       return {
@@ -839,14 +860,12 @@ export function useDesignSession(
           ...prev.document,
           showFeaturedImage: true,
           featuredTransform,
-          featuredSlots: [
-            {
-              slotId: "featured-primary",
-              mode: "composed" as const,
-              visible: true,
-              transform: featuredTransform,
-            },
-          ],
+          featuredSlots: patchFeaturedSlot(prev.document.featuredSlots, slotId, {
+            mode: "composed",
+            visible: true,
+            activeBlockId,
+            transform: featuredTransform,
+          }),
         },
         updatedAt: Date.now(),
       };
@@ -1077,9 +1096,11 @@ export function useDesignSession(
       libraryIds?: string[];
       pickFeatured?: boolean;
       preferredKind?: "ui" | "illustration";
+      slotId?: string;
     }) => {
       const currentSession = sessionRef.current;
       if (!currentSession) return;
+      const targetSlotId = input?.slotId ?? FEATURED_PRIMARY_SLOT_ID;
       setGeneratingVisualBlocks(true);
       setFeaturedError(null);
       try {
@@ -1124,16 +1145,16 @@ export function useDesignSession(
                 },
                 featured: {
                   ...prev.featured,
-                  // Keep opposite-kind blocks so UI ↔ Illustration toggle can restore them
-                  visualBlocks: (() => {
-                    const prevBlocks = prev.featured.visualBlocks ?? [];
-                    if (!nextKind) return [block];
-                    const others = prevBlocks.filter((b) => b.kind !== nextKind);
-                    return [...others, block];
-                  })(),
+                  visualBlocks: withAssignedVisualBlock(
+                    prev.featured.visualBlocks ?? [],
+                    prev.document.featuredSlots,
+                    block,
+                    targetSlotId,
+                  ),
                 },
               },
               block.id,
+              { slotId: targetSlotId },
             ),
           );
           return;
@@ -1154,6 +1175,7 @@ export function useDesignSession(
               },
             },
             activeBlockId,
+            { slotId: targetSlotId },
           );
         });
       } catch (err) {
@@ -1166,7 +1188,7 @@ export function useDesignSession(
   );
 
   const selectVisualBlock = useCallback(
-    (blockId: string) => {
+    (blockId: string, slotId?: string) => {
       updateSession((prev) => {
         const block = (prev.featured.visualBlocks ?? []).find((b) => b.id === blockId);
         const kind =
@@ -1179,6 +1201,7 @@ export function useDesignSession(
               }
             : prev,
           blockId,
+          { slotId: slotId ?? FEATURED_PRIMARY_SLOT_ID },
         );
       });
     },
@@ -1227,6 +1250,12 @@ export function useDesignSession(
               },
             },
             payload.block.id,
+            {
+              slotId:
+                (prev.document.featuredSlots ?? []).find(
+                  (slot) => slot.activeBlockId === blockId,
+                )?.slotId ?? FEATURED_PRIMARY_SLOT_ID,
+            },
           ),
         );
       } catch (err) {
@@ -1243,13 +1272,21 @@ export function useDesignSession(
       headline?: string;
       subheading?: string;
       preferredKind?: "ui" | "illustration";
+      slotId?: string;
     }) => {
       if (!session) return;
       const { featured } = session;
-      if (featured.mode !== "composed") return;
+      if (featured.mode !== "composed" && featured.mode !== "placeholder") return;
 
+      const targetSlotId = copyOverride?.slotId ?? FEATURED_PRIMARY_SLOT_ID;
+      const slot = (session.document.featuredSlots ?? []).find(
+        (entry) => entry.slotId === targetSlotId,
+      );
       const blocks = featured.visualBlocks ?? [];
-      const active = activeVisualBlock(blocks, featured.activeBlockId);
+      const active = activeVisualBlock(
+        blocks,
+        slot?.activeBlockId ?? featured.activeBlockId,
+      );
       const activeKind: "ui" | "illustration" =
         copyOverride?.preferredKind ??
         (active?.kind === "ui" || active?.kind === "illustration"
@@ -1311,9 +1348,12 @@ export function useDesignSession(
         }
 
         updateSession((prev) => {
-          const prevBlocks = prev.featured.visualBlocks ?? [];
-          const withoutSameKind = prevBlocks.filter((block) => block.kind !== activeKind);
-          const visualBlocks = [...withoutSameKind, newBlock];
+          const visualBlocks = withAssignedVisualBlock(
+            prev.featured.visualBlocks ?? [],
+            prev.document.featuredSlots,
+            newBlock,
+            targetSlotId,
+          );
           return syncComposedFeaturedSlots(
             {
               ...prev,
@@ -1327,6 +1367,7 @@ export function useDesignSession(
               },
             },
             newBlock.id,
+            { slotId: targetSlotId },
           );
         });
       } catch (err) {
@@ -1336,6 +1377,76 @@ export function useDesignSession(
       }
     },
     [session, syncComposedFeaturedSlots, updateSession],
+  );
+
+  const addFeaturedVisualSlot = useCallback(() => {
+    let createdId: string | null = null;
+    updateSession((prev) => {
+      const nextSlots = addFeaturedSlot(prev.document.featuredSlots, {
+        transform: prev.document.featuredTransform,
+      });
+      if (!nextSlots) return prev;
+      createdId = nextSlots[nextSlots.length - 1]?.slotId ?? null;
+      return {
+        ...prev,
+        document: {
+          ...prev.document,
+          showFeaturedImage: true,
+          featuredSlots: nextSlots,
+        },
+        updatedAt: Date.now(),
+      };
+    });
+    return createdId;
+  }, [updateSession]);
+
+  const removeFeaturedVisualSlot = useCallback(
+    (slotId: string) => {
+      updateSession((prev) => {
+        const nextSlots = removeFeaturedSlot(prev.document.featuredSlots, slotId);
+        if (nextSlots === prev.document.featuredSlots) return prev;
+        const primary =
+          nextSlots.find((slot) => slot.slotId === FEATURED_PRIMARY_SLOT_ID) ??
+          nextSlots[0];
+        return {
+          ...prev,
+          featured: {
+            ...prev.featured,
+            activeBlockId: primary?.activeBlockId ?? prev.featured.activeBlockId,
+            mode: primary?.mode ?? prev.featured.mode,
+          },
+          document: {
+            ...prev.document,
+            featuredSlots: nextSlots,
+            featuredTransform:
+              primary?.transform ?? prev.document.featuredTransform,
+          },
+          updatedAt: Date.now(),
+        };
+      });
+    },
+    [updateSession],
+  );
+
+  const reorderFeaturedVisualSlots = useCallback(
+    (slotId: string, direction: "left" | "right") => {
+      updateSession((prev) => {
+        const nextSlots = reorderFeaturedSlot(
+          prev.document.featuredSlots,
+          slotId,
+          direction,
+        );
+        return {
+          ...prev,
+          document: {
+            ...prev.document,
+            featuredSlots: nextSlots,
+          },
+          updatedAt: Date.now(),
+        };
+      });
+    },
+    [updateSession],
   );
 
   const brand = session?.brand ?? defaultKit();
@@ -1409,6 +1520,9 @@ export function useDesignSession(
       selectVisualBlock,
       modifyVisualBlock,
       shuffleFeaturedVisualBlock,
+      addFeaturedVisualSlot,
+      removeFeaturedVisualSlot,
+      reorderFeaturedVisualSlots,
       generatingVisualBlocks,
       advanceOnboarding,
       skipBrief,
@@ -1460,6 +1574,9 @@ export function useDesignSession(
       selectVisualBlock,
       modifyVisualBlock,
       shuffleFeaturedVisualBlock,
+      addFeaturedVisualSlot,
+      removeFeaturedVisualSlot,
+      reorderFeaturedVisualSlots,
       generatingVisualBlocks,
       advanceOnboarding,
       skipBrief,

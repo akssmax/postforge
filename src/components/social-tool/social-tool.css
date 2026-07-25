@@ -1028,7 +1028,9 @@
   position: absolute;
   left: 50%;
   bottom: 100%;
-  z-index: 30;
+  /* Above selection ring (25) and spacing chrome (40–42); artboard crop is
+     handled separately via :has(.canvas-property-pills) overflow rules. */
+  z-index: 50;
   display: flex;
   align-items: center;
   gap: calc(0.35rem / var(--canvas-preview-scale, 1));
@@ -1036,6 +1038,33 @@
   transform: translateX(-50%) scale(calc(1 / var(--canvas-preview-scale, 1)));
   transform-origin: bottom center;
   pointer-events: auto;
+}
+
+/*
+ * Pills sit above the selection and counter-scale for preview zoom, so they
+ * often extend past the artboard top. overflow:hidden on .social-post (export
+ * crop) and .canvas-preview-viewport (scaled frame) would clip them — z-index
+ * alone cannot fix that. Pills are not mounted while exporting.
+ */
+.social-post:has(.canvas-property-pills),
+.social-post.has-property-pills {
+  overflow: visible;
+}
+
+.social-post:has(.canvas-property-pills) .social-post-text-zone--split,
+.social-post.has-property-pills .social-post-text-zone--split {
+  overflow: visible;
+}
+
+.canvas-preview-viewport:has(.canvas-property-pills),
+.canvas-preview-viewport:has(.has-property-pills) {
+  overflow: visible;
+}
+
+.social-post-product-viewport.has-property-pills,
+.social-post-product-viewport:has(.canvas-property-pills) {
+  overflow: visible;
+  z-index: 2;
 }
 
 .canvas-property-pill {
@@ -2357,6 +2386,72 @@ html:has(.social-tool) body {
   align-items: center;
   justify-content: center;
   pointer-events: auto;
+}
+
+.social-post-featured-add-slot {
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  align-self: stretch;
+  flex: 0 0 auto;
+  width: 0;
+  margin-left: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin-left 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease;
+}
+
+.social-post-featured-add-slot.is-visible {
+  width: var(--featured-add-slot-size, 56px);
+  margin-left: var(--featured-add-slot-gap, 8px);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.social-post-featured-slot-cell {
+  display: flex;
+  min-width: 0;
+  align-self: stretch;
+  transition: flex-basis 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.social-post-featured-slot-cell > .social-post-product-viewport {
+  width: 100%;
+}
+
+.social-post-featured-add-slot__btn {
+  width: var(--featured-add-slot-size, 56px);
+  min-width: var(--featured-add-slot-size, 56px);
+  height: 100%;
+  min-height: 0;
+  border-radius: calc(0.85rem / var(--canvas-preview-scale, 1));
+  border: calc(1.75px / var(--canvas-preview-scale, 1)) dashed
+    color-mix(in oklab, var(--brand-600, #0d9488) 55%, transparent);
+  background: color-mix(in oklab, var(--brand-500, #14b8a6) 10%, transparent);
+  color: color-mix(in oklab, var(--brand-700, #0f766e) 80%, var(--gray-950) 20%);
+  box-shadow: none;
+}
+
+.social-post-featured-add-slot__btn:hover {
+  background: color-mix(in oklab, var(--brand-500, #14b8a6) 18%, transparent);
+  border-color: color-mix(in oklab, var(--brand-600, #0d9488) 75%, transparent);
+  color: var(--brand-700, #0f766e);
+}
+
+.social-post--dark .social-post-featured-add-slot__btn {
+  border-color: color-mix(in oklab, var(--white) 42%, transparent);
+  background: color-mix(in oklab, var(--white) 10%, transparent);
+  color: color-mix(in oklab, var(--white) 88%, transparent);
+}
+
+.social-post--dark .social-post-featured-add-slot__btn:hover {
+  background: color-mix(in oklab, var(--white) 16%, transparent);
+  border-color: color-mix(in oklab, var(--white) 62%, transparent);
+  color: var(--white);
 }
 
 .social-post-product-frame--composed-empty.social-post-product-frame--slot {
