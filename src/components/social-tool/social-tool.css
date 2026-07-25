@@ -1082,6 +1082,20 @@
   color: var(--text-primary);
 }
 
+.canvas-property-pill--slider {
+  display: block;
+  width: 11.5rem;
+  padding: 0.45rem 0.65rem 0.55rem;
+}
+
+.canvas-property-pill--slider .social-tool-row-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
 .canvas-property-pill-label {
   font-size: 0.6875rem;
   font-weight: 700;

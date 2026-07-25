@@ -82,6 +82,14 @@ function buildSnapshotPrompt(snapshot: DesignSnapshot): string {
     `- Background options: ${snapshot.brand.backgroundPresets.map((p) => p.id).join(", ")}`,
     `- Pattern: ${snapshot.pattern.show ? snapshot.pattern.ref : "off"}`,
     `- Featured: ${snapshot.featured.visible ? snapshot.featured.mode : "hidden"}`,
+    `- Featured slots (${snapshot.featured.slots.length}): ${
+      snapshot.featured.slots
+        .map(
+          (s) =>
+            `${s.slotId}[mode=${s.mode},block=${s.activeBlockId ?? "none"},visible=${s.visible}]`,
+        )
+        .join("; ") || "none — tools may create featured-primary only"
+    }`,
     `- Visual blocks: ${snapshot.featured.visualBlocks.map((b) => `${b.id}:${b.label}`).join(", ") || "none"}`,
     `- Active visual block: ${snapshot.featured.activeBlockId ?? "none"}`,
     `- Uploaded image available: ${snapshot.featured.hasUploadedImage}`,
@@ -174,14 +182,14 @@ function buildCanvasTools(
     }),
     updateFeatured: tool({
       description:
-        "Show/hide the visual slot or switch between placeholder, composed, or uploaded image.",
+        "Show/hide a featured visual slot or switch between placeholder, composed, or uploaded image. Uses an existing slotId from the snapshot (or featured-primary if none). Never invents new slot ids.",
       inputSchema: withArtboardTargetSchema(updateFeaturedToolSchema),
       execute: async (input) =>
         attachArtboardTarget(computeUpdateFeaturedPatch(snapshot, input), input),
     }),
     generateVisualBlock: tool({
       description:
-        "Add visual blocks for the featured slot. Default to source=library for instant patterns; use source=generate only when the user wants custom AI SVG.",
+        "Fill one featured visual slot with a visual block. Defaults to count=1 and an existing slot (selection, empty slot, or featured-primary). Does not add extra artboard slots. Prefer source=library; use source=generate only for custom AI SVG.",
       inputSchema: withArtboardTargetSchema(generateVisualBlockToolSchema),
       execute: async (input) => {
         const source = input.source ?? "library";
@@ -194,7 +202,7 @@ function buildCanvasTools(
             primary: snapshot.brand.primary,
             accent: snapshot.brand.accent,
           },
-          count: input.count ?? 3,
+          count: input.count ?? 1,
           intent: buildVisualPickIntentFromText(
             snapshot.copy.heading,
             snapshot.copy.subheading,
@@ -208,18 +216,14 @@ function buildCanvasTools(
             ? composeVisualBlocksFromLibrary(payload, { libraryIds: input.libraryIds })
             : await composeVisualBlocks({ ...payload, source: "generate" });
         return attachArtboardTarget(
-          computeGeneratedVisualBlocksPatch(
-            snapshot,
-            blocks,
-            input.slotId ?? "featured-primary",
-          ),
+          computeGeneratedVisualBlocksPatch(snapshot, blocks, input.slotId),
           input,
         );
       },
     }),
     modifyVisualBlock: tool({
       description:
-        "Modify an existing visual block SVG using a natural-language instruction. Use for visual-slot edits only.",
+        "Modify an existing visual block SVG using a natural-language instruction. Targets one existing featured slot only.",
       inputSchema: withArtboardTargetSchema(modifyVisualBlockToolSchema),
       execute: async (input) => {
         const blockId =
@@ -247,18 +251,14 @@ function buildCanvasTools(
         }
         const fullBlock = { ...existing, ...modified, id: existing.id };
         return attachArtboardTarget(
-          computeModifiedVisualBlockPatch(
-            snapshot,
-            fullBlock,
-            input.slotId ?? "featured-primary",
-          ),
+          computeModifiedVisualBlockPatch(snapshot, fullBlock, input.slotId),
           input,
         );
       },
     }),
     selectVisualBlock: tool({
       description:
-        "Switch the active visual block in the featured slot using a block id from the library.",
+        "Switch the active visual block on one existing featured slot using a block id from the library.",
       inputSchema: withArtboardTargetSchema(selectVisualBlockToolSchema),
       execute: async (input) =>
         attachArtboardTarget(computeSelectVisualBlockPatch(snapshot, input), input),
@@ -355,8 +355,11 @@ export async function handleCanvasAgentRequest(input: {
     },
     system: [
       "You are Postforge's visual block assistant.",
-      "Focus on the featured visual slot — generate, modify, or select visual blocks.",
+      "Focus on featured visual slots — generate, modify, or select visual blocks.",
       "Do not rewrite the entire design unless the user explicitly asks.",
+      "Featured slots: only use slotIds listed in the snapshot. If none exist, omit slotId (system creates featured-primary only).",
+      "Never invent slot ids like featured-2. Do not add a second visual slot unless the snapshot already has multiple slots and the user asks to fill another existing empty one.",
+      "generateVisualBlock defaults to count=1 — do not raise count unless the user asks for multiple options.",
       "Use generateVisualBlock for new diagrams/UI cards/illustrations.",
       "Prefer source=library (instant) unless the user asks for custom AI visuals.",
       "For UI patterns (stat-highlight, pricing-card, etc.), prefer library blocks and update content text fields — do not regenerate SVG.",

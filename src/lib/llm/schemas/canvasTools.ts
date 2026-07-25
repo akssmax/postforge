@@ -80,11 +80,23 @@ export const updatePatternToolSchema = z.object({
   patternAnimated: z.boolean().optional(),
 });
 
+const featuredSlotIdSchema = z
+  .string()
+  .optional()
+  .describe(
+    "Existing featured slot id from the snapshot (e.g. featured-primary). Omit to use selection, an empty slot, or featured-primary. Never invent new ids.",
+  );
+
 export const generateVisualBlockToolSchema = z.object({
   theme: z.string().optional(),
   brief: z.string().optional(),
-  count: z.number().min(1).max(3).optional(),
-  slotId: z.string().optional(),
+  count: z
+    .number()
+    .min(1)
+    .max(3)
+    .optional()
+    .describe("How many candidate blocks to create. Default 1; only raise when the user asks for options."),
+  slotId: featuredSlotIdSchema,
   source: z.enum(["library", "generate"]).optional(),
   libraryIds: z.array(z.string()).optional(),
   intent: z
@@ -103,12 +115,12 @@ export const generateVisualBlockToolSchema = z.object({
 export const modifyVisualBlockToolSchema = z.object({
   blockId: z.string().optional(),
   instruction: z.string().min(1),
-  slotId: z.string().optional(),
+  slotId: featuredSlotIdSchema,
 });
 
 export const selectVisualBlockToolSchema = z.object({
   blockId: z.string(),
-  slotId: z.string().optional(),
+  slotId: featuredSlotIdSchema,
 });
 
 export const updateFeaturedToolSchema = z.object({
@@ -126,7 +138,7 @@ export const updateFeaturedToolSchema = z.object({
       "form-card",
     ])
     .optional(),
-  slotId: z.string().optional(),
+  slotId: featuredSlotIdSchema,
 });
 
 export const updateLayoutToolSchema = z.object({

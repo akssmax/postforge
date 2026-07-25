@@ -190,3 +190,79 @@ export function createPlaceholderFeaturedSlot(
     productPage: options?.productPage,
   };
 }
+
+type ToolSlotRef = {
+  slotId: string;
+  mode?: string;
+  activeBlockId?: string | null;
+  visible?: boolean;
+};
+
+/**
+ * Pick which featured slot a chat/canvas tool should update.
+ * Never invents a new slot id — prefers selection, then empty, then primary.
+ */
+export function resolveToolFeaturedSlotId(options: {
+  slots?: ToolSlotRef[] | null;
+  requestedSlotId?: string | null;
+  selection?: string | null;
+}): string {
+  const slots = options.slots ?? [];
+  const requested = options.requestedSlotId?.trim();
+  if (requested && slots.some((slot) => slot.slotId === requested)) {
+    return requested;
+  }
+
+  if (options.selection === "featured") {
+    if (slots.some((slot) => slot.slotId === FEATURED_PRIMARY_SLOT_ID)) {
+      return FEATURED_PRIMARY_SLOT_ID;
+    }
+  } else if (options.selection?.startsWith("featured:")) {
+    const selectedId = options.selection.slice("featured:".length);
+    if (slots.some((slot) => slot.slotId === selectedId)) return selectedId;
+  }
+
+  const empty = slots.find(
+    (slot) =>
+      slot.visible !== false &&
+      (slot.mode === "placeholder" || !slot.activeBlockId),
+  );
+  if (empty) return empty.slotId;
+
+  if (slots.some((slot) => slot.slotId === FEATURED_PRIMARY_SLOT_ID)) {
+    return FEATURED_PRIMARY_SLOT_ID;
+  }
+  return slots[0]?.slotId ?? FEATURED_PRIMARY_SLOT_ID;
+}
+
+/**
+ * Apply a tool patch to featured slots without growing the slot list.
+ * Empty designs get exactly one primary slot.
+ */
+export function patchFeaturedSlotsForTool(
+  existing: FeaturedSlotContent[] | undefined,
+  slotId: string,
+  patch: Partial<FeaturedSlotContent>,
+): FeaturedSlotContent[] {
+  if (!existing || existing.length === 0) {
+    return [
+      {
+        slotId: FEATURED_PRIMARY_SLOT_ID,
+        mode: patch.mode ?? "composed",
+        visible: patch.visible ?? true,
+        activeBlockId: patch.activeBlockId ?? null,
+        transform: patch.transform,
+        productPage: patch.productPage,
+      },
+    ];
+  }
+
+  const targetId = existing.some((slot) => slot.slotId === slotId)
+    ? slotId
+    : existing.find((slot) => slot.slotId === FEATURED_PRIMARY_SLOT_ID)?.slotId ??
+      existing[0]!.slotId;
+
+  return existing.map((slot) =>
+    slot.slotId === targetId ? { ...slot, ...patch } : slot,
+  );
+}

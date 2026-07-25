@@ -23,14 +23,15 @@ function mergeFeaturedSlots(
   incoming: FeaturedSlotContent[] | undefined,
 ): FeaturedSlotContent[] | undefined {
   if (!incoming) return previous;
-  if (!previous || previous.length === 0) return incoming;
+  // Chat/tools never grow the slot list — only update known ids (or seed one when empty).
+  if (!previous || previous.length === 0) {
+    return incoming.slice(0, 1);
+  }
   const next = previous.map((slot) => ({ ...slot }));
   for (const slot of incoming) {
     const index = next.findIndex((entry) => entry.slotId === slot.slotId);
     if (index >= 0) {
       next[index] = { ...next[index]!, ...slot };
-    } else {
-      next.push(slot);
     }
   }
   return next;

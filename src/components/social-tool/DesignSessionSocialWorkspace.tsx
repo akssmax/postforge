@@ -739,10 +739,13 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     doc.showPattern,
     doc.showBackground,
     doc.showFeaturedImage,
+    doc.featuredSlots,
     session.kit.activeBackgroundPresetId,
     session.featured.mode,
     session.featured.productPage,
     session.featured.image,
+    session.featured.activeBlockId,
+    session.featured.visualBlocks,
     variantGroup.boards,
     variantGroup.activeDesignId,
   ]);

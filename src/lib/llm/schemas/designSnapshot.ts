@@ -52,6 +52,16 @@ export const designSnapshotSchema = z.object({
     hasUploadedImage: z.boolean(),
     visible: z.boolean(),
     activeBlockId: z.string().nullable().optional(),
+    slots: z
+      .array(
+        z.object({
+          slotId: z.string(),
+          mode: z.enum(["genui", "image", "placeholder", "composed"]),
+          activeBlockId: z.string().nullable().optional(),
+          visible: z.boolean(),
+        }),
+      )
+      .default([]),
     visualBlocks: z
       .array(
         z.object({

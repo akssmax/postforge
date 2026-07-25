@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, Minus, Plus, Trash2 } from "lucide-react";
 import { Button, Tooltip } from "@heroui/react";
+import { InspectorSlider } from "@/components/social-tool/InspectorControls";
 import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
 import {
   canvasSelectionKind,
@@ -128,17 +129,22 @@ function LogoScalePill({
   onLogoScaleChange: (value: number) => void;
 }) {
   return (
-    <ScalePill
-      label="Scale"
-      groupAriaLabel="Logo scale"
-      decreaseAriaLabel="Decrease logo scale"
-      increaseAriaLabel="Increase logo scale"
-      value={logoScale}
-      min={LOGO_SCALE_MIN}
-      max={LOGO_SCALE_MAX}
-      step={LOGO_SCALE_STEP}
-      onChange={onLogoScaleChange}
-    />
+    <div
+      className="canvas-property-pill canvas-property-pill--slider"
+      role="group"
+      aria-label="Logo scale"
+    >
+      <InspectorSlider
+        label="Scale"
+        value={logoScale}
+        onChange={onLogoScaleChange}
+        min={LOGO_SCALE_MIN}
+        max={LOGO_SCALE_MAX}
+        step={LOGO_SCALE_STEP}
+        format={formatScale}
+        aria-label="Logo scale"
+      />
+    </div>
   );
 }
 

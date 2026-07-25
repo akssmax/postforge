@@ -27,6 +27,31 @@ import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
 import type { ProductPageId } from "@/lib/social-tool/presets";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 import { appendVisualBlocks, findVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
+import {
+  patchFeaturedSlotsForTool,
+  resolveToolFeaturedSlotId,
+} from "@/lib/social-tool/featuredSlots";
+import type { FeaturedSlotContent } from "@/lib/social-tool/dynamicLayout";
+
+function snapshotFeaturedSlots(snapshot: DesignSnapshot): FeaturedSlotContent[] {
+  return (snapshot.featured.slots ?? []).map((slot) => ({
+    slotId: slot.slotId,
+    mode: slot.mode,
+    visible: slot.visible,
+    activeBlockId: slot.activeBlockId ?? null,
+  }));
+}
+
+function resolveFeaturedSlotId(
+  snapshot: DesignSnapshot,
+  requestedSlotId?: string | null,
+): string {
+  return resolveToolFeaturedSlotId({
+    slots: snapshot.featured.slots,
+    requestedSlotId,
+    selection: snapshot.selection,
+  });
+}
 
 function slotRoleForId(
   snapshot: DesignSnapshot,
@@ -171,26 +196,30 @@ function buildComposedFeaturedPatch(
   snapshot: DesignSnapshot,
   visualBlocks: VisualBlockRecord[],
   activeBlockId: string | null,
-  slotId = "featured-primary",
+  requestedSlotId?: string | null,
 ): CanvasPatchResult {
+  const slotId = resolveFeaturedSlotId(snapshot, requestedSlotId);
+  const featuredSlots = patchFeaturedSlotsForTool(
+    snapshotFeaturedSlots(snapshot),
+    slotId,
+    {
+      mode: "composed",
+      visible: true,
+      activeBlockId,
+    },
+  );
   return {
     success: true,
     message: "Visual block updated",
     document: {
       showFeaturedImage: true,
-      featuredSlots: [
-        {
-          slotId,
-          mode: "composed",
-          visible: true,
-          activeBlockId,
-        },
-      ],
+      featuredSlots,
     },
     featured: {
       mode: "composed",
       activeBlockId,
       visualBlocks,
+      slots: featuredSlots,
     },
   };
 }
@@ -207,29 +236,39 @@ export function computeSelectVisualBlockPatch(
     snapshot,
     snapshotVisualBlocks(snapshot),
     block.id,
-    input.slotId ?? "featured-primary",
+    input.slotId,
   );
 }
 
 export function computeGeneratedVisualBlocksPatch(
   snapshot: DesignSnapshot,
   blocks: VisualBlockRecord[],
-  slotId = "featured-primary",
+  requestedSlotId?: string | null,
 ): CanvasPatchResult {
   const visualBlocks = appendVisualBlocks(snapshotVisualBlocks(snapshot), blocks);
   const activeBlockId = blocks[0]?.id ?? visualBlocks[0]?.id ?? null;
-  return buildComposedFeaturedPatch(snapshot, visualBlocks, activeBlockId, slotId);
+  return buildComposedFeaturedPatch(
+    snapshot,
+    visualBlocks,
+    activeBlockId,
+    requestedSlotId,
+  );
 }
 
 export function computeModifiedVisualBlockPatch(
   snapshot: DesignSnapshot,
   block: VisualBlockRecord,
-  slotId = "featured-primary",
+  requestedSlotId?: string | null,
 ): CanvasPatchResult {
   const visualBlocks = snapshotVisualBlocks(snapshot).map((entry) =>
     entry.id === block.id ? block : entry,
   );
-  return buildComposedFeaturedPatch(snapshot, visualBlocks, block.id, slotId);
+  return buildComposedFeaturedPatch(
+    snapshot,
+    visualBlocks,
+    block.id,
+    requestedSlotId,
+  );
 }
 
 export function computeUpdateFeaturedPatch(
@@ -244,36 +283,31 @@ export function computeUpdateFeaturedPatch(
     };
   }
 
-  const slotId = input.slotId ?? "featured-primary";
+  const slotId = resolveFeaturedSlotId(snapshot, input.slotId);
   const nextMode = input.mode ?? snapshot.featured.mode;
   const productPage = (input.productPage ?? snapshot.featured.productPage) as ProductPageId;
   const visible = input.showFeaturedImage ?? snapshot.featured.visible;
+  const featuredSlots = patchFeaturedSlotsForTool(
+    snapshotFeaturedSlots(snapshot),
+    slotId,
+    {
+      mode: nextMode,
+      productPage: input.mode === "placeholder" ? undefined : productPage,
+      visible,
+    },
+  );
 
   return {
     success: true,
     message: "Featured block updated",
     document: {
       showFeaturedImage: visible,
-      featuredSlots: [
-        {
-          slotId,
-          mode: nextMode,
-          productPage: input.mode === "placeholder" ? undefined : productPage,
-          visible,
-        },
-      ],
+      featuredSlots,
     },
     featured: {
       mode: nextMode as "genui" | "image" | "placeholder" | "composed",
       productPage,
-      slots: [
-        {
-          slotId,
-          mode: nextMode as "genui" | "image" | "placeholder" | "composed",
-          productPage: input.mode === "placeholder" ? undefined : productPage,
-          visible,
-        },
-      ],
+      slots: featuredSlots,
     },
   };
 }

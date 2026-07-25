@@ -11,6 +11,7 @@ import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import type { DesignSnapshot, DesignSnapshotInput } from "@/lib/llm/schemas/designSnapshot";
 import { designSnapshotSchema } from "@/lib/llm/schemas/designSnapshot";
 import { kitHasAnyLogo } from "@/lib/brand/logoVariants";
+import { ensureFeaturedSlots } from "@/lib/social-tool/featuredSlots";
 
 const PRODUCT_PAGES = [
   "leads",
@@ -72,6 +73,23 @@ export function buildDesignSnapshotInput(input: {
       hasUploadedImage: !!session.featured.image,
       visible: doc.showFeaturedImage,
       activeBlockId: session.featured.activeBlockId ?? null,
+      slots: ensureFeaturedSlots(doc.featuredSlots, {
+        mode:
+          session.featured.mode === "image" && session.featured.image
+            ? "image"
+            : session.featured.mode === "composed"
+              ? "composed"
+              : session.featured.mode === "placeholder"
+                ? "placeholder"
+                : "placeholder",
+        visible: doc.showFeaturedImage,
+        activeBlockId: session.featured.activeBlockId ?? null,
+      }).map((slot) => ({
+        slotId: slot.slotId,
+        mode: slot.mode,
+        activeBlockId: slot.activeBlockId ?? null,
+        visible: slot.visible !== false,
+      })),
       visualBlocks: (session.featured.visualBlocks ?? []).map((block) => ({
         id: block.id,
         label: block.label,
