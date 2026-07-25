@@ -41,12 +41,17 @@ type Props = {
   isActive: boolean;
   isOrigin: boolean;
   previewScale: number;
+  /** Layout scale (fit only). When omitted, uses previewScale. */
+  layoutScale?: number;
   adjustSpacing: boolean;
   onToggleSpacing: () => void;
   onActivate: () => void;
   /** Custom artboard name; empty/undefined falls back to index label */
   artboardName?: string;
   onRenameArtboard?: (name: string) => void;
+  /** Re-enable when delete artboard UX is ready. */
+  // canDeleteArtboard?: boolean;
+  // onDeleteArtboard?: () => void;
   onShuffle: (prefs: ShufflePreferences) => void;
   onGenerateVariants: () => void;
   generatingVariants: boolean;
@@ -96,11 +101,14 @@ export function CanvasVariantArtboard({
   isActive,
   isOrigin,
   previewScale,
+  layoutScale: layoutScaleProp,
   adjustSpacing,
   onToggleSpacing,
   onActivate,
   artboardName,
   onRenameArtboard,
+  // canDeleteArtboard = false,
+  // onDeleteArtboard,
   onShuffle,
   onGenerateVariants,
   generatingVariants,
@@ -134,6 +142,7 @@ export function CanvasVariantArtboard({
   showContent,
   handActive = false,
 }: Props) {
+  const layoutScale = layoutScaleProp ?? previewScale;
   const reduceMotion = useReducedMotion();
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
@@ -237,7 +246,7 @@ export function CanvasVariantArtboard({
   return (
     <motion.div
       className={`canvas-preview-stack canvas-variant-artboard${isActive ? " is-artboard-active" : ""}`}
-      style={{ width: platform.width * previewScale }}
+      style={{ width: platform.width * layoutScale }}
       data-artboard-id={board.designId}
       initial={
         reduceMotion || !reveal || isOrigin
@@ -257,54 +266,64 @@ export function CanvasVariantArtboard({
         }
       }}
     >
-      {renaming ? (
-        <input
-          ref={renameInputRef}
-          type="text"
-          className="canvas-artboard-label canvas-artboard-label-input"
-          value={renameDraft}
-          aria-label={`Rename artboard ${indexLabel}`}
-          maxLength={40}
-          onChange={(e) => setRenameDraft(e.target.value)}
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onBlur={commitRename}
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commitRename();
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              cancelRename();
-            }
-          }}
-        />
-      ) : (
-        <button
-          type="button"
-          className={`canvas-artboard-label canvas-artboard-label-btn${isActive ? " is-active" : ""}`}
-          aria-label={
-            customName
-              ? `Focus ${customName} (artboard ${indexLabel}). Double-click to rename`
-              : `Focus artboard ${indexLabel}. Double-click to rename`
-          }
-          aria-pressed={isActive}
-          onClick={(e) => {
-            e.stopPropagation();
-            onActivate();
-          }}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            onActivate();
-            startRename();
-          }}
-        >
-          {displayLabel}
-        </button>
-      )}
-      <div className="canvas-preview-toolbar">
+      <div className="canvas-artboard-header">
+        <div className="canvas-artboard-label-row">
+          {renaming ? (
+            <input
+              ref={renameInputRef}
+              type="text"
+              className="canvas-artboard-label canvas-artboard-label-input"
+              value={renameDraft}
+              aria-label={`Rename artboard ${indexLabel}`}
+              maxLength={40}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitRename();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelRename();
+                }
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className={`canvas-artboard-label canvas-artboard-label-btn${isActive ? " is-active" : ""}`}
+              aria-label={
+                customName
+                  ? `Focus ${customName} (artboard ${indexLabel}). Double-click to rename`
+                  : `Focus artboard ${indexLabel}. Double-click to rename`
+              }
+              aria-pressed={isActive}
+              onClick={(e) => {
+                e.stopPropagation();
+                onActivate();
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onActivate();
+                startRename();
+              }}
+            >
+              {displayLabel}
+            </button>
+          )}
+          {/* Delete artboard — hidden until we find a better placement.
+          {isActive && canDeleteArtboard && onDeleteArtboard ? (
+            <div className="canvas-artboard-label-actions">
+              ...
+            </div>
+          ) : null}
+          */}
+        </div>
+        <div className="canvas-preview-toolbar">
         <LayoutShuffleButton
           layoutName={activeLayout.name}
           onShuffle={onShuffle}
@@ -327,14 +346,15 @@ export function CanvasVariantArtboard({
           />
           {isActive ? toolbarEndExtra : null}
         </div>
+        </div>
       </div>
 
       <div
         ref={viewportRef}
         className="canvas-preview-viewport relative overflow-hidden"
         style={{
-          width: platform.width * previewScale,
-          height: platform.height * previewScale,
+          width: platform.width * layoutScale,
+          height: platform.height * layoutScale,
         }}
       >
         <div
@@ -342,7 +362,7 @@ export function CanvasVariantArtboard({
           style={{
             width: platform.width,
             height: platform.height,
-            transform: `scale(${previewScale})`,
+            transform: `scale(${layoutScale})`,
             transformOrigin: "top left",
           }}
         >
@@ -465,18 +485,21 @@ export function CanvasVariantSkeleton({
   width,
   height,
   previewScale,
+  layoutScale: layoutScaleProp,
   index,
 }: {
   width: number;
   height: number;
   previewScale: number;
+  layoutScale?: number;
   index: number;
 }) {
   const reduceMotion = useReducedMotion();
+  const layoutScale = layoutScaleProp ?? previewScale;
   return (
     <motion.div
       className="canvas-preview-stack canvas-variant-artboard canvas-variant-skeleton"
-      style={{ width: width * previewScale }}
+      style={{ width: width * layoutScale }}
       initial={reduceMotion ? false : { opacity: 0, x: 40 }}
       animate={{ opacity: 1, x: 0 }}
       exit={reduceMotion ? undefined : { opacity: 0, scale: 0.98 }}
@@ -490,8 +513,8 @@ export function CanvasVariantSkeleton({
       <div
         className="canvas-variant-skeleton-frame"
         style={{
-          width: width * previewScale,
-          height: height * previewScale,
+          width: width * layoutScale,
+          height: height * layoutScale,
         }}
       />
     </motion.div>

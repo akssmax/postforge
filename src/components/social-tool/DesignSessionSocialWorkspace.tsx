@@ -11,7 +11,6 @@ import { DesignToolHeader } from "@/components/social-tool/DesignToolHeader";
 import { ExportMenu } from "@/components/social-tool/ExportMenu";
 import { ExportProgressOverlay } from "@/components/social-tool/ExportProgressOverlay";
 import { CanvasPlatformPicker } from "@/components/social-tool/CanvasPlatformPicker";
-import { CanvasDesignOverlay } from "@/components/social-tool/CanvasDesignOverlay";
 import { ContrastIssuesToggle } from "@/components/social-tool/ContrastIssuesToggle";
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
 import {
@@ -55,7 +54,6 @@ import { shuffleFeaturedVisualForSession } from "@/lib/social-tool/generateDesig
 import { useDesignVariantGroup } from "@/lib/design/useDesignVariantGroup";
 import { loadDesignSession } from "@/lib/design/designSession";
 import {
-  canvasSelectionFromContrastBlock,
   featuredSlotIdFromSelection,
   isCanvasSelectableTarget,
   type CanvasSelectionId,
@@ -75,6 +73,15 @@ import {
   type DesignBlockId,
 } from "@/lib/brand/contrast";
 import {
+  resolveFeaturedSvgForContrast,
+  suggestVisualBalanceFix,
+} from "@/lib/brand/designQuality";
+import {
+  buildAccentContrastFix,
+  buildContrastIssueChatPrompt,
+} from "@/lib/brand/contrastFixes";
+import type { ContrastResult } from "@/lib/brand/contrast";
+import {
   canFixLogoSvgContrast,
   hasLogoSvgContrastFix,
 } from "@/lib/brand/logoContrastFix";
@@ -93,7 +100,11 @@ import type {
   ArtboardTarget,
   CanvasPatchResult,
 } from "@/lib/llm/schemas/canvasTools";
-import { applyCanvasPatchToSession } from "@/lib/llm/services/applyCanvasPatch";
+import {
+  patchAffectsCopy,
+  shouldSpreadCopyAcrossArtboards,
+  spreadCopyPatchForArtboard,
+} from "@/lib/llm/services/spreadCopyPatch";
 import { recordHistorySnapshot } from "@/lib/design/useDesignHistory";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { VariantPicker } from "@/components/social-tool/VariantPicker";
@@ -271,14 +282,14 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [stageEl, setStageEl] = useState<HTMLElement | null>(null);
-  const [canvasRoot, setCanvasRoot] = useState<HTMLElement | null>(null);
-  const [overlayContainer, setOverlayContainer] = useState<HTMLElement | null>(
-    null,
-  );
 
   const {
+    fitScale,
     previewScale,
     panStyle,
+    zoomStyle,
+    panLayerRef,
+    zoomLayerRef,
     zoomPercent,
     spaceDown,
     handMode,
@@ -414,6 +425,28 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     });
   }
 
+  /* Re-enable with artboard delete UI.
+  async function handleDeleteBoard(boardId: string) {
+    if (variantGroup.boards.length <= 1) return;
+    if (boardId === originDesignId) return;
+
+    if (session.session) {
+      variantGroup.syncBoard(session.session);
+    }
+
+    const wasActive = boardId === variantGroup.activeDesignId;
+    const nextActiveId = await variantGroup.removeBoard(boardId);
+    if (!nextActiveId) return;
+
+    setAdjustSpacing(false);
+    clearInspectorSelection();
+
+    if (wasActive) {
+      requestAnimationFrame(() => handleActivateBoard(nextActiveId));
+    }
+  }
+  */
+
   // Keys 1–7 select artboards 1–7 (matches switcher pills)
   useEffect(() => {
     if (!isReady || artboardSwitcherItems.length <= 1) return;
@@ -468,23 +501,6 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     };
   }, [exportOpen]);
 
-  useEffect(() => {
-    setOverlayContainer(viewportRef.current);
-    setCanvasRoot(
-      canvasRef.current?.querySelector<HTMLElement>(".social-post") ?? null,
-    );
-  }, [
-    previewScale,
-    doc.showBrand,
-    doc.logoPlacement,
-    session.kit.logo,
-    doc.copy,
-    doc.textContrastBoost,
-    session.activeBackground.id,
-    platform.width,
-    platform.height,
-  ]);
-
   const activeBgCss = session.activeBackground.css.background;
   const bgHex = resolveBackgroundHex(activeBgCss);
   const canvasLogo = useMemo(
@@ -508,8 +524,13 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         : session.activeBackground.css.subText
       : undefined;
 
-  const contrastEnabled =
-    isReady && doc.showBrand && !!canvasLogo && !exporting;
+  const contrastEnabled = isReady && doc.showBrand && !exporting;
+  const featuredSvgMarkup = resolveFeaturedSvgForContrast({
+    mode: session.featured.mode,
+    visualBlocks: session.featured.visualBlocks,
+    activeBlockId: session.featured.activeBlockId,
+    image: session.featured.image,
+  });
   const contrastResults = useMemo(
     () =>
       evaluateCanvasContrast({
@@ -519,8 +540,20 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         showLogo: doc.showBrand,
         textColor: textColor ?? session.activeBackground.css.textOnBrand,
         subTextColor: subTextColor ?? session.activeBackground.css.subText,
+        accentColor: session.activeBackground.css.accentDot,
+        headingText: doc.copy.heading,
         logoBackdrop: doc.logoBackdrop,
         logoInvert: doc.logoInvert,
+        showFeaturedImage: doc.showFeaturedImage,
+        featuredMode: session.featured.mode,
+        featuredSvgMarkup,
+        featuredScale: doc.featuredTransform.scale,
+        showPattern: doc.showPattern,
+        patternOpacity: doc.patternOpacity,
+        showContent: doc.showContent,
+        layoutId: doc.layoutId,
+        typeScale: doc.typeScale,
+        brandAccent: session.kit.colors.accent,
       }),
     [
       contrastEnabled,
@@ -531,12 +564,73 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       subTextColor,
       session.activeBackground.css.textOnBrand,
       session.activeBackground.css.subText,
+      session.activeBackground.css.accentDot,
+      doc.copy.heading,
       doc.logoBackdrop,
       doc.logoInvert,
+      doc.showFeaturedImage,
+      session.featured.mode,
+      featuredSvgMarkup,
+      doc.featuredTransform.scale,
+      doc.showPattern,
+      doc.patternOpacity,
+      doc.showContent,
+      doc.layoutId,
+      doc.typeScale,
+      doc.layoutSpacing,
+      doc.textContrastBoost,
+      session.kit.colors.accent,
+      session.kit.activeBackgroundPresetId,
     ],
   );
 
   const contrastFailingCount = contrastResults.filter((r) => !r.passes).length;
+
+  function handleFixVisualBalance() {
+    const fix = suggestVisualBalanceFix({
+      backgroundCss: activeBgCss,
+      accentColor: session.activeBackground.css.accentDot,
+      headingText: doc.copy.heading,
+      showFeaturedImage: doc.showFeaturedImage,
+      featuredMode: session.featured.mode,
+      featuredSvgMarkup,
+      featuredScale: doc.featuredTransform.scale,
+      showPattern: doc.showPattern,
+      patternOpacity: doc.patternOpacity,
+      showContent: doc.showContent,
+      layoutId: doc.layoutId,
+      typeScale: doc.typeScale,
+      brandAccent: session.kit.colors.accent,
+      layoutSpacing: doc.layoutSpacing,
+    });
+
+    const nextTransform =
+      fix.featuredTransformScale != null
+        ? {
+            ...doc.featuredTransform,
+            scale: fix.featuredTransformScale,
+          }
+        : null;
+
+    patchDocument({
+      ...(fix.typeScale != null ? { typeScale: fix.typeScale } : {}),
+      ...(fix.layoutSpacing ? { layoutSpacing: fix.layoutSpacing } : {}),
+      ...(fix.patternOpacity != null ? { patternOpacity: fix.patternOpacity } : {}),
+      ...(nextTransform
+        ? {
+            featuredTransform: nextTransform,
+            featuredSlots: doc.featuredSlots?.map((slot) => ({
+              ...slot,
+              transform: {
+                ...(slot.transform ?? doc.featuredTransform),
+                scale: fix.featuredTransformScale!,
+              },
+            })),
+          }
+        : {}),
+    });
+  }
+
   const canFixLogoSvg = useMemo(
     () =>
       canvasLogo?.record.svgMarkup
@@ -549,8 +643,6 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const hasLogoSvgFix = canvasLogo
     ? hasLogoSvgContrastFix(canvasLogo.record)
     : false;
-  const showContrastOverlay =
-    contrastEnabled && contrastPanelOpen && contrastFailingCount > 0;
 
   useEffect(() => {
     if (contrastFailingCount === 0) {
@@ -560,10 +652,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   }, [contrastFailingCount]);
 
   const inspectorSelection: CanvasSelectionId | null = isReady
-    ? canvasSelection ??
-      (contrastPanelOpen && selectedBlock
-        ? canvasSelectionFromContrastBlock(selectedBlock)
-        : null)
+    ? canvasSelection
     : null;
 
   useEffect(() => {
@@ -750,20 +839,30 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     if (!patch.success) return false;
 
     const boardIds = resolveTargetBoardIds(patch.targetArtboards);
+    const spreadCopy = shouldSpreadCopyAcrossArtboards(patch, boardIds.length);
     let applied = false;
 
-    for (const boardId of boardIds) {
+    for (let i = 0; i < boardIds.length; i++) {
+      const boardId = boardIds[i]!;
+      const board =
+        boardId === variantGroup.activeDesignId && session.session
+          ? session.session
+          : (variantGroup.boards.find((b) => b.designId === boardId) ??
+            loadDesignSession(boardId));
+
+      const boardPatch =
+        spreadCopy && board
+          ? spreadCopyPatchForArtboard(patch, board, i)
+          : patch;
+
       if (boardId === variantGroup.activeDesignId) {
-        if (session.applyCanvasPatch(patch)) applied = true;
+        if (session.applyCanvasPatch(boardPatch)) applied = true;
         continue;
       }
 
-      const board =
-        variantGroup.boards.find((b) => b.designId === boardId) ??
-        loadDesignSession(boardId);
       if (!board) continue;
       recordHistorySnapshot(boardId, board);
-      const next = applyCanvasPatchToSession(board, patch);
+      const next = applyCanvasPatchToSession(board, boardPatch);
       variantGroup.replaceBoard(next);
       applied = true;
     }
@@ -832,6 +931,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   ]);
 
   const briefChat = useBriefChat({
+    designId: originDesignId,
     platformId: doc.platformId,
     brandSummary,
     designSnapshot,
@@ -843,6 +943,14 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       handleCanvasSelect("featured");
     },
   });
+
+  function handleExplainContrastInChat(result: ContrastResult) {
+    setAsideTab("chat");
+    setAsideCollapsed(false);
+    setContrastPanelOpen(false);
+    setSelectedBlock(null);
+    briefChat.submitText(buildContrastIssueChatPrompt(result));
+  }
 
   function handlePlatformChange(next: PlatformId) {
     const patch: Partial<DesignDocument> = { platformId: next };
@@ -1151,20 +1259,26 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             onSelect={handleActivateBoard}
           />
           <div
+            ref={panLayerRef}
             className="canvas-pan-layer flex w-max max-w-none shrink-0 flex-col items-center gap-3"
             style={panStyle}
           >
+            <div
+              ref={zoomLayerRef}
+              className="canvas-zoom-layer flex w-max max-w-none shrink-0 flex-col items-center gap-3"
+              style={zoomStyle}
+            >
             {isNeedsLogo ? (
               <div
                 className="canvas-preview-stack"
-                style={{ width: platform.width * previewScale }}
+                style={{ width: platform.width * fitScale }}
               >
                 <div
                   ref={viewportRef}
                   className="canvas-preview-viewport relative overflow-hidden"
                   style={{
-                    width: platform.width * previewScale,
-                    height: platform.height * previewScale,
+                    width: platform.width * fitScale,
+                    height: platform.height * fitScale,
                   }}
                 >
                   <div ref={canvasRef}>
@@ -1172,6 +1286,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       width={platform.width}
                       height={platform.height}
                       previewScale={previewScale}
+                      layoutScale={fitScale}
                     />
                   </div>
                 </div>
@@ -1201,6 +1316,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       isActive={isActive}
                       isOrigin={isOrigin}
                       previewScale={previewScale}
+                      layoutScale={fitScale}
                       adjustSpacing={adjustSpacing}
                       onToggleSpacing={() => setAdjustSpacing((on) => !on)}
                       onActivate={() => handleActivateBoard(board.designId)}
@@ -1300,16 +1416,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                             open={contrastPanelOpen}
                             onOpenChange={setContrastPanelOpen}
                             selectedBlock={selectedBlock}
-                            onSelectBlock={(id) => {
-                              setSelectedBlock(id);
-                              if (id) {
-                                handleCanvasSelect(
-                                  canvasSelectionFromContrastBlock(id),
-                                );
-                              }
-                            }}
+                            onSelectBlock={setSelectedBlock}
                             logoBackdrop={doc.logoBackdrop}
-                            logoInvert={doc.logoInvert}
                             hasSvgLogo={
                               canvasLogo?.record.mime === "image/svg+xml"
                             }
@@ -1317,9 +1425,6 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                             hasLogoSvgFix={hasLogoSvgFix}
                             onFixLogoBackdrop={() =>
                               patchDocument({ logoBackdrop: true })
-                            }
-                            onFixLogoInvert={() =>
-                              patchDocument({ logoInvert: !doc.logoInvert })
                             }
                             onFixLogoSvgContrast={() =>
                               session.fixLogoSvgContrast(
@@ -1340,6 +1445,21 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                               );
                               patchDocument({ textContrastBoost: true });
                             }}
+                            onFixAccentContrast={() => {
+                              const fix = buildAccentContrastFix(
+                                bgHex,
+                                session.activeBackground.css.accentDot,
+                                session.kit.colors,
+                              );
+                              session.setColor(fix.role, fix.hex);
+                            }}
+                            onFixPatternOpacity={() => {
+                              patchDocument({
+                                patternOpacity: Math.min(doc.patternOpacity, 0.16),
+                              });
+                            }}
+                            onFixVisualBalance={handleFixVisualBalance}
+                            onExplainInChat={handleExplainContrastInChat}
                           />
                         ) : null
                       }
@@ -1358,6 +1478,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                             width={platform.width}
                             height={platform.height}
                             previewScale={previewScale}
+                            layoutScale={fitScale}
                             index={
                               Math.max(0, variantGroup.boards.length - 1) + i + 1
                             }
@@ -1366,17 +1487,6 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       )
                     : null}
                 </VariantAnimatePresence>
-
-                {showContrastOverlay ? (
-                  <CanvasDesignOverlay
-                    containerRoot={overlayContainer}
-                    canvasRoot={canvasRoot}
-                    enabled={contrastEnabled}
-                    results={contrastResults}
-                    selectedBlock={selectedBlock}
-                    onSelectBlock={setSelectedBlock}
-                  />
-                ) : null}
               </div>
             )}
 
@@ -1387,6 +1497,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                 onApply={briefChat.applyVariant}
               />
             ) : null}
+          </div>
           </div>
         </div>
       </div>

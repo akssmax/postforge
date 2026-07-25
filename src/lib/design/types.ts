@@ -1,3 +1,4 @@
+import type { UIMessage } from "ai";
 import type { BrandKitPersisted } from "@/lib/brand/types";
 import type { FeaturedBlockPersisted } from "@/lib/social-tool/featuredBlock";
 import type {
@@ -73,6 +74,8 @@ export type DesignSessionPersisted = {
   brand: BrandKitPersisted;
   featured: FeaturedBlockPersisted;
   document: DesignDocument;
+  /** Brief chat transcript for this design thread (origin board only). */
+  briefChatMessages?: UIMessage[];
 };
 
 export const DESIGN_SESSION_VERSION = 1 as const;

@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, type UIMessage } from "ai";
+import {
+  loadBriefChatMessages,
+  saveBriefChatMessages,
+} from "@/lib/design/designSession";
 import {
   extractCanvasPatchFromMessage,
   extractLatestClientAction,
@@ -31,6 +35,8 @@ type BrandSummary = {
 };
 
 export type UseBriefChatOptions = {
+  /** Origin design id — chat is shared across artboard variants. */
+  designId: string;
   platformId: PlatformId;
   brandSummary?: BrandSummary;
   designSnapshot?: DesignSnapshot | null;
@@ -41,12 +47,58 @@ export type UseBriefChatOptions = {
 };
 
 const APPLY_DEBOUNCE_MS = 300;
+const PERSIST_DEBOUNCE_MS = 500;
+
+function findLastUserIndex(messages: UIMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") return i;
+  }
+  return -1;
+}
+
+function extractTurnPayload(
+  messages: UIMessage[],
+  lastUserIndex: number,
+): {
+  plan: ValidatedDesignPlan | null;
+  patches: CanvasPatchResult[];
+  variants: DesignVariantResult[] | null;
+} {
+  let plan: ValidatedDesignPlan | null = null;
+  let variants: DesignVariantResult[] | null = null;
+  const patches: CanvasPatchResult[] = [];
+
+  for (let i = lastUserIndex + 1; i < messages.length; i++) {
+    const message = messages[i]!;
+    if (message.role !== "assistant") continue;
+
+    const messageVariants = extractDesignVariantsFromMessage(message);
+    if (messageVariants?.length) variants = messageVariants;
+
+    const messagePlan = extractDesignPlanFromMessage(message);
+    if (messagePlan) plan = messagePlan;
+
+    const messagePatch = extractCanvasPatchFromMessage(message);
+    if (messagePatch) patches.push(messagePatch);
+  }
+
+  return { plan, patches, variants };
+}
+
+function turnApplyFingerprint(
+  plan: ValidatedDesignPlan | null,
+  patches: CanvasPatchResult[],
+): string {
+  const payload = plan ?? (patches.length > 0 ? patches : null);
+  return payload ? JSON.stringify(payload) : "";
+}
 
 function isOfflineChatError(error: Error | undefined) {
   return isBriefChatOfflineError(error);
 }
 
 export function useBriefChat({
+  designId,
   platformId,
   brandSummary,
   designSnapshot,
@@ -59,12 +111,14 @@ export function useBriefChat({
   const lastUserTurnRef = useRef(-1);
   const lastClientActionRef = useRef<string>("");
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onApplyPlanRef = useRef(onApplyPlan);
   const onApplyCanvasPatchRef = useRef(onApplyCanvasPatch);
   onApplyPlanRef.current = onApplyPlan;
   onApplyCanvasPatchRef.current = onApplyCanvasPatch;
   const [pendingVariants, setPendingVariants] = useState<DesignVariantResult[] | null>(null);
   const [activeVariantTheme, setActiveVariantTheme] = useState<string | null>(null);
+  const hasRestoredRef = useRef(false);
 
   const transport = useMemo(
     () =>
@@ -79,20 +133,62 @@ export function useBriefChat({
     [platformId, brandSummary, designSnapshot],
   );
 
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, sendMessage, status, error, setMessages } = useChat({
+    id: `brief-${designId}`,
     transport,
   });
+
+  useLayoutEffect(() => {
+    hasRestoredRef.current = false;
+    const restored = loadBriefChatMessages(designId);
+    setMessages(restored);
+
+    const lastUserIndex = findLastUserIndex(restored);
+    lastUserTurnRef.current = lastUserIndex;
+    lastAppliedRef.current = "";
+    lastClientActionRef.current = "";
+
+    if (lastUserIndex < 0) {
+      setPendingVariants(null);
+      hasRestoredRef.current = true;
+      return;
+    }
+
+    const { plan, patches, variants } = extractTurnPayload(
+      restored,
+      lastUserIndex,
+    );
+    if (variants?.length) {
+      setPendingVariants(variants);
+      lastAppliedRef.current = "";
+    } else {
+      setPendingVariants(null);
+      lastAppliedRef.current = turnApplyFingerprint(plan, patches);
+    }
+
+    const action = extractLatestClientAction(restored);
+    lastClientActionRef.current = `${lastUserIndex}:${action ?? ""}`;
+    hasRestoredRef.current = true;
+  }, [designId, setMessages]);
+
+  useEffect(() => {
+    if (!hasRestoredRef.current) return;
+    if (status === "streaming" || status === "submitted") return;
+
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      saveBriefChatMessages(designId, messages);
+    }, PERSIST_DEBOUNCE_MS);
+
+    return () => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    };
+  }, [designId, messages, status]);
 
   useEffect(() => {
     // Only apply tools from the latest user turn. Older onboarding
     // `updateDesignVariants` results must not block follow-up canvas patches.
-    let lastUserIndex = -1;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i]?.role === "user") {
-        lastUserIndex = i;
-        break;
-      }
-    }
+    const lastUserIndex = findLastUserIndex(messages);
     if (lastUserIndex < 0) return;
 
     // New user turn → allow re-applying the same patch content after undo.
@@ -102,23 +198,7 @@ export function useBriefChat({
       lastClientActionRef.current = "";
     }
 
-    let plan: ValidatedDesignPlan | null = null;
-    let variants: DesignVariantResult[] | null = null;
-    const patches: CanvasPatchResult[] = [];
-
-    for (let i = lastUserIndex + 1; i < messages.length; i++) {
-      const message = messages[i]!;
-      if (message.role !== "assistant") continue;
-
-      const messageVariants = extractDesignVariantsFromMessage(message);
-      if (messageVariants?.length) variants = messageVariants;
-
-      const messagePlan = extractDesignPlanFromMessage(message);
-      if (messagePlan) plan = messagePlan;
-
-      const messagePatch = extractCanvasPatchFromMessage(message);
-      if (messagePatch) patches.push(messagePatch);
-    }
+    const { plan, patches, variants } = extractTurnPayload(messages, lastUserIndex);
 
     if (variants?.length) {
       setPendingVariants(variants);
@@ -126,10 +206,8 @@ export function useBriefChat({
     }
 
     // Apply patches individually so mixed targetArtboards don't collapse.
-    const payload = plan ?? (patches.length > 0 ? patches : null);
-    if (!payload) return;
-
-    const fingerprint = JSON.stringify(payload);
+    const fingerprint = turnApplyFingerprint(plan, patches);
+    if (!fingerprint) return;
     if (fingerprint === lastAppliedRef.current) return;
 
     if (applyTimerRef.current) clearTimeout(applyTimerRef.current);

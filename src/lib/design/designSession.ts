@@ -1,3 +1,4 @@
+import type { UIMessage } from "ai";
 import { defaultKit } from "@/lib/brand/storage";
 import { normalizeBrandKit } from "@/lib/brand/logoVariants";
 import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
@@ -7,17 +8,17 @@ import {
 import {
   DEFAULT_POST_LAYOUT_ID,
 } from "@/lib/social-tool/postLayouts";
-import { defaultFeaturedBlock } from "@/lib/social-tool/featuredBlock";
+import { defaultFeaturedBlock, normalizeFeaturedPersisted } from "@/lib/social-tool/featuredBlock";
 import type { FeaturedBlockPersisted } from "@/lib/social-tool/featuredBlock";
 import { DEFAULT_PATTERN_REF } from "@/lib/social-tool/patterns/types";
 import { migratePatternRef } from "@/lib/social-tool/patterns/migratePatternRef";
 import type { PostCopy } from "@/lib/social-tool/presets";
-import { normalizeProductPage } from "@/lib/social-tool/presets";
 import type {
   DesignDocument,
   DesignSessionPersisted,
 } from "@/lib/design/types";
 import { migrateDocumentV1ToV2 } from "@/lib/social-tool/layoutAdapter";
+import { migrateFeaturedSlotBlockIds } from "@/lib/social-tool/featuredSlots";
 
 export const EMPTY_POST_COPY: PostCopy = {
   heading: "",
@@ -128,22 +129,21 @@ export function loadDesignSession(designId: string): DesignSessionPersisted {
     const raw = localStorage.getItem(designSessionStorageKey(designId));
     if (!raw) return createBlankSession(designId);
     const parsed = JSON.parse(raw) as DesignSessionPersisted;
+    const featured = normalizeFeaturedPersisted(parsed.featured);
+    const document = normalizeDocument(parsed.document, featured);
     return {
       designId,
       updatedAt: parsed.updatedAt ?? Date.now(),
       brand: normalizeBrandKit(parsed.brand),
-      featured: {
-        mode: parsed.featured?.mode === "image" ? "image" : "genui",
-        productPage: normalizeProductPage(parsed.featured?.productPage),
-        image: parsed.featured?.image ?? null,
-        slots: parsed.featured?.slots,
+      featured,
+      document: {
+        ...document,
+        featuredSlots: migrateFeaturedSlotBlockIds(
+          document.featuredSlots,
+          featured.activeBlockId,
+        ),
       },
-      document: normalizeDocument(parsed.document, {
-        mode: parsed.featured?.mode === "image" ? "image" : "genui",
-        productPage: normalizeProductPage(parsed.featured?.productPage),
-        image: parsed.featured?.image ?? null,
-        slots: parsed.featured?.slots,
-      }),
+      briefChatMessages: normalizeBriefChatMessages(parsed.briefChatMessages),
     };
   } catch {
     return createBlankSession(designId);
@@ -156,4 +156,30 @@ export function saveDesignSession(session: DesignSessionPersisted): void {
     designSessionStorageKey(session.designId),
     JSON.stringify({ ...session, updatedAt: Date.now() }),
   );
+}
+
+function normalizeBriefChatMessages(raw: unknown): UIMessage[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (message): message is UIMessage =>
+      message != null &&
+      typeof message === "object" &&
+      typeof (message as UIMessage).id === "string" &&
+      ((message as UIMessage).role === "user" ||
+        (message as UIMessage).role === "assistant" ||
+        (message as UIMessage).role === "system"),
+  );
+}
+
+export function loadBriefChatMessages(designId: string): UIMessage[] {
+  return loadDesignSession(designId).briefChatMessages ?? [];
+}
+
+export function saveBriefChatMessages(
+  designId: string,
+  messages: UIMessage[],
+): void {
+  if (typeof window === "undefined") return;
+  const session = loadDesignSession(designId);
+  saveDesignSession({ ...session, briefChatMessages: messages });
 }

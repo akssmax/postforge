@@ -71,7 +71,8 @@ const FOLLOW_UP_SUGGESTIONS = [
   },
   {
     label: "Review contrast",
-    prompt: "Review contrast and fix any text or logo readability issues.",
+    prompt:
+      "Review contrast, visual separation, and layout balance — fix any text, accent, logo, or illustration readability issues.",
   },
   {
     label: "Change layout",

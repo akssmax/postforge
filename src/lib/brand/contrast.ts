@@ -7,20 +7,41 @@ import {
   rgbToHex,
 } from "@/lib/brand/colorUtils";
 
-export type DesignBlockId = "logo" | "headline" | "subheading";
+export type DesignBlockId =
+  | "logo"
+  | "headline"
+  | "subheading"
+  | "accent"
+  | "featured"
+  | "pattern"
+  | "balance";
+
+export type ContrastIssueKind = "text" | "visual" | "balance";
 
 export type ContrastLevel = "aa" | "aaLarge" | "graphic";
 
 export type ContrastResult = {
   blockId: DesignBlockId;
-  ratio: number;
+  kind: ContrastIssueKind;
+  ratio: number | null;
   passes: boolean;
-  required: number;
-  level: ContrastLevel;
-  foreground: string;
-  background: string;
+  required: number | null;
+  level: ContrastLevel | null;
+  foreground: string | null;
+  background: string | null;
   label: string;
+  alert: string;
+  severity: "error" | "warning";
 };
+
+import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
+import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
+import {
+  evaluateAccentContrast,
+  evaluateFeaturedVisualContrast,
+  evaluatePatternInterference,
+  evaluateVisualBalance,
+} from "@/lib/brand/designQuality";
 
 const HEX_RE = /#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b/g;
 
@@ -201,9 +222,50 @@ export type ContrastCheckInput = {
   showLogo: boolean;
   textColor: string;
   subTextColor: string;
+  accentColor?: string;
+  headingText?: string;
   logoBackdrop?: boolean;
   logoInvert?: boolean;
+  showFeaturedImage?: boolean;
+  featuredMode?: FeaturedBlockMode;
+  featuredSvgMarkup?: string | null;
+  featuredScale?: number;
+  showPattern?: boolean;
+  patternOpacity?: number;
+  showContent?: boolean;
+  layoutId?: PostLayoutId;
+  typeScale?: number;
+  brandAccent?: string;
 };
+
+function textIssue(
+  blockId: Extract<DesignBlockId, "logo" | "headline" | "subheading">,
+  opts: {
+    ratio: number;
+    passes: boolean;
+    required: number;
+    level: ContrastLevel;
+    foreground: string;
+    background: string;
+    label: string;
+    alert: string;
+    severity: "error" | "warning";
+  },
+): ContrastResult {
+  return {
+    blockId,
+    kind: "text",
+    ratio: opts.ratio,
+    passes: opts.passes,
+    required: opts.required,
+    level: opts.level,
+    foreground: opts.foreground,
+    background: opts.background,
+    label: opts.label,
+    alert: opts.alert,
+    severity: opts.severity,
+  };
+}
 
 export function evaluateCanvasContrast(
   input: ContrastCheckInput,
@@ -224,43 +286,104 @@ export function evaluateCanvasContrast(
       logoBg,
       input.logoInvert,
     );
-    results.push({
-      blockId: "logo",
-      ratio,
-      passes: passesContrast(ratio, "graphic"),
-      required: requiredRatio("graphic"),
-      level: "graphic",
-      foreground,
-      background: logoBg,
-      label: "Logo",
-    });
+    const required = requiredRatio("graphic");
+    const passes = passesContrast(ratio, "graphic");
+    results.push(
+      textIssue("logo", {
+        ratio,
+        passes,
+        required,
+        level: "graphic",
+        foreground,
+        background: logoBg,
+        label: "Logo",
+        alert: passes
+          ? ""
+          : "Logo colors don't separate clearly from the background — add a backdrop or adjust the logo fills.",
+        severity: ratio < 2.5 ? "error" : "warning",
+      }),
+    );
   }
 
   const headingFg = resolveForegroundHex(input.textColor, bg);
   const headingRatio = contrastRatio(headingFg, bg);
-  results.push({
-    blockId: "headline",
-    ratio: headingRatio,
-    passes: passesContrast(headingRatio, "aaLarge"),
-    required: requiredRatio("aaLarge"),
-    level: "aaLarge",
-    foreground: headingFg,
-    background: bg,
-    label: "Heading",
-  });
+  const headingRequired = requiredRatio("aaLarge");
+  const headingPasses = passesContrast(headingRatio, "aaLarge");
+  results.push(
+    textIssue("headline", {
+      ratio: headingRatio,
+      passes: headingPasses,
+      required: headingRequired,
+      level: "aaLarge",
+      foreground: headingFg,
+      background: bg,
+      label: "Heading",
+      alert: headingPasses
+        ? ""
+        : "Headline contrast is too low for this background — boost text contrast or lighten the backdrop.",
+      severity: headingRatio < 3 ? "error" : "warning",
+    }),
+  );
 
   const subFg = resolveForegroundHex(input.subTextColor, bg);
   const subRatio = contrastRatio(subFg, bg);
-  results.push({
-    blockId: "subheading",
-    ratio: subRatio,
-    passes: passesContrast(subRatio, "aa"),
-    required: requiredRatio("aa"),
-    level: "aa",
-    foreground: subFg,
-    background: bg,
-    label: "Subheading",
+  const subRequired = requiredRatio("aa");
+  const subPasses = passesContrast(subRatio, "aa");
+  results.push(
+    textIssue("subheading", {
+      ratio: subRatio,
+      passes: subPasses,
+      required: subRequired,
+      level: "aa",
+      foreground: subFg,
+      background: bg,
+      label: "Subheading",
+      alert: subPasses
+        ? ""
+        : "Subheading is hard to read against this background — increase contrast or reduce background noise.",
+      severity: subRatio < 3 ? "error" : "warning",
+    }),
+  );
+
+  const accent = evaluateAccentContrast({
+    backgroundCss: input.backgroundCss,
+    accentColor: input.accentColor,
+    headingText: input.headingText,
   });
+  if (accent) results.push(accent);
+
+  const featured = evaluateFeaturedVisualContrast({
+    backgroundCss: input.backgroundCss,
+    featuredSvgMarkup: input.featuredSvgMarkup,
+    showFeaturedImage: input.showFeaturedImage,
+  });
+  if (featured) results.push(featured);
+
+  const pattern = evaluatePatternInterference({
+    backgroundCss: input.backgroundCss,
+    showPattern: input.showPattern,
+    patternOpacity: input.patternOpacity,
+    textColor: input.textColor,
+    subTextColor: input.subTextColor,
+  });
+  if (pattern) results.push(pattern);
+
+  const balance = evaluateVisualBalance({
+    backgroundCss: input.backgroundCss,
+    accentColor: input.accentColor,
+    headingText: input.headingText,
+    showFeaturedImage: input.showFeaturedImage,
+    featuredMode: input.featuredMode,
+    featuredSvgMarkup: input.featuredSvgMarkup,
+    featuredScale: input.featuredScale,
+    showPattern: input.showPattern,
+    patternOpacity: input.patternOpacity,
+    showContent: input.showContent,
+    layoutId: input.layoutId,
+    typeScale: input.typeScale,
+    brandAccent: input.brandAccent,
+  });
+  if (balance) results.push(balance);
 
   return results;
 }

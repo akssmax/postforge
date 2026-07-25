@@ -1120,6 +1120,8 @@ export function ProductShotPost({
             <div
               className={`social-post-product-frame social-post-product-frame--composed${draggingSlotId === slot.slotId ? " is-dragging" : ""}`}
               style={featuredFrameRadius}
+              data-design-block={slot.slotId === "featured-primary" ? "featured" : undefined}
+              data-canvas-select={slot.slotId === "featured-primary" ? "featured" : undefined}
               onPointerEnter={() => {
                 if (canDrag) setHoveredSlotId(slot.slotId);
               }}
@@ -1161,6 +1163,8 @@ export function ProductShotPost({
             <div
               className={`social-post-product-inner social-post-product-inner--genui${draggingSlotId === slot.slotId ? " is-dragging" : ""}`}
               style={featuredFrameRadius}
+              data-design-block={slot.slotId === "featured-primary" ? "featured" : undefined}
+              data-canvas-select={slot.slotId === "featured-primary" ? "featured" : undefined}
               onPointerEnter={() => {
                 if (canDrag) setHoveredSlotId(slot.slotId);
               }}
@@ -1186,6 +1190,8 @@ export function ProductShotPost({
             <div
               className={`social-post-product-frame${isIllustrationFeaturedAsset(featuredImageSrc, featuredSvgMarkup) ? " social-post-product-frame--illustration" : ""}${draggingSlotId === slot.slotId ? " is-dragging" : ""}`}
               style={featuredFrameRadius}
+              data-design-block={slot.slotId === "featured-primary" ? "featured" : undefined}
+              data-canvas-select={slot.slotId === "featured-primary" ? "featured" : undefined}
               onPointerEnter={() => {
                 if (canDrag) setHoveredSlotId(slot.slotId);
               }}

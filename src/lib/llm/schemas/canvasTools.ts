@@ -15,7 +15,7 @@ export const artboardTargetValueSchema = z.union([
 ]);
 
 const ARTBOARD_TARGET_DESCRIPTION =
-  "Artboards to update: 'active' (default), 'all', or 1-based indices like [1,3]. Use 'all' for shared brand/background/pattern changes; use active or specific indices for copy/layout unique to one option.";
+  "Artboards to update: 'active' (default), 'all', or 1-based indices like [1,3]. Use 'all' for shared brand/background/pattern changes. For copy rewrites across multiple artboards, prefer refreshCopyVariants with 'all' — each board gets a different variant from the pool.";
 
 export function withArtboardTargetSchema<T extends z.ZodRawShape>(
   schema: z.ZodObject<T>,

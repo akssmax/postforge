@@ -122,6 +122,31 @@ export function defaultFeaturedBlock(): FeaturedBlockPersisted {
   };
 }
 
+/** Restore featured block fields stripped by older loaders or partial JSON. */
+export function normalizeFeaturedPersisted(
+  raw: Partial<FeaturedBlockPersisted> | undefined,
+): FeaturedBlockPersisted {
+  const defaults = defaultFeaturedBlock();
+  if (!raw) return defaults;
+
+  const mode: FeaturedBlockMode =
+    raw.mode === "image" ||
+    raw.mode === "composed" ||
+    raw.mode === "placeholder" ||
+    raw.mode === "genui"
+      ? raw.mode
+      : defaults.mode;
+
+  return {
+    mode,
+    productPage: normalizeProductPage(raw.productPage ?? defaults.productPage),
+    image: raw.image ?? null,
+    activeBlockId: raw.activeBlockId ?? null,
+    visualBlocks: Array.isArray(raw.visualBlocks) ? raw.visualBlocks : [],
+    slots: raw.slots,
+  };
+}
+
 export function featuredBlockStorageKey(storageScope?: string): string {
   return storageScope
     ? `postforge:featured:${storageScope}`
@@ -135,22 +160,7 @@ export function loadFeaturedBlockPersisted(
   try {
     const raw = localStorage.getItem(featuredBlockStorageKey(storageScope));
     if (!raw) return defaultFeaturedBlock();
-    const parsed = JSON.parse(raw) as FeaturedBlockPersisted;
-    const mode =
-      parsed.mode === "image"
-        ? "image"
-        : parsed.mode === "composed"
-          ? "composed"
-          : parsed.mode === "placeholder"
-            ? "placeholder"
-            : "placeholder";
-    return {
-      mode,
-      productPage: normalizeProductPage(parsed.productPage),
-      image: parsed.image ?? null,
-      activeBlockId: parsed.activeBlockId ?? null,
-      visualBlocks: parsed.visualBlocks ?? [],
-    };
+    return normalizeFeaturedPersisted(JSON.parse(raw) as FeaturedBlockPersisted);
   } catch {
     return defaultFeaturedBlock();
   }

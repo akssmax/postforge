@@ -32,6 +32,8 @@ export function canvasSelectionFromContrastBlock(
   block: DesignBlockId,
 ): CanvasSelectionId {
   if (block === "logo") return "logo";
+  if (block === "featured") return "featured";
+  if (block === "pattern") return "pattern";
   return "copy";
 }
 

@@ -119,10 +119,19 @@ function buildCanvasTools(
     }),
     refreshCopyVariants: tool({
       description:
-        "Regenerate 7-8 brief-specific headline/subheading options and apply the best one. Prefer this when the user asks to rewrite, refresh, or change copy direction. Defaults to the active artboard.",
+        "Regenerate 7-8 brief-specific headline/subheading options and apply one. Prefer when the user asks to rewrite, refresh, or change copy direction. With targetArtboards='all', each artboard receives a different variant from the pool.",
       inputSchema: withArtboardTargetSchema(refreshCopyVariantsToolSchema),
       execute: async (input) => {
         const instruction = input.instruction?.trim() || followUpMessage.trim();
+        const multiBoardTarget =
+          input.targetArtboards === "all" ||
+          (Array.isArray(input.targetArtboards) && input.targetArtboards.length > 1);
+        const boardCount =
+          input.targetArtboards === "all"
+            ? Math.max(1, snapshot.artboards?.count ?? 1)
+            : Array.isArray(input.targetArtboards)
+              ? input.targetArtboards.length
+              : 1;
         const briefContext = [
           snapshot.copy.heading,
           snapshot.copy.subheading,
@@ -130,6 +139,9 @@ function buildCanvasTools(
         ]
           .filter(Boolean)
           .join(". ");
+        const spreadInstruction = multiBoardTarget
+          ? `Generate at least ${boardCount} clearly distinct headline/subheading pairs — each artboard will get a different one.`
+          : undefined;
         const generated = await writeCopyVariants({
           intent: {
             campaignType: "announcement",
@@ -154,7 +166,7 @@ function buildCanvasTools(
             primary: snapshot.brand.primary,
             accent: snapshot.brand.accent,
           },
-          instruction: instruction || undefined,
+          instruction: [instruction, spreadInstruction].filter(Boolean).join(" "),
         });
         const primary = generated[0] ?? {
           heading: snapshot.copy.heading,
@@ -369,9 +381,10 @@ export async function handleCanvasAgentRequest(input: {
       "Use modifyVisualBlock to refine the active block.",
       "Use selectVisualBlock to swap blocks from the library.",
       "Use refreshCopyVariants when the user asks to rewrite, refresh, or change headline/subheading direction.",
-      "Use updateCopy only for precise edits to specific slot text.",
+      "Use updateCopy only for precise edits to specific slot text on one artboard (or the same literal text everywhere).",
       "Multi-artboard: each tool accepts targetArtboards ('active' | 'all' | [1-based indices]).",
       "Default to active. Use 'all' when the user says every board/all variants/shared background/brand.",
+      "For copy changes across all artboards, call refreshCopyVariants with targetArtboards='all' — the app assigns a different variant to each board.",
       "Use specific indices when they name artboard numbers (e.g. board 2 and 4 → [2,4]).",
       "After you call tools, always send a short (1-2 sentence) user-facing reply confirming what changed.",
       "Never finish with tool calls alone — end with conversational text the user can read in chat.",

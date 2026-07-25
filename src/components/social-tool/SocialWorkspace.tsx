@@ -9,7 +9,6 @@ import {
 } from "@/components/social-tool/DesignToolHeader";
 import { DesignSessionSocialWorkspace } from "@/components/social-tool/DesignSessionSocialWorkspace";
 import { CanvasPlatformPicker } from "@/components/social-tool/CanvasPlatformPicker";
-import { CanvasDesignOverlay } from "@/components/social-tool/CanvasDesignOverlay";
 import { ContrastIssuesToggle } from "@/components/social-tool/ContrastIssuesToggle";
 import {
   ProductShotPost,
@@ -64,7 +63,6 @@ import { pickRandomShuffleCopy } from "@/lib/social-tool/shuffleCopy";
 import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
 import { resolveLayoutHierarchyFromIds } from "@/lib/social-tool/layoutHierarchy";
 import {
-  canvasSelectionFromContrastBlock,
   isCanvasSelectableTarget,
   type CanvasSelectionId,
 } from "@/lib/social-tool/canvasSelection";
@@ -76,6 +74,11 @@ import {
   suggestHighContrastBackgroundId,
   type DesignBlockId,
 } from "@/lib/brand/contrast";
+import {
+  resolveFeaturedSvgForContrast,
+  suggestVisualBalanceFix,
+} from "@/lib/brand/designQuality";
+import { buildAccentContrastFix } from "@/lib/brand/contrastFixes";
 import {
   canFixLogoSvgContrast,
   hasLogoSvgContrastFix,
@@ -181,17 +184,17 @@ function ToolSocialWorkspace() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [stageEl, setStageEl] = useState<HTMLElement | null>(null);
-  const [canvasRoot, setCanvasRoot] = useState<HTMLElement | null>(null);
-  const [overlayContainer, setOverlayContainer] = useState<HTMLElement | null>(
-    null,
-  );
 
   const template = getTemplate(templateId);
   const platform = getPlatform(platformId);
   const activeLayout = getPostLayout(layoutId);
   const {
+    fitScale,
     previewScale,
     panStyle,
+    zoomStyle,
+    panLayerRef,
+    zoomLayerRef,
     zoomPercent,
     spaceDown,
     handMode,
@@ -330,23 +333,6 @@ function ToolSocialWorkspace() {
     };
   }, [exportOpen]);
 
-  useEffect(() => {
-    setOverlayContainer(viewportRef.current);
-    setCanvasRoot(
-      canvasRef.current?.querySelector<HTMLElement>(".social-post") ?? null,
-    );
-  }, [
-    previewScale,
-    showBrand,
-    logoPlacement,
-    brand.kit.logo,
-    copy,
-    textContrastBoost,
-    brand.activeBackground.id,
-    platform.width,
-    platform.height,
-  ]);
-
   const filename = useMemo(() => {
     return `postforge-${templateId}-${platform.width}x${platform.height}`;
   }, [templateId, platform.width, platform.height]);
@@ -378,8 +364,11 @@ function ToolSocialWorkspace() {
         : brand.activeBackground.css.subText
       : undefined;
 
-  const contrastEnabled =
-    showBrand && !!canvasLogo && !exporting;
+  const contrastEnabled = showBrand && !exporting;
+  const featuredSvgMarkup = resolveFeaturedSvgForContrast({
+    mode: featured.mode,
+    image: featured.image,
+  });
   const contrastResults = useMemo(
     () =>
       evaluateCanvasContrast({
@@ -389,8 +378,20 @@ function ToolSocialWorkspace() {
         showLogo: showBrand,
         textColor: textColor ?? brand.activeBackground.css.textOnBrand,
         subTextColor: subTextColor ?? brand.activeBackground.css.subText,
+        accentColor: brand.activeBackground.css.accentDot,
+        headingText: copy.heading,
         logoBackdrop,
         logoInvert,
+        showFeaturedImage,
+        featuredMode: featured.mode,
+        featuredSvgMarkup,
+        featuredScale: featuredTransform.scale,
+        showPattern,
+        patternOpacity,
+        showContent,
+        layoutId,
+        typeScale,
+        brandAccent: brand.kit.colors.accent,
       }),
     [
       contrastEnabled,
@@ -401,12 +402,57 @@ function ToolSocialWorkspace() {
       subTextColor,
       brand.activeBackground.css.textOnBrand,
       brand.activeBackground.css.subText,
+      brand.activeBackground.css.accentDot,
+      copy.heading,
       logoBackdrop,
       logoInvert,
+      showFeaturedImage,
+      featured.mode,
+      featuredSvgMarkup,
+      featuredTransform.scale,
+      showPattern,
+      patternOpacity,
+      showContent,
+      layoutId,
+      typeScale,
+      layoutSpacing,
+      textContrastBoost,
+      brand.kit.colors.accent,
+      brand.kit.activeBackgroundPresetId,
     ],
   );
 
   const contrastFailingCount = contrastResults.filter((r) => !r.passes).length;
+
+  function handleFixVisualBalance() {
+    const fix = suggestVisualBalanceFix({
+      backgroundCss: activeBgCss,
+      accentColor: brand.activeBackground.css.accentDot,
+      headingText: copy.heading,
+      showFeaturedImage,
+      featuredMode: featured.mode,
+      featuredSvgMarkup,
+      featuredScale: featuredTransform.scale,
+      showPattern,
+      patternOpacity,
+      showContent,
+      layoutId,
+      typeScale,
+      brandAccent: brand.kit.colors.accent,
+      layoutSpacing,
+    });
+
+    if (fix.typeScale != null) setTypeScale(fix.typeScale);
+    if (fix.layoutSpacing) setLayoutSpacing(fix.layoutSpacing);
+    if (fix.patternOpacity != null) setPatternOpacity(fix.patternOpacity);
+    if (fix.featuredTransformScale != null) {
+      setFeaturedTransform((current) => ({
+        ...current,
+        scale: fix.featuredTransformScale!,
+      }));
+    }
+  }
+
   const canFixLogoSvg = useMemo(
     () =>
       canvasLogo?.record.svgMarkup
@@ -419,8 +465,6 @@ function ToolSocialWorkspace() {
   const hasLogoSvgFix = canvasLogo
     ? hasLogoSvgContrastFix(canvasLogo.record)
     : false;
-  const showContrastOverlay =
-    contrastEnabled && contrastPanelOpen && contrastFailingCount > 0;
 
   useEffect(() => {
     if (contrastFailingCount === 0) {
@@ -429,11 +473,7 @@ function ToolSocialWorkspace() {
     }
   }, [contrastFailingCount]);
 
-  const inspectorSelection: CanvasSelectionId | null =
-    canvasSelection ??
-    (contrastPanelOpen && selectedBlock
-      ? canvasSelectionFromContrastBlock(selectedBlock)
-      : null);
+  const inspectorSelection: CanvasSelectionId | null = canvasSelection;
 
   function handleCanvasSelect(id: CanvasSelectionId | null) {
     if (id === null) {
@@ -730,12 +770,18 @@ function ToolSocialWorkspace() {
             onReset={resetZoom}
           />
           <div
+            ref={panLayerRef}
             className="canvas-pan-layer flex w-max max-w-none shrink-0 flex-col items-center gap-3"
             style={panStyle}
           >
             <div
+              ref={zoomLayerRef}
+              className="canvas-zoom-layer flex w-max max-w-none shrink-0 flex-col items-center gap-3"
+              style={zoomStyle}
+            >
+            <div
               className="canvas-preview-stack"
-              style={{ width: platform.width * previewScale }}
+              style={{ width: platform.width * fitScale }}
             >
               <div className="canvas-preview-toolbar">
                 <LayoutShuffleButton
@@ -753,19 +799,12 @@ function ToolSocialWorkspace() {
                       open={contrastPanelOpen}
                       onOpenChange={setContrastPanelOpen}
                       selectedBlock={selectedBlock}
-                      onSelectBlock={(id) => {
-                        setSelectedBlock(id);
-                        if (id) {
-                          handleCanvasSelect(canvasSelectionFromContrastBlock(id));
-                        }
-                      }}
+                      onSelectBlock={setSelectedBlock}
                       logoBackdrop={logoBackdrop}
-                      logoInvert={logoInvert}
                       hasSvgLogo={canvasLogo?.record.mime === "image/svg+xml"}
                       canFixLogoSvg={canFixLogoSvg}
                       hasLogoSvgFix={hasLogoSvgFix}
                       onFixLogoBackdrop={() => setLogoBackdrop(true)}
-                      onFixLogoInvert={() => setLogoInvert((v) => !v)}
                       onFixLogoSvgContrast={() => {
                         brand.fixLogoSvgContrast(activeBgCss, logoBackdrop);
                         setLogoInvert(false);
@@ -782,6 +821,18 @@ function ToolSocialWorkspace() {
                         setTextContrastBoost(true);
                         brand.setBackgroundPreset(suggestHighContrastBackgroundId());
                       }}
+                      onFixAccentContrast={() => {
+                        const fix = buildAccentContrastFix(
+                          bgHex,
+                          brand.activeBackground.css.accentDot,
+                          brand.kit.colors,
+                        );
+                        brand.setColor(fix.role, fix.hex);
+                      }}
+                      onFixPatternOpacity={() => {
+                        setPatternOpacity((value) => Math.min(value, 0.16));
+                      }}
+                      onFixVisualBalance={handleFixVisualBalance}
                     />
                   ) : null}
                 </div>
@@ -790,8 +841,8 @@ function ToolSocialWorkspace() {
                 ref={viewportRef}
                 className="canvas-preview-viewport relative overflow-hidden"
                 style={{
-                  width: platform.width * previewScale,
-                  height: platform.height * previewScale,
+                  width: platform.width * fitScale,
+                  height: platform.height * fitScale,
                 }}
               >
             <div
@@ -799,7 +850,7 @@ function ToolSocialWorkspace() {
               style={{
                 width: platform.width,
                 height: platform.height,
-                transform: `scale(${previewScale})`,
+                transform: `scale(${fitScale})`,
                 transformOrigin: "top left",
               }}
             >
@@ -851,8 +902,6 @@ function ToolSocialWorkspace() {
                       ? brand.activeBackground.css
                       : undefined
                   }
-                  designMode={showContrastOverlay}
-                  onSelectBlock={setSelectedBlock}
                   logoBackdrop={logoBackdrop}
                   logoInvert={logoInvert}
                   logoUsesExplicitColors={
@@ -872,16 +921,7 @@ function ToolSocialWorkspace() {
               </div>
             </div>
             </div>
-            {showContrastOverlay ? (
-              <CanvasDesignOverlay
-                containerRoot={overlayContainer}
-                canvasRoot={canvasRoot}
-                enabled={contrastEnabled}
-                results={contrastResults}
-                selectedBlock={selectedBlock}
-                onSelectBlock={setSelectedBlock}
-              />
-            ) : null}
+            </div>
               </div>
             </div>
           </div>

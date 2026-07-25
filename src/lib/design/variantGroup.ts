@@ -219,6 +219,33 @@ export function persistBoardSession(session: DesignSessionPersisted): void {
   saveDesignSession(session);
 }
 
+/** Remove a non-origin variant board from the group. Returns null if not allowed. */
+export function removeBoardFromGroup(
+  group: DesignVariantGroup,
+  designId: string,
+): DesignVariantGroup | null {
+  if (group.boardIds.length <= 1) return null;
+  if (designId === group.originDesignId) return null;
+  if (!group.boardIds.includes(designId)) return null;
+
+  const boardIds = group.boardIds.filter((id) => id !== designId);
+  const boardNames = group.boardNames ? { ...group.boardNames } : undefined;
+  if (boardNames) delete boardNames[designId];
+
+  const activeDesignId = boardIds.includes(group.activeDesignId)
+    ? group.activeDesignId
+    : group.originDesignId;
+
+  return {
+    ...group,
+    boardIds,
+    activeDesignId,
+    boardNames:
+      boardNames && Object.keys(boardNames).length > 0 ? boardNames : undefined,
+    updatedAt: Date.now(),
+  };
+}
+
 export function removeVariantBoards(
   group: DesignVariantGroup,
 ): DesignVariantGroup {

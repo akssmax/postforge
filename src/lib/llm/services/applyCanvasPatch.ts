@@ -182,6 +182,12 @@ export function applyCanvasPatchToSession(
   return next;
 }
 
+export {
+  patchAffectsCopy,
+  shouldSpreadCopyAcrossArtboards,
+  spreadCopyPatchForArtboard,
+} from "@/lib/llm/services/spreadCopyPatch";
+
 export function repairDesignDocument(document: DesignDocument): DesignDocument {
   return sanitizeDocument(document, {
     ...document,

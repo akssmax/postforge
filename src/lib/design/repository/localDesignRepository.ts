@@ -16,6 +16,8 @@ import {
   collectNonOriginBoardIds,
   findVariantGroupForBoard,
   isNonOriginVariantBoard,
+  removeBoardFromGroup,
+  saveVariantGroup,
   variantGroupStorageKey,
 } from "@/lib/design/variantGroup";
 import {
@@ -191,6 +193,29 @@ export class LocalDesignRepository implements DesignRepository {
     }
 
     localStorage.removeItem(variantGroupStorageKey(originId));
+  }
+
+  async deleteVariantBoard(boardId: string): Promise<string | null> {
+    if (typeof window === "undefined") return null;
+
+    const group = findVariantGroupForBoard(boardId);
+    if (!group) return null;
+
+    const nextGroup = removeBoardFromGroup(group, boardId);
+    if (!nextGroup) return null;
+
+    const session = await this.get(boardId);
+    if (session) {
+      await deleteSessionBlobs(session);
+    } else {
+      await deleteDesignThumbnail(boardId);
+    }
+
+    localStorage.removeItem(designSessionStorageKey(boardId));
+    removeDesignPatterns(boardId);
+    saveVariantGroup(nextGroup);
+
+    return nextGroup.activeDesignId;
   }
 
   async captureThumbnail(id: string, node: HTMLElement): Promise<void> {

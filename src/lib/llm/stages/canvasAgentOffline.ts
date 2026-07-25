@@ -5,9 +5,12 @@ import {
   computeUpdateFeaturedPatch,
   computeUpdatePatternPatch,
   computeUpdateVisibilityPatch,
+  computeRefreshCopyVariantsPatch,
   mergeCanvasPatches,
 } from "@/lib/llm/services/computeCanvasPatch";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
+import { buildCopyVariantsForBrief } from "@/lib/llm/stages/copyVariantWriter";
+import type { PlatformId } from "@/lib/social-tool/presets";
 
 function normalize(text: string): string {
   return text.toLowerCase().replace(/\s+/g, " ").trim();
@@ -87,16 +90,40 @@ export function runCanvasAgentOffline(
     );
   }
 
-  if (patches.length === 0) return null;
-
-  const merged = mergeCanvasPatches(patches);
   const wantsAllBoards =
     lower.includes("all artboard") ||
+    lower.includes("all board") ||
+    lower.includes("all design") ||
     lower.includes("all boards") ||
     lower.includes("every artboard") ||
     lower.includes("every board") ||
     lower.includes("all variants") ||
     lower.includes("every variant");
+
+  const wantsCopyRefresh =
+    lower.includes("copy") ||
+    lower.includes("headline") ||
+    lower.includes("subheading") ||
+    lower.includes("rewrite") ||
+    lower.includes("refresh text");
+
+  if (wantsCopyRefresh && (wantsAllBoards || lower.includes("each artboard"))) {
+    const variants = buildCopyVariantsForBrief(
+      message,
+      {
+        heading: snapshot.copy.heading,
+        subheading: snapshot.copy.subheading,
+      },
+      snapshot.platformId as PlatformId,
+    );
+    if (variants.length > 0) {
+      patches.push(computeRefreshCopyVariantsPatch(snapshot, variants, 0));
+    }
+  }
+
+  if (patches.length === 0) return null;
+
+  const merged = mergeCanvasPatches(patches);
 
   return {
     ...merged,

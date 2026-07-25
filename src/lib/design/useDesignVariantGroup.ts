@@ -31,6 +31,8 @@ export type UseDesignVariantGroupResult = {
   setActiveDesignId: (id: string) => void;
   /** Set or clear a custom artboard name (empty clears → falls back to index). */
   setBoardName: (designId: string, name: string) => void;
+  /** Delete a non-origin variant board. Returns the next active board id. */
+  removeBoard: (designId: string) => Promise<string | null>;
   syncBoard: (session: DesignSessionPersisted) => void;
   generateVariants: (originSession: DesignSessionPersisted) => Promise<void>;
   patchBoardDocument: (
@@ -80,6 +82,20 @@ export function useDesignVariantGroup(
       return next;
     });
   }, []);
+
+  const removeBoard = useCallback(
+    async (designId: string): Promise<string | null> => {
+      const nextActiveId = await designRepository.deleteVariantBoard(designId);
+      if (!nextActiveId) return null;
+
+      const nextGroup = loadVariantGroup(originDesignId);
+      setGroup(nextGroup);
+      setBoards(loadBoardSessions(nextGroup.boardIds));
+      setPhase(nextGroup.boardIds.length > 1 ? "ready" : "idle");
+      return nextActiveId;
+    },
+    [originDesignId],
+  );
 
   const syncBoard = useCallback((session: DesignSessionPersisted) => {
     // Snapshot + persist immediately so switching boards can't drop featured/shuffle state
@@ -234,6 +250,7 @@ export function useDesignVariantGroup(
     activeDesignId: group.activeDesignId,
     setActiveDesignId,
     setBoardName,
+    removeBoard,
     syncBoard,
     generateVariants,
     patchBoardDocument,

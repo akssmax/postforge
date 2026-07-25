@@ -21,5 +21,7 @@ export interface DesignRepository {
   get(id: string): Promise<DesignSessionPersisted | null>;
   upsert(session: DesignSessionPersisted): Promise<DesignSummary | null>;
   delete(id: string): Promise<void>;
+  /** Remove one variant artboard (not the origin). Returns the next active board id. */
+  deleteVariantBoard(boardId: string): Promise<string | null>;
   captureThumbnail(id: string, node: HTMLElement): Promise<void>;
 }

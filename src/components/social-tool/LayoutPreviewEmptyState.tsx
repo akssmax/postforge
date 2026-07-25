@@ -28,13 +28,17 @@ type Props = {
   width: number;
   height: number;
   previewScale?: number;
+  /** Fit scale for layout box; user zoom is applied on the canvas zoom layer. */
+  layoutScale?: number;
 };
 
 export function LayoutPreviewEmptyState({
   width,
   height,
   previewScale = 1,
+  layoutScale: layoutScaleProp,
 }: Props) {
+  const layoutScale = layoutScaleProp ?? previewScale;
   const reduceMotion = useReducedMotion();
   const [index, setIndex] = useState(0);
   const layoutId = PREVIEW_LAYOUT_IDS[index]!;
@@ -52,8 +56,8 @@ export function LayoutPreviewEmptyState({
     <div
       className="layout-preview-empty-state"
       style={{
-        width: width * previewScale,
-        height: height * previewScale,
+        width: width * layoutScale,
+        height: height * layoutScale,
       }}
     >
       <AnimatePresence mode="wait" initial={false}>
@@ -70,7 +74,7 @@ export function LayoutPreviewEmptyState({
             style={{
               width,
               height,
-              transform: `scale(${previewScale})`,
+              transform: `scale(${layoutScale})`,
             }}
           >
             <ProductShotPost
