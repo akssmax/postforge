@@ -100,8 +100,8 @@ import type {
   ArtboardTarget,
   CanvasPatchResult,
 } from "@/lib/llm/schemas/canvasTools";
+import { applyCanvasPatchToSession } from "@/lib/llm/services/applyCanvasPatch";
 import {
-  patchAffectsCopy,
   shouldSpreadCopyAcrossArtboards,
   spreadCopyPatchForArtboard,
 } from "@/lib/llm/services/spreadCopyPatch";
