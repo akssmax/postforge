@@ -7,6 +7,7 @@ import {
   type UIMessage,
 } from "ai";
 import { createMistralModel, LLM_STREAM_TIMEOUT_MS } from "@/lib/llm/mistral";
+import { toBriefChatClientError } from "@/lib/llm/streamErrors";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 import { resolveDesignRulesForBrief, rulesProfilePrompt, detectFormatFromBrief } from "@/lib/llm/rules";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
@@ -391,7 +392,7 @@ export async function handleCanvasAgentRequest(input: {
   });
 
   return createUIMessageStreamResponse({
-    stream: result.toUIMessageStream(),
+    stream: result.toUIMessageStream({ onError: toBriefChatClientError }),
   });
 }
 
@@ -404,6 +405,6 @@ export async function handleClarifyRequest(question: string) {
     prompt: `Ask the user this clarifying question in a friendly sentence: ${question}`,
   });
   return createUIMessageStreamResponse({
-    stream: result.toUIMessageStream(),
+    stream: result.toUIMessageStream({ onError: toBriefChatClientError }),
   });
 }

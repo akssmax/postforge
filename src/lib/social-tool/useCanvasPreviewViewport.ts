@@ -84,7 +84,6 @@ export function useCanvasPreviewViewport({
 
   const previewScale = fitScale * userZoom;
   const zoomPercent = Math.round(userZoom * 100);
-  const canActualSize = fitScale < 0.995;
   const handActive = handMode || spaceDown;
 
   /** Nudge pan so `el` is centered. Safe to call again after paint for residuals. */
@@ -303,13 +302,6 @@ export function useCanvasPreviewViewport({
     setPan({ x: 0, y: 0 });
   }
 
-  function setActualSize() {
-    if (fitScale <= 0) return;
-    focusedElRef.current = null;
-    setUserZoom(clamp(1 / fitScale, MIN_USER_ZOOM, MAX_USER_ZOOM));
-    setPan({ x: 0, y: 0 });
-  }
-
   function toggleHandMode() {
     setHandMode((on) => !on);
   }
@@ -338,14 +330,12 @@ export function useCanvasPreviewViewport({
     previewScale,
     pan,
     zoomPercent,
-    canActualSize,
     spaceDown,
     handMode,
     handActive,
     zoomIn,
     zoomOut,
     resetZoom,
-    setActualSize,
     toggleHandMode,
     nudgePan,
     panElementIntoView,

@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useServerInsertedHTML } from "next/navigation";
 
 export type ThemePreference = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
@@ -21,6 +22,8 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 const STORAGE_KEY = "postforge-theme";
+
+const THEME_BOOTSTRAP = `(function(){try{var k='${STORAGE_KEY}';var t=localStorage.getItem(k)||'system';var d=t==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;var r=document.documentElement;r.dataset.theme=d;r.classList.toggle('dark',d==='dark');r.classList.toggle('light',d==='light');}catch(e){}})();`;
 
 function getSystemTheme(): ResolvedTheme {
   if (typeof window === "undefined") return "dark";
@@ -39,6 +42,12 @@ function applyTheme(resolved: ResolvedTheme) {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemePreference>("system");
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("dark");
+
+  useServerInsertedHTML(() => (
+    <script
+      dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }}
+    />
+  ));
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY) as ThemePreference | null;

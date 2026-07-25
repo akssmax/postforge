@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Shuffle } from "lucide-react";
 import {
   ProductShotPost,
@@ -28,12 +28,15 @@ type Props = {
   compact?: boolean;
   className?: string;
   initialBrandId?: LandingBrandId;
+  /** Increment to shuffle from a parent CTA (e.g. Try Shuffle). */
+  shuffleRequest?: number;
 };
 
 export function LandingShufflePlayground({
   compact = false,
   className = "",
   initialBrandId = "claude",
+  shuffleRequest = 0,
 }: Props) {
   const [brandId, setBrandId] = useState<LandingBrandId>(initialBrandId);
   const brand = getLandingBrand(brandId);
@@ -42,8 +45,8 @@ export function LandingShufflePlayground({
   );
 
   const platform = getPlatform(demo.platformId);
-  /** Fit the full square in the hero column without cropping. */
-  const previewScale = compact ? 0.42 : 0.48;
+  /** Fit the full square under the centered hero copy. */
+  const previewScale = compact ? 0.46 : 0.52;
   const illustrationMarkup = useBrandRecoloredIllustration(
     demo.illustrationSrc,
     brand,
@@ -69,6 +72,11 @@ export function LandingShufflePlayground({
   function handleShuffle() {
     setDemo((prev) => shuffleLandingDemo(brandId, prev, brand.colors));
   }
+
+  useEffect(() => {
+    if (shuffleRequest <= 0) return;
+    setDemo((prev) => shuffleLandingDemo(brandId, prev, brand.colors));
+  }, [shuffleRequest, brandId, brand.colors]);
 
   const canvasStyle = useMemo(
     () => ({

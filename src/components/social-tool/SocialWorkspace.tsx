@@ -193,14 +193,12 @@ function ToolSocialWorkspace() {
     previewScale,
     panStyle,
     zoomPercent,
-    canActualSize,
     spaceDown,
     handMode,
     handActive,
     zoomIn,
     zoomOut,
     resetZoom,
-    setActualSize,
     toggleHandMode,
     stagePanProps,
   } = useCanvasPreviewViewport({
@@ -724,14 +722,12 @@ function ToolSocialWorkspace() {
         >
           <CanvasZoomControls
             zoomPercent={zoomPercent}
-            canActualSize={canActualSize}
             handActive={handActive}
             handMode={handMode}
             onToggleHand={toggleHandMode}
             onZoomIn={zoomIn}
             onZoomOut={zoomOut}
             onReset={resetZoom}
-            onActualSize={setActualSize}
           />
           <div
             className="canvas-pan-layer flex w-max max-w-none shrink-0 flex-col items-center gap-3"

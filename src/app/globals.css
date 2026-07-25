@@ -26,19 +26,19 @@
   --gray-900: #0f1816;
   --gray-950: #040c0b;
 
-  /* Brand scale (Figma Brand + logo anchors) */
-  --brand-25: #f6fdee;
-  --brand-50: #f2fce2;
-  --brand-100: #e3ffcc;
-  --brand-200: #c5efb0;
-  --brand-300: #9dd98a;
-  --brand-400: #73c4a2;
-  --brand-500: #4bb793;
-  --brand-600: #275144;
-  --brand-700: #1b3d36;
-  --brand-800: #122e29;
-  --brand-900: #0a1b25;
-  --brand-950: #040c0b;
+  /* Brand scale — ember orange (landing #ff6140) */
+  --brand-25: #fff8f5;
+  --brand-50: #fff1eb;
+  --brand-100: #ffe4d6;
+  --brand-200: #ffc9b5;
+  --brand-300: #ffa487;
+  --brand-400: #ff8460;
+  --brand-500: #ff6140;
+  --brand-600: #c4472e;
+  --brand-700: #8f321f;
+  --brand-800: #5c2114;
+  --brand-900: #2a120c;
+  --brand-950: #0c0705;
 
   /* Aliases used across existing UI */
   --neutral-25: var(--gray-25);
@@ -136,10 +136,10 @@
 
   --brand-primary: var(--brand-900);
   --brand-secondary: var(--brand-600);
-  /* Logo green — pale mint (#E3FFCC) fails contrast on light surfaces */
+  /* Logo orange — soft peach (#ffe4d6) fails contrast on light surfaces */
   --brand-accent: var(--brand-500);
-  --brand-gradient-start: #064d4c;
-  --brand-gradient-end: #091a24;
+  --brand-gradient-start: #4a1a0c;
+  --brand-gradient-end: #140c08;
 
   --text-primary: var(--brand-primary);
   --text-secondary: var(--gray-800);
@@ -179,7 +179,7 @@
 
   --background: var(--surface-primary);
   --foreground: var(--text-primary);
-  /* Logo green (#4BB793) for primary actions in light mode */
+  /* Logo orange (#ff6140) for primary actions in light mode */
   --accent: var(--brand-500);
   --accent-foreground: var(--brand-950);
   --muted: var(--text-placeholder);
@@ -215,7 +215,7 @@
 
   --surface-primary: var(--gray-950);
   --surface-secondary: var(--brand-900);
-  --surface-tertiary: #091a24;
+  --surface-tertiary: #1a1008;
   --surface-invert: var(--gray-25);
   --surface-border: var(--gray-700);
   --surface-border-hover: var(--gray-500);
@@ -225,8 +225,8 @@
   --brand-primary: var(--brand-100);
   --brand-secondary: var(--brand-500);
   --brand-accent: var(--brand-100);
-  --brand-gradient-start: #064d4c;
-  --brand-gradient-end: #091a24;
+  --brand-gradient-start: #4a1a0c;
+  --brand-gradient-end: #140c08;
 
   --text-primary: var(--gray-50);
   --text-secondary: var(--gray-200);

@@ -101,7 +101,6 @@ export function listLegacyPatternOptions(): {
     { ref: LEGACY_PATTERN_REFS.monogram, label: "Monogram" },
     { ref: LEGACY_PATTERN_REFS["monogram-soft"], label: "Monogram soft" },
     { ref: LEGACY_PATTERN_REFS.footer, label: "Footer" },
-    { ref: LEGACY_PATTERN_REFS.outline, label: "Outline mark" },
     { ref: LEGACY_PATTERN_REFS.none, label: "None" },
   ];
 }

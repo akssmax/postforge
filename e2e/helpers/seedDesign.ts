@@ -67,7 +67,7 @@ export async function seedReadyDesign(page: Page, options: SeedOptions) {
             subheading: s,
             extraFields: [],
           },
-          pattern: "legacy:outline",
+          pattern: "legacy:monogram",
           patternOpacity: 0.28,
           patternScale: 1,
           patternAnimated: false,

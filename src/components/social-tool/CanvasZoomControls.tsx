@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Hand, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
+import { Hand, ZoomIn, ZoomOut } from "lucide-react";
 import { Button, Tooltip } from "@heroui/react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
@@ -11,28 +11,24 @@ import {
 
 type Props = {
   zoomPercent: number;
-  canActualSize: boolean;
   handActive: boolean;
   handMode: boolean;
   onToggleHand: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onReset: () => void;
-  onActualSize: () => void;
   /** Optional control before hand/zoom (e.g. show sidebar when collapsed) */
   leading?: ReactNode;
 };
 
 export function CanvasZoomControls({
   zoomPercent,
-  canActualSize,
   handActive,
   handMode,
   onToggleHand,
   onZoomIn,
   onZoomOut,
   onReset,
-  onActualSize,
   leading,
 }: Props) {
   const reduceMotion = useReducedMotion();
@@ -142,26 +138,6 @@ export function CanvasZoomControls({
             <p className="layout-shuffle-tooltip-body">Pinch or Ctrl/⌘ + scroll</p>
           </Tooltip.Content>
         </Tooltip>
-
-        {canActualSize ? (
-          <Tooltip delay={500}>
-            <Tooltip.Trigger>
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-label="Actual size"
-                className="canvas-tool-pill-btn canvas-zoom-icon-btn"
-                onPress={onActualSize}
-              >
-                <Maximize2 className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden />
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content placement="bottom" offset={8}>
-              <p className="layout-shuffle-tooltip-title">Actual size</p>
-              <p className="layout-shuffle-tooltip-body">View at 1:1 pixel size</p>
-            </Tooltip.Content>
-          </Tooltip>
-        ) : null}
       </div>
     </div>
   );

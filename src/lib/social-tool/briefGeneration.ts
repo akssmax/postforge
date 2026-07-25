@@ -331,7 +331,7 @@ function pickPattern(
     return legacyPatternRef("footer");
   }
   if (lower.includes("outline") || layout.tags.includes("editorial")) {
-    return legacyPatternRef("outline");
+    return legacyPatternRef("monogram-soft");
   }
   if (lower.includes("milestone") || lower.includes("announcement")) {
     return legacyPatternRef("monogram-soft");

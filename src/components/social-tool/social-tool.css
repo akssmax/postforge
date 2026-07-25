@@ -83,6 +83,8 @@
 .social-post--preview-empty .canvas-slot,
 .social-post--preview-empty .brand-logo-placeholder,
 .social-post--preview-empty .social-post-product-frame--slot {
+  box-sizing: border-box;
+  max-width: 100%;
   border-color: color-mix(in oklab, var(--gray-950) 14%, transparent);
   background:
     linear-gradient(color-mix(in oklab, var(--gray-950) 6%, transparent) 1px, transparent 1px),
@@ -110,21 +112,26 @@
 
 .layout-preview-empty-state {
   position: relative;
-  width: 100%;
-  height: 100%;
+  overflow: hidden;
 }
 
 .layout-preview-empty-state__frame {
   position: relative;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+}
+
+.layout-preview-empty-state__scale {
+  transform-origin: top left;
+  backface-visibility: hidden;
 }
 
 .layout-preview-empty-state__label {
   pointer-events: none;
   position: absolute;
   z-index: 2;
-  bottom: calc(var(--sp-pad, 16px) * 0.65);
+  bottom: 0.75rem;
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
@@ -3753,7 +3760,7 @@ html:has(.social-tool) body {
 .brief-chat-prompt {
   display: flex;
   flex-shrink: 0;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.5rem;
   margin: 0.625rem 0.75rem 0.875rem;
   padding: 0.375rem 0.375rem 0.375rem 0.875rem;
@@ -3769,6 +3776,7 @@ html:has(.social-tool) body {
 }
 
 .brief-chat-prompt.is-multiline {
+  align-items: flex-end;
   border-radius: 1.25rem;
   padding: 0.7rem 0.4rem 0.4rem 0.9rem;
 }
@@ -3781,7 +3789,7 @@ html:has(.social-tool) body {
 
 .brief-chat-prompt__input {
   flex: 1;
-  align-self: stretch;
+  align-self: center;
   min-width: 0;
   min-height: 1.75rem;
   max-height: 10.5rem;
@@ -3798,6 +3806,10 @@ html:has(.social-tool) body {
   overflow-y: hidden;
 }
 
+.brief-chat-prompt.is-multiline .brief-chat-prompt__input {
+  align-self: stretch;
+}
+
 .brief-chat-prompt__input::placeholder {
   color: var(--text-tertiary);
   white-space: nowrap;
@@ -3808,7 +3820,6 @@ html:has(.social-tool) body {
 .brief-chat-prompt__submit {
   display: inline-flex;
   flex-shrink: 0;
-  align-self: flex-end;
   align-items: center;
   justify-content: center;
   width: 2rem;
@@ -3821,6 +3832,10 @@ html:has(.social-tool) body {
   transition:
     opacity 150ms ease,
     transform 150ms ease;
+}
+
+.brief-chat-prompt.is-multiline .brief-chat-prompt__submit {
+  align-self: flex-end;
 }
 
 @media (prefers-reduced-motion: reduce) {

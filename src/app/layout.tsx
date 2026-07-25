@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Syne, DM_Sans, Geist } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeScript } from "@/components/theme-script";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 import { cn } from "@/lib/utils";
@@ -49,9 +48,6 @@ export default function RootLayout({
       className={cn("h-full", "antialiased", inter.variable, socialDisplay.variable, socialBody.variable, "font-sans", geist.variable)}
       suppressHydrationWarning
     >
-      <head>
-        <ThemeScript />
-      </head>
       <body className="min-h-full bg-leap-bg text-leap-fg font-sans antialiased">
         <ThemeProvider>
           <TooltipProvider>{children}</TooltipProvider>

@@ -86,8 +86,8 @@ type FeaturedPanelProps = {
   imageSrc: string | null;
   uploading: boolean;
   error: string | null;
-  onUploadImage: (file: File) => Promise<void>;
-  onRemoveImage: () => Promise<void>;
+  onUploadImage: (file: File, slotId?: string) => Promise<void>;
+  onRemoveImage: (slotId?: string) => Promise<void>;
 };
 
 type Props = {

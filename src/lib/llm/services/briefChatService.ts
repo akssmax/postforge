@@ -21,6 +21,8 @@ import {
   runDesignPipeline,
   runDesignPipelineVariants,
 } from "@/lib/llm/stages/pipelineOrchestrator";
+import { runDesignPipelineOffline } from "@/lib/llm/stages/pipelineOrchestratorOffline";
+import { toBriefChatClientError } from "@/lib/llm/streamErrors";
 import { routeFollowUp } from "@/lib/llm/stages/followUpRouter";
 import {
   handleCanvasAgentRequest,
@@ -94,16 +96,44 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
   // Open the SSE response immediately so proxies/Vercel see first bytes while the
   // multi-stage pipeline runs (wall-clock still counts toward maxDuration).
   const stream = createUIMessageStream({
+    onError: toBriefChatClientError,
     execute: async ({ writer }) => {
       if (useVariants) {
-        const variantsResult = await runDesignPipelineVariants({
-          userMessage,
-          messages,
-          platformId,
-          brandSummary,
-          backgroundCatalog,
-          recentBackgroundPresetIds,
-        });
+        let variantsResult;
+        try {
+          variantsResult = await runDesignPipelineVariants({
+            userMessage,
+            messages,
+            platformId,
+            brandSummary,
+            backgroundCatalog,
+            recentBackgroundPresetIds,
+          });
+        } catch (err) {
+          console.error("[brief-chat] variant pipeline failed, trying offline", err);
+          const offline = runDesignPipelineOffline({ userMessage, platformId });
+          if (!offline) throw err;
+          variantsResult = {
+            intent: offline.intent,
+            campaignPlan: offline.campaignPlan,
+            rulesProfile: offline.rulesProfile,
+            summary: offline.summary,
+            variants: [
+              {
+                theme: offline.theme ?? "Default",
+                layoutId: offline.layoutId,
+                rationale: offline.rationale,
+                summary: offline.summary,
+                score: offline.score,
+                planInput: offline.planInput,
+                validatedPlan: offline.validatedPlan,
+                campaignPlan: offline.campaignPlan,
+                recipeId: offline.recipeId,
+                designSystemId: offline.designSystemId,
+              },
+            ],
+          };
+        }
 
         const validatedVariants = variantsResult.variants
           .map((variant) => {
@@ -172,14 +202,22 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
         return;
       }
 
-      const pipeline = await runDesignPipeline({
-        userMessage,
-        messages,
-        platformId,
-        brandSummary,
-        backgroundCatalog,
-        recentBackgroundPresetIds,
-      });
+      let pipeline;
+      try {
+        pipeline = await runDesignPipeline({
+          userMessage,
+          messages,
+          platformId,
+          brandSummary,
+          backgroundCatalog,
+          recentBackgroundPresetIds,
+        });
+      } catch (err) {
+        console.error("[brief-chat] pipeline failed, trying offline", err);
+        const offline = runDesignPipelineOffline({ userMessage, platformId });
+        if (!offline) throw err;
+        pipeline = offline;
+      }
 
       const result = streamText({
         model,

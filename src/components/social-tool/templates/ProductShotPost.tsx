@@ -666,12 +666,12 @@ export function ProductShotPost({
   const subheadingSlotStyle = {
     width: scale(isTallPrint ? 360 : 420, width, height),
     height: scale(isTallPrint ? 40 : 36, width, height),
-    maxWidth: isTallPrint ? "22em" : "28em",
+    maxWidth: "100%",
   };
   const extraSlotStyle = {
     width: scale(isTallPrint ? 320 : 380, width, height),
     height: scale(28, width, height),
-    maxWidth: isTallPrint ? "22em" : "28em",
+    maxWidth: "100%",
   };
 
   function renderEmptyTextSlot(

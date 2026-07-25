@@ -447,7 +447,7 @@ export function BriefChatPanel({
       {error ? (
         <p className="brief-chat-section__error" role="alert">
           {offline
-            ? "LLM unavailable — using offline generator for this message."
+            ? "LLM unavailable — your next message will use the offline generator."
             : error.message}
         </p>
       ) : null}

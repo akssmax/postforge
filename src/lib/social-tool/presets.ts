@@ -16,7 +16,6 @@ export type PatternId =
   | "monogram"
   | "monogram-soft"
   | "footer"
-  | "outline"
   | "none";
 
 export type ProductPageId =
@@ -235,11 +234,6 @@ export const PATTERN_OPTIONS: PatternOption[] = [
     id: "footer",
     label: "Footer",
     description: "Site footer monogram strip",
-  },
-  {
-    id: "outline",
-    label: "Outline mark",
-    description: "Large monogram outline asset",
   },
   {
     id: "none",

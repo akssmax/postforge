@@ -1,8 +1,19 @@
 "use client";
 
+import { useCallback, useState, type MouseEvent } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowUpRight, Shuffle } from "lucide-react";
+import {
+  ArrowUpRight,
+  Download,
+  LayoutGrid,
+  Palette,
+  Presentation,
+  Shuffle,
+  SlidersHorizontal,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Logo } from "@/components/Logo";
 import { ThemeControls } from "@/components/ThemeControls";
@@ -41,39 +52,68 @@ const LandingDesignGallery = dynamic(
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
-const FEATURES = [
+const FEATURES: ReadonlyArray<{
+  title: string;
+  body: string;
+  icon: LucideIcon;
+}> = [
   {
     title: "Shuffle",
+    icon: Shuffle,
     body: "One click cycles layout, background, pattern, and copy until the composition clicks — no blank canvas.",
   },
   {
     title: "Brand kit",
+    icon: Palette,
     body: "Upload a logo, extract colors, pick brand backgrounds, and tile logo patterns that stay on-brand.",
   },
   {
     title: "AI brief",
+    icon: Sparkles,
     body: "Describe the post in the tool and generate on-brand designs from a short brief — then refine with Shuffle.",
   },
   {
     title: "Visual blocks",
+    icon: LayoutGrid,
     body: "Drop in product GenUI previews or illustration blocks for the featured slot — ready-made, not pasted screenshots.",
   },
   {
     title: "Spacing & contrast",
+    icon: SlidersHorizontal,
     body: "Tune spacing with live handles and catch contrast issues before you export.",
   },
   {
     title: "Export ready",
+    icon: Download,
     body: "Download PNG, JPG, or PDF — including print standee sizes when you need them.",
   },
   {
     title: "Slide decks",
+    icon: Presentation,
     body: "Build short decks on a separate canvas with the same brand system. Start posts at /tool; decks live at /slides.",
   },
-] as const;
+];
 
 export function LandingPage() {
   const reduceMotion = useReducedMotion();
+  const [shuffleRequest, setShuffleRequest] = useState(0);
+
+  const scrollToPlayground = useCallback((behavior: ScrollBehavior = "smooth") => {
+    document.getElementById("playground")?.scrollIntoView({
+      behavior,
+      block: "center",
+    });
+  }, []);
+
+  const handleTryShuffle = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>) => {
+      event.preventDefault();
+      scrollToPlayground(reduceMotion ? "auto" : "smooth");
+      setShuffleRequest((n) => n + 1);
+      window.history.replaceState(null, "", "#playground");
+    },
+    [reduceMotion, scrollToPlayground],
+  );
 
   return (
     <div className="pf-landing min-h-screen">
@@ -120,7 +160,11 @@ export function LandingPage() {
                   Open design tool
                   <ArrowUpRight className="size-5" />
                 </Link>
-                <a href="#playground" className="pf-btn pf-btn-ghost">
+                <a
+                  href="#playground"
+                  className="pf-btn pf-btn-ghost"
+                  onClick={handleTryShuffle}
+                >
                   <Shuffle className="size-4" aria-hidden />
                   Try Shuffle
                 </a>
@@ -134,7 +178,7 @@ export function LandingPage() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.85, delay: 0.12, ease }}
             >
-              <LandingShufflePlayground compact />
+              <LandingShufflePlayground compact shuffleRequest={shuffleRequest} />
             </motion.div>
           </div>
         </section>
@@ -188,7 +232,9 @@ export function LandingPage() {
           </motion.div>
 
           <div className="pf-feature-grid pf-feature-grid-wide">
-            {FEATURES.map((item, i) => (
+            {FEATURES.map((item, i) => {
+              const Icon = item.icon;
+              return (
               <motion.article
                 key={item.title}
                 className={`pf-feature${item.title === "Shuffle" ? " pf-feature-accent" : ""}`}
@@ -197,10 +243,14 @@ export function LandingPage() {
                 viewport={{ once: true, margin: "-60px" }}
                 transition={{ duration: 0.5, delay: i * 0.05, ease }}
               >
+                <div className="pf-feature-icon" aria-hidden>
+                  <Icon className="pf-feature-icon__svg" strokeWidth={2} />
+                </div>
                 <h3>{item.title}</h3>
                 <p>{item.body}</p>
               </motion.article>
-            ))}
+              );
+            })}
           </div>
         </section>
 

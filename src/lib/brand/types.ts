@@ -62,10 +62,10 @@ export type BrandKitRuntime = BrandKitPersisted & {
 };
 
 export const DEFAULT_BRAND_COLORS: BrandColors = {
-  primary: "#4bb793",
-  secondary: "#064d4c",
-  accent: "#e3ffcc",
-  neutral: "#0a1b25",
+  primary: "#ff6140",
+  secondary: "#c4472e",
+  accent: "#ffe4d6",
+  neutral: "#2a120c",
 };
 
 export const BRAND_KIT_STORAGE_KEY = "postforge-brand-kit";

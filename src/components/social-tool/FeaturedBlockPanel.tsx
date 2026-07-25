@@ -53,8 +53,8 @@ type Props = {
   imageSrc?: string | null;
   uploading?: boolean;
   error?: string | null;
-  onUploadImage: (file: File) => Promise<void>;
-  onRemoveImage: () => Promise<void>;
+  onUploadImage: (file: File, slotId?: string) => Promise<void>;
+  onRemoveImage: (slotId?: string) => Promise<void>;
   featuredTransform: FeaturedImageTransform;
   onFeaturedTransformChange: (next: FeaturedImageTransform) => void;
 };
@@ -204,7 +204,7 @@ export function FeaturedBlockPanel({
               className="sr-only"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) void onUploadImage(file);
+                if (file) void onUploadImage(file, targetSlotId);
                 e.target.value = "";
               }}
             />
@@ -218,7 +218,7 @@ export function FeaturedBlockPanel({
               {image ? "Replace upload" : "Upload"}
             </Button>
             {image ? (
-              <Button variant="outline" size="sm" onPress={() => void onRemoveImage()}>
+              <Button variant="outline" size="sm" onPress={() => void onRemoveImage(targetSlotId)}>
                 <Trash2 className="size-3.5" />
                 Remove
               </Button>

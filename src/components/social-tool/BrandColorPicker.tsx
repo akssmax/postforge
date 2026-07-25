@@ -25,7 +25,7 @@ function toColor(hex: string): Color {
   try {
     return parseColor(hex);
   } catch {
-    return parseColor("#4bb793");
+    return parseColor("#ff6140");
   }
 }
 

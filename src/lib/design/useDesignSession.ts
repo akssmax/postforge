@@ -205,8 +205,8 @@ export type UseDesignSessionResult = {
   applyBriefGeneration: (result: BriefGenerationResult) => void;
   applyDesignPlan: (plan: ValidatedDesignPlan) => void;
   applyCanvasPatch: (patch: CanvasPatchResult) => boolean;
-  uploadFeaturedImage: (file: File) => Promise<void>;
-  removeFeaturedImage: () => Promise<void>;
+  uploadFeaturedImage: (file: File, slotId?: string) => Promise<void>;
+  removeFeaturedImage: (slotId?: string) => Promise<void>;
   generateVisualBlocks: (input?: {
     theme?: string;
     brief?: string;
@@ -1032,7 +1032,7 @@ export function useDesignSession(
   );
 
   const uploadFeaturedImage = useCallback(
-    async (file: File) => {
+    async (file: File, slotId?: string) => {
       setFeaturedUploading(true);
       setFeaturedError(null);
       try {
@@ -1058,15 +1058,44 @@ export function useDesignSession(
         if (src?.startsWith("blob:")) featuredBlobUrlRef.current = src;
         setFeaturedImageSrc(src);
 
-        updateSession((prev) => ({
-          ...prev,
-          featured: {
-            ...prev.featured,
-            mode: "image",
-            image: record,
-          },
-          updatedAt: Date.now(),
-        }));
+        updateSession((prev) => {
+          const targetSlotId = slotId ?? FEATURED_PRIMARY_SLOT_ID;
+          const platform = getPlatform(prev.document.platformId);
+          const layout = getPostLayout(prev.document.layoutId);
+          const featuredTransform = resolveLayoutHierarchy({
+            width: platform.width,
+            height: platform.height,
+            platformId: prev.document.platformId,
+            layout,
+            copy: prev.document.copy,
+            spacing: prev.document.layoutSpacing,
+            showLogo: prev.document.showBrand,
+            showFeaturedImage: true,
+            featuredMode: "image",
+            productPage: prev.featured.productPage,
+            featuredSlotCount: Math.max(1, (prev.document.featuredSlots ?? []).length),
+          }).featuredTransform;
+
+          return {
+            ...prev,
+            featured: {
+              ...prev.featured,
+              mode: "image",
+              image: record,
+            },
+            document: {
+              ...prev.document,
+              showFeaturedImage: true,
+              featuredTransform,
+              featuredSlots: patchFeaturedSlot(prev.document.featuredSlots, targetSlotId, {
+                mode: "image",
+                visible: true,
+                transform: featuredTransform,
+              }),
+            },
+            updatedAt: Date.now(),
+          };
+        });
       } catch (err) {
         setFeaturedError(err instanceof Error ? err.message : "Upload failed.");
       } finally {
@@ -1076,19 +1105,37 @@ export function useDesignSession(
     [designId, revokeFeaturedBlob, session?.featured.image, updateSession],
   );
 
-  const removeFeaturedImage = useCallback(async () => {
+  const removeFeaturedImage = useCallback(async (slotId?: string) => {
     const blobKey = session?.featured.image?.blobKey;
     if (blobKey) await deleteFeaturedImageBlob(blobKey);
     revokeFeaturedBlob();
     setFeaturedImageSrc(null);
     updateSession((prev) => {
+      const targetSlotId = slotId ?? FEATURED_PRIMARY_SLOT_ID;
+      const slot = ensureFeaturedSlots(prev.document.featuredSlots).find(
+        (entry) => entry.slotId === targetSlotId,
+      );
+      const activeBlockId =
+        slot?.activeBlockId ?? prev.featured.activeBlockId ?? null;
+      const hasSlotBlock =
+        !!activeBlockId &&
+        !!findVisualBlock(prev.featured.visualBlocks ?? [], activeBlockId);
       const hasBlocks = (prev.featured.visualBlocks?.length ?? 0) > 0;
+      const nextMode = hasSlotBlock || hasBlocks ? "composed" : "placeholder";
+
       return {
         ...prev,
         featured: {
           ...prev.featured,
           image: null,
-          mode: hasBlocks ? "composed" : "placeholder",
+          mode: nextMode,
+        },
+        document: {
+          ...prev.document,
+          featuredSlots: patchFeaturedSlot(prev.document.featuredSlots, targetSlotId, {
+            mode: nextMode,
+            activeBlockId: nextMode === "composed" ? activeBlockId : null,
+          }),
         },
         updatedAt: Date.now(),
       };

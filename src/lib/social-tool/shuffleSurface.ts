@@ -15,7 +15,6 @@ const SHUFFLE_LEGACY_PATTERNS: LegacyPatternId[] = [
   "monogram",
   "monogram-soft",
   "footer",
-  "outline",
 ];
 
 const SHUFFLE_PATTERN_OPACITIES = [0.12, 0.16, 0.2, 0.24, 0.28, 0.3] as const;

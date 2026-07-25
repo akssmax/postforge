@@ -258,14 +258,12 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     previewScale,
     panStyle,
     zoomPercent,
-    canActualSize,
     spaceDown,
     handMode,
     handActive,
     zoomIn,
     zoomOut,
     resetZoom,
-    setActualSize,
     toggleHandMode,
     nudgePan,
     panElementIntoView,
@@ -1021,8 +1019,10 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               imageSrc: session.featuredImageSrc,
               uploading: session.featuredUploading,
               error: session.featuredError,
-              onUploadImage: session.uploadFeaturedImage,
-              onRemoveImage: session.removeFeaturedImage,
+              onUploadImage: (file) =>
+                session.uploadFeaturedImage(file, selectedFeaturedSlotId),
+              onRemoveImage: () =>
+                session.removeFeaturedImage(selectedFeaturedSlotId),
             }}
             onBriefGenerate={handleBriefGenerate}
             onBriefApplyPlan={handleBriefApplyPlan}
@@ -1043,14 +1043,12 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         >
           <CanvasZoomControls
             zoomPercent={zoomPercent}
-            canActualSize={canActualSize}
             handActive={handActive}
             handMode={handMode}
             onToggleHand={toggleHandMode}
             onZoomIn={zoomIn}
             onZoomOut={zoomOut}
             onReset={resetZoom}
-            onActualSize={setActualSize}
             leading={
               asideCollapsed ? (
                 <Tooltip delay={500}>

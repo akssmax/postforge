@@ -9,7 +9,7 @@ Reference for agents and contributors building UI in this repo. Prefer these con
 - **Dark mode:** `[data-theme="dark"]` on the document root. Custom variants: `dark:` and `light:` in Tailwind map to `data-theme`. Test both themes for sidebar, header, and popovers.
 - **Inset controls** (sidebar cards, header pills, icon buttons): use `--overlay-subtle`, `--overlay-hover`, `--overlay-active`, `--overlay-border` — not `--surface-secondary` mixes. Brand theme overrides on `.social-tool` must not clobber overlay tokens.
 - **HeroUI:** import `@heroui/styles` in `globals.css`. Prefer HeroUI components (`Button`, `Switch`, `Select`, `Tooltip`, etc.) over raw HTML for interactive controls.
-- **Brand theme on canvas:** scoped via `useBrandToolTheme` on `.social-tool` only. Do not override `--surface-secondary` / `--overlay-*` from brand extraction. Header `Monogram` fills use `var(--brand-500)` so they pick up that scoped override (default teal elsewhere).
+- **Brand theme on canvas:** scoped via `useBrandToolTheme` on `.social-tool` only. Do not override `--surface-secondary` / `--overlay-*` from brand extraction. Header `Monogram` fills use `var(--brand-500)` so they pick up that scoped override (default orange `#ff6140` elsewhere).
 
 ## Typography
 

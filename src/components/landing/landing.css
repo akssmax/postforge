@@ -39,12 +39,7 @@
   top: 0;
   z-index: 40;
   padding: 1rem var(--pf-pad) 0;
-  backdrop-filter: blur(12px);
-  background: color-mix(in oklab, var(--pf-paper) 72%, transparent);
-}
-
-[data-theme="dark"] .pf-nav {
-  background: color-mix(in oklab, var(--pf-ink) 78%, transparent);
+  background: transparent;
 }
 
 .pf-nav-inner {
@@ -57,12 +52,15 @@
   padding: 0.65rem 1rem;
   border: 1px solid color-mix(in oklab, var(--pf-ink) 10%, transparent);
   border-radius: 14px;
-  background: color-mix(in oklab, white 70%, transparent);
+  background: color-mix(in oklab, var(--pf-paper) 88%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 28px color-mix(in oklab, var(--pf-ink) 6%, transparent);
 }
 
 [data-theme="dark"] .pf-nav-inner {
   border-color: color-mix(in oklab, white 12%, transparent);
-  background: color-mix(in oklab, var(--pf-ink-2) 88%, transparent);
+  background: color-mix(in oklab, var(--pf-ink-2) 82%, transparent);
+  box-shadow: 0 10px 32px color-mix(in oklab, black 28%, transparent);
 }
 
 .pf-nav-links {
@@ -143,8 +141,8 @@
 .pf-hero {
   position: relative;
   isolation: isolate;
-  min-height: min(100dvh, 960px);
-  padding: clamp(3rem, 8vh, 5.5rem) var(--pf-pad) 2.5rem;
+  min-height: unset;
+  padding: clamp(2.75rem, 7vh, 4.5rem) var(--pf-pad) clamp(2rem, 5vh, 3rem);
   overflow: visible;
   scroll-margin-top: 5rem;
 }
@@ -153,38 +151,22 @@
   margin-inline: auto;
   max-width: var(--pf-max);
   width: 100%;
-  display: grid;
-  align-items: end;
-  gap: 2.5rem;
-}
-
-@media (min-width: 960px) {
-  .pf-hero {
-    min-height: min(100dvh, 920px);
-    padding-top: clamp(2rem, 6vh, 4rem);
-    padding-bottom: clamp(2.5rem, 6vh, 4rem);
-  }
-
-  .pf-hero-inner {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr);
-    align-items: center;
-    gap: 2.5rem;
-  }
-
-  .pf-hero-stage {
-    align-self: center;
-    min-width: 0;
-  }
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(2rem, 4vh, 2.75rem);
+  text-align: center;
 }
 
 .pf-hero-glow {
   pointer-events: none;
   position: absolute;
-  inset: -10% -5% auto auto;
-  width: min(70vw, 720px);
-  height: min(70vw, 720px);
+  inset: -8% auto auto 50%;
+  width: min(80vw, 780px);
+  height: min(80vw, 780px);
+  translate: -50% 0;
   border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in oklab, var(--pf-mint) 30%, transparent), transparent 68%);
+  background: radial-gradient(circle, color-mix(in oklab, var(--pf-mint) 28%, transparent), transparent 68%);
   filter: blur(8px);
   z-index: -1;
   animation: pf-drift 14s ease-in-out infinite alternate;
@@ -200,7 +182,7 @@
     linear-gradient(color-mix(in oklab, currentColor 8%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in oklab, currentColor 8%, transparent) 1px, transparent 1px);
   background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse 70% 60% at 70% 40%, black, transparent);
+  mask-image: radial-gradient(ellipse 75% 65% at 50% 35%, black, transparent);
 }
 
 @keyframes pf-drift {
@@ -208,7 +190,7 @@
     transform: translate3d(0, 0, 0) scale(1);
   }
   to {
-    transform: translate3d(-4%, 6%, 0) scale(1.08);
+    transform: translate3d(-2%, 5%, 0) scale(1.08);
   }
 }
 
@@ -219,7 +201,10 @@
 }
 
 .pf-hero-copy {
-  max-width: 34rem;
+  max-width: 40rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .pf-hero-brand {
@@ -254,31 +239,35 @@
 .pf-hero-title {
   margin: 0;
   font-family: var(--pf-display);
-  font-size: clamp(2rem, 4.5vw, 3.15rem);
+  font-size: clamp(2.15rem, 5vw, 3.35rem);
   font-weight: 650;
-  line-height: 1.15;
+  line-height: 1.12;
   letter-spacing: -0.03em;
   color: inherit;
   opacity: 1;
+  text-wrap: balance;
 }
 
 .pf-hero-lede {
   margin: 1.1rem 0 0;
-  max-width: 32rem;
+  max-width: 34rem;
   font-size: 1.1rem;
   line-height: 1.55;
   opacity: 0.78;
+  text-wrap: pretty;
 }
 
 .pf-hero-cta {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.75rem;
   margin-top: 1.75rem;
 }
 
 .pf-hero-stage {
   width: 100%;
+  max-width: 36rem;
   scroll-margin-top: 6rem;
 }
 
@@ -729,8 +718,29 @@
   border-top: 1px solid color-mix(in oklab, currentColor 14%, transparent);
 }
 
+.pf-feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  margin-bottom: 0.85rem;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--pf-mint) 12%, transparent);
+  color: var(--pf-mint);
+}
+
+.pf-feature-icon__svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
 .pf-feature-accent {
   border-top-color: var(--pf-mint);
+}
+
+.pf-feature-accent .pf-feature-icon {
+  background: color-mix(in oklab, var(--pf-mint) 20%, transparent);
 }
 
 .pf-feature-accent h3 {

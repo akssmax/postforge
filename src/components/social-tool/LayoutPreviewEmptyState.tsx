@@ -49,7 +49,13 @@ export function LayoutPreviewEmptyState({
   }, [reduceMotion]);
 
   return (
-    <div className="layout-preview-empty-state">
+    <div
+      className="layout-preview-empty-state"
+      style={{
+        width: width * previewScale,
+        height: height * previewScale,
+      }}
+    >
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={layoutId}
@@ -59,28 +65,37 @@ export function LayoutPreviewEmptyState({
           exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
-          <ProductShotPost
-            width={width}
-            height={height}
-            copy={EMPTY_POST_COPY}
-            pattern="none"
-            showPattern={false}
-            productPage="leads"
-            featuredMode="image"
-            hasFeaturedImage={false}
-            showLogo
-            showContent
-            showFeaturedImage
-            emptyStatePreview
-            layoutId={layoutId}
-            spacing={DEFAULT_POST_LAYOUT_SPACING}
-            featuredTransform={DEFAULT_FEATURED_TRANSFORM}
-            previewScale={previewScale}
-            interactive={false}
-            logoAlign={layout.logoAlign}
-            logoPlacement={layout.logoPlacement}
-            textAlign={layout.textAlign}
-          />
+          <div
+            className="layout-preview-empty-state__scale"
+            style={{
+              width,
+              height,
+              transform: `scale(${previewScale})`,
+            }}
+          >
+            <ProductShotPost
+              width={width}
+              height={height}
+              copy={EMPTY_POST_COPY}
+              pattern="none"
+              showPattern={false}
+              productPage="leads"
+              featuredMode="image"
+              hasFeaturedImage={false}
+              showLogo
+              showContent
+              showFeaturedImage
+              emptyStatePreview
+              layoutId={layoutId}
+              spacing={DEFAULT_POST_LAYOUT_SPACING}
+              featuredTransform={DEFAULT_FEATURED_TRANSFORM}
+              previewScale={previewScale}
+              interactive={false}
+              logoAlign={layout.logoAlign}
+              logoPlacement={layout.logoPlacement}
+              textAlign={layout.textAlign}
+            />
+          </div>
         </motion.div>
       </AnimatePresence>
       <motion.p

@@ -33,7 +33,6 @@ const PATTERN_REFS = [
   "legacy:monogram",
   "legacy:monogram-soft",
   "legacy:footer",
-  "legacy:outline",
   "library:grid",
   "library:topography",
   "library:waves",

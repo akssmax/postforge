@@ -13,6 +13,7 @@ import {
   type DesignVariantResult,
 } from "@/lib/llm/extractDesignPlan";
 import { validatedPlanFromBriefResult } from "@/lib/llm/briefResultAdapter";
+import { isBriefChatOfflineError } from "@/lib/llm/streamErrors";
 import { runDesignPipelineOffline } from "@/lib/llm/stages/pipelineOrchestratorOffline";
 import { runCanvasAgentOffline } from "@/lib/llm/stages/canvasAgentOffline";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
@@ -42,12 +43,7 @@ export type UseBriefChatOptions = {
 const APPLY_DEBOUNCE_MS = 300;
 
 function isOfflineChatError(error: Error | undefined) {
-  if (!error) return false;
-  return (
-    error.message.includes("503") ||
-    error.message.includes("MISTRAL") ||
-    error.message.includes("fetch")
-  );
+  return isBriefChatOfflineError(error);
 }
 
 export function useBriefChat({
