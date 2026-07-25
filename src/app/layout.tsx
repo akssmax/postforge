@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Syne, DM_Sans, Geist } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { getSiteUrl } from "@/lib/site";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
@@ -27,13 +28,24 @@ const socialBody = DM_Sans({
   display: "swap",
 });
 
+const siteDescription =
+  "A focused canvas for social posts and slide decks. Template, tweak, and export — PNG, JPG, or PDF.";
+
 export const metadata: Metadata = {
+  metadataBase: getSiteUrl(),
   title: "Postforge — Design branded posts and slides",
-  description:
-    "A focused canvas for social posts and slide decks. Template, tweak, and export — PNG, JPG, or PDF.",
-  icons: {
-    icon: [{ url: "/brand/favicon-32.png", sizes: "32x32", type: "image/png" }],
-    apple: [{ url: "/brand/apple-touch-icon.png", sizes: "180x180" }],
+  description: siteDescription,
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    siteName: "Postforge",
+    title: "Postforge — Design branded posts and slides",
+    description: siteDescription,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Postforge — Design branded posts and slides",
+    description: siteDescription,
   },
 };
 

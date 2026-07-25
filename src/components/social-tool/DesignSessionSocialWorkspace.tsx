@@ -8,6 +8,8 @@ import {
   type AsideTab,
 } from "@/components/social-tool/DesignInspector";
 import { DesignToolHeader } from "@/components/social-tool/DesignToolHeader";
+import { ExportMenu } from "@/components/social-tool/ExportMenu";
+import { ExportProgressOverlay } from "@/components/social-tool/ExportProgressOverlay";
 import { CanvasPlatformPicker } from "@/components/social-tool/CanvasPlatformPicker";
 import { CanvasDesignOverlay } from "@/components/social-tool/CanvasDesignOverlay";
 import { ContrastIssuesToggle } from "@/components/social-tool/ContrastIssuesToggle";
@@ -17,7 +19,15 @@ import {
   type PlatformId,
   type PostCopy,
 } from "@/lib/social-tool/presets";
-import { exportPost, type ExportFormat } from "@/lib/social-tool/exportPost";
+import type { ExportFormat } from "@/lib/social-tool/exportPost";
+import {
+  buildCampaignSlug,
+  exportArtboards,
+  resolveArtboardExportTargets,
+  resolveExportTargetIds,
+  waitForExportPaint,
+  type ExportScope,
+} from "@/lib/social-tool/exportArtboards";
 import { useBrandToolTheme } from "@/lib/brand/useBrandToolTheme";
 import { LayoutPreviewEmptyState } from "@/components/social-tool/LayoutPreviewEmptyState";
 import { CanvasZoomControls } from "@/components/social-tool/CanvasZoomControls";
@@ -107,6 +117,18 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const [exportScale, setExportScale] = useState<1 | 2>(2);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [exportScope, setExportScope] = useState<ExportScope>("active");
+  const [selectedBoardIds, setSelectedBoardIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [exportProgress, setExportProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+  const [exportTargetIds, setExportTargetIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const exportAbortRef = useRef<AbortController | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<DesignBlockId | null>(null);
   const [adjustSpacing, setAdjustSpacing] = useState(false);
   const [contrastPanelOpen, setContrastPanelOpen] = useState(false);
@@ -290,6 +312,27 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     }));
   }, [variantGroup.boards, variantGroup.group.boardNames, session.session]);
 
+  const exportBoardTargets = useMemo(() => {
+    const boards =
+      variantGroup.boards.length > 0
+        ? variantGroup.boards
+        : session.session
+          ? [session.session]
+          : [];
+    return boards.map((board, index) => {
+      const platformForBoard = getPlatform(board.document.platformId);
+      return {
+        boardId: board.designId,
+        index: index + 1,
+        name: variantGroup.group.boardNames?.[board.designId],
+        platformId: board.document.platformId,
+        width: platformForBoard.width,
+        height: platformForBoard.height,
+        printInches: platformForBoard.printInches,
+      };
+    });
+  }, [session.session, variantGroup.boards, variantGroup.group.boardNames]);
+
   useEffect(() => {
     if (variantGroup.phase !== "revealing") return;
     // Nudge stage so newly revealed variants sit in view
@@ -442,10 +485,6 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     platform.height,
   ]);
 
-  const filename = useMemo(() => {
-    return `postforge-${doc.templateId}-${platform.width}x${platform.height}`;
-  }, [doc.templateId, platform.width, platform.height]);
-
   const activeBgCss = session.activeBackground.css.background;
   const bgHex = resolveBackgroundHex(activeBgCss);
   const canvasLogo = useMemo(
@@ -558,40 +597,84 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     if (!next && canvasSelection === "copy") setCanvasSelection(null);
   }
 
+  function exportBackgroundForBoard(board: DesignSessionPersisted): string | undefined {
+    if (!board.document.showBackground) return undefined;
+    return board.document.theme === "light" ? "#f8faf9" : "#040c0b";
+  }
+
   async function handleExport(format: ExportFormat) {
-    const node =
-      stageEl?.querySelector<HTMLElement>(
-        `[data-artboard-id="${variantGroup.activeDesignId}"] .social-post`,
-      ) ??
-      canvasRef.current?.querySelector<HTMLElement>(".social-post") ??
-      canvasRef.current;
-    if (!node || exporting) return;
+    if (!stageEl || exporting) return;
+
+    if (session.session) {
+      variantGroup.syncBoard(session.session);
+    }
+
+    const allBoardIds = exportBoardTargets.map((target) => target.boardId);
+    const targetIds = resolveExportTargetIds({
+      scope: exportScope,
+      activeBoardId: variantGroup.activeDesignId,
+      allBoardIds,
+      selectedBoardIds,
+    });
+
+    if (targetIds.length === 0) {
+      alert("Select at least one artboard to export.");
+      return;
+    }
+
+    const targets = resolveArtboardExportTargets(exportBoardTargets, targetIds);
+    const originBoard =
+      variantGroup.boards.find((board) => board.designId === originDesignId) ??
+      variantGroup.boards[0] ??
+      session.session;
+    const campaignSlug = buildCampaignSlug(
+      originBoard?.document.copy.heading,
+      originDesignId,
+    );
+
+    const controller = new AbortController();
+    exportAbortRef.current = controller;
+    setExportTargetIds(new Set(targetIds));
     setExporting(format);
     setExportOpen(false);
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
+    setExportProgress({ current: 0, total: targets.length });
+
+    await waitForExportPaint();
+
     try {
-      await exportPost({
-        node,
+      const result = await exportArtboards({
+        stageEl,
+        targets,
         format,
-        width: platform.width,
-        height: platform.height,
         scale: exportScale,
-        filename,
-        backgroundColor: doc.showBackground
-          ? doc.theme === "light"
-            ? "#f8faf9"
-            : "#040c0b"
-          : undefined,
-        printInches: platform.printInches,
+        campaignSlug,
+        backgroundColorForBoard: (target) => {
+          const board = boardSessionFor(target.boardId);
+          if (!board) return "#040c0b";
+          return exportBackgroundForBoard(board) ?? "#040c0b";
+        },
+        onProgress: (progress) => {
+          setExportProgress({
+            current: progress.current,
+            total: progress.total,
+          });
+        },
+        signal: controller.signal,
       });
+      if (result.cancelled) return;
     } catch (err) {
       console.error(err);
       alert("Export failed. Try again or use a smaller scale.");
     } finally {
       setExporting(null);
+      setExportProgress(null);
+      setExportTargetIds(new Set());
+      exportAbortRef.current = null;
     }
+  }
+
+  function handleCancelExport() {
+    exportAbortRef.current?.abort();
   }
 
   function updateField<K extends keyof PostCopy>(key: K, value: PostCopy[K]) {
@@ -838,50 +921,20 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             <ChevronDown className="size-3.5 opacity-70" />
           </Button>
           {exportOpen ? (
-            <div
-              role="menu"
-              className="absolute right-0 z-50 mt-2 w-52 rounded-xl border border-leap-line bg-surface-primary p-2 shadow-lg shadow-black/20"
-            >
-              <p className="px-2 py-1 text-[11px] font-medium tracking-wide text-text-tertiary uppercase">
-                Scale
-              </p>
-              <div className="mb-2 flex gap-1 px-1">
-                {([1, 2] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setExportScale(s)}
-                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
-                      exportScale === s
-                        ? "bg-brand-100 text-brand-950 dark:bg-brand-800 dark:text-brand-100"
-                        : "text-text-tertiary hover:bg-surface-secondary hover:text-text-primary"
-                    }`}
-                  >
-                    {s}×
-                  </button>
-                ))}
-              </div>
-              <p className="px-2 py-1 text-[11px] font-medium tracking-wide text-text-tertiary uppercase">
-                Format
-              </p>
-              {(["png", "jpg", "pdf"] as ExportFormat[]).map((fmt) => (
-                <button
-                  key={fmt}
-                  type="button"
-                  role="menuitem"
-                  disabled={!!exporting}
-                  onClick={() => handleExport(fmt)}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-text-primary transition hover:bg-surface-secondary disabled:opacity-60"
-                >
-                  <Download className="size-3.5 text-text-tertiary" />
-                  Download {fmt.toUpperCase()}
-                </button>
-              ))}
-              <p className="mt-1 border-t border-leap-line px-2 pt-2 text-[11px] leading-4 text-text-tertiary">
-                {platform.width}×{platform.height}
-                {exportScale > 1 ? ` @ ${exportScale}x` : ""}
-              </p>
-            </div>
+            <ExportMenu
+              open={exportOpen}
+              boards={artboardSwitcherItems}
+              scope={exportScope}
+              onScopeChange={setExportScope}
+              selectedBoardIds={selectedBoardIds}
+              onSelectedBoardIdsChange={setSelectedBoardIds}
+              exportScale={exportScale}
+              onExportScaleChange={setExportScale}
+              platformLabel={`${platform.width}×${platform.height}`}
+              exporting={exporting}
+              disabled={!isReady}
+              onExport={handleExport}
+            />
           ) : null}
         </div>
       </DesignToolHeader>
@@ -1041,6 +1094,13 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
           onPointerDown={handleStagePointerDown}
           {...stagePanProps}
         >
+          <ExportProgressOverlay
+            open={exportProgress !== null}
+            current={exportProgress?.current ?? 0}
+            total={exportProgress?.total ?? 0}
+            onCancel={handleCancelExport}
+            container={stageEl}
+          />
           <CanvasZoomControls
             zoomPercent={zoomPercent}
             handActive={handActive}
@@ -1173,7 +1233,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       liveLogoSrc={isActive ? canvasLogoSrc : undefined}
                       interactive={!exporting && isReady && !handActive}
                       handActive={handActive}
-                      exporting={!!exporting}
+                      exporting={exportTargetIds.has(board.designId)}
                       canvasSelection={inspectorSelection}
                       onCanvasSelect={handleCanvasSelect}
                       onTypeScaleChange={(v) => patchDocument({ typeScale: v })}

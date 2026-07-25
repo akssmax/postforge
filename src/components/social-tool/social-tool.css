@@ -3858,3 +3858,55 @@ html:has(.social-tool) body {
   background: var(--white);
   color: var(--gray-950);
 }
+
+.export-menu-scope button {
+  min-width: 0;
+}
+
+.export-progress-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1.5rem;
+  pointer-events: none;
+}
+
+.export-progress-card {
+  pointer-events: auto;
+  width: min(100%, 22rem);
+  border-radius: 0.875rem;
+  border: 1px solid var(--overlay-border);
+  background: color-mix(in oklab, var(--surface-primary) 92%, transparent);
+  padding: 0.875rem 1rem;
+  box-shadow: 0 12px 40px color-mix(in oklab, var(--gray-950) 18%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.export-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.625rem;
+}
+
+.export-progress-track {
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--overlay-subtle);
+}
+
+.export-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-500);
+  transition: width 180ms ease;
+}
+
+.export-progress-cancel {
+  flex-shrink: 0;
+}

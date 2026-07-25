@@ -359,10 +359,10 @@ export function CanvasVariantArtboard({
                 designId={isOrigin ? originDesignId : board.designId}
                 showPattern={doc.showPattern}
                 showBackground={doc.showBackground}
-                exporting={!!exporting && isActive}
+                exporting={!!exporting}
                 patternOpacity={doc.patternOpacity}
                 patternScale={doc.patternScale}
-                patternAnimated={doc.patternAnimated && !exporting && isActive}
+                patternAnimated={doc.patternAnimated && !exporting}
                 productPage={board.featured.productPage}
                 featuredMode={board.featured.mode}
                 composedSvgMarkup={

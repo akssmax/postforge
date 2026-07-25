@@ -3,6 +3,8 @@ import { jsPDF } from "jspdf";
 
 export type ExportFormat = "png" | "jpg" | "pdf";
 
+export type ImageCaptureFormat = "png" | "jpg";
+
 type ExportOptions = {
   node: HTMLElement;
   format: ExportFormat;
@@ -17,6 +19,29 @@ type ExportOptions = {
   printInches?: { width: number; height: number };
 };
 
+export type CapturePostImageOptions = {
+  node: HTMLElement;
+  format: ImageCaptureFormat;
+  width: number;
+  height: number;
+  scale?: number;
+  backgroundColor?: string;
+};
+
+export type CapturedPostImage = {
+  blob: Blob;
+  extension: "png" | "jpg";
+  dataUrl: string;
+};
+
+export type PdfPageInput = {
+  blob: Blob;
+  dataUrl: string;
+  width: number;
+  height: number;
+  printInches?: { width: number; height: number };
+};
+
 function downloadDataUrl(dataUrl: string, filename: string) {
   const a = document.createElement("a");
   a.href = dataUrl;
@@ -24,7 +49,24 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click();
 }
 
-function baseCaptureOptions(
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const response = await fetch(dataUrl);
+  return response.blob();
+}
+
+export function baseCaptureOptions(
   node: HTMLElement,
   width: number,
   height: number,
@@ -60,6 +102,87 @@ export async function capturePostPng({
   return toPng(node, opts);
 }
 
+export async function capturePostImage({
+  node,
+  format,
+  width,
+  height,
+  scale = 2,
+  backgroundColor = "#040c0b",
+}: CapturePostImageOptions): Promise<CapturedPostImage> {
+  const opts = baseCaptureOptions(node, width, height, scale);
+  const dataUrl =
+    format === "png"
+      ? await toPng(node, opts)
+      : await toJpeg(node, {
+          ...opts,
+          quality: 0.95,
+          backgroundColor,
+        });
+  const blob = await dataUrlToBlob(dataUrl);
+  return { blob, extension: format, dataUrl };
+}
+
+export async function exportMultiPagePdf({
+  pages,
+  filename,
+}: {
+  pages: PdfPageInput[];
+  filename: string;
+}): Promise<void> {
+  if (pages.length === 0) return;
+
+  const first = pages[0]!;
+  const firstPrint = first.printInches;
+  const pdf = firstPrint
+    ? new jsPDF({
+        orientation:
+          firstPrint.width >= firstPrint.height ? "landscape" : "portrait",
+        unit: "in",
+        format: [firstPrint.width, firstPrint.height],
+      })
+    : new jsPDF({
+        orientation: first.width >= first.height ? "landscape" : "portrait",
+        unit: "px",
+        format: [first.width, first.height],
+        hotfixes: ["px_scaling"],
+      });
+
+  for (let i = 0; i < pages.length; i += 1) {
+    const page = pages[i]!;
+    if (i > 0) {
+      if (page.printInches) {
+        pdf.addPage(
+          [page.printInches.width, page.printInches.height],
+          page.printInches.width >= page.printInches.height
+            ? "landscape"
+            : "portrait",
+        );
+      } else {
+        pdf.addPage(
+          [page.width, page.height],
+          page.width >= page.height ? "landscape" : "portrait",
+        );
+      }
+    }
+
+    if (page.printInches) {
+      pdf.addImage(
+        page.dataUrl,
+        "PNG",
+        0,
+        0,
+        page.printInches.width,
+        page.printInches.height,
+      );
+    } else {
+      pdf.addImage(page.dataUrl, "PNG", 0, 0, page.width, page.height);
+    }
+  }
+
+  pdf.save(`${filename}.pdf`);
+}
+
 export async function exportPost({
   node,
   format,
@@ -70,44 +193,23 @@ export async function exportPost({
   backgroundColor = "#040c0b",
   printInches,
 }: ExportOptions): Promise<void> {
-  const opts = baseCaptureOptions(node, width, height, scale);
-
-  if (format === "png") {
-    const dataUrl = await toPng(node, opts);
-    downloadDataUrl(dataUrl, `${filename}.png`);
-    return;
-  }
-
-  if (format === "jpg") {
-    const dataUrl = await toJpeg(node, {
-      ...opts,
-      quality: 0.95,
+  if (format === "png" || format === "jpg") {
+    const captured = await capturePostImage({
+      node,
+      format,
+      width,
+      height,
+      scale,
       backgroundColor,
     });
-    downloadDataUrl(dataUrl, `${filename}.jpg`);
+    downloadBlob(captured.blob, `${filename}.${captured.extension}`);
     return;
   }
 
-  // PDF — wrap a PNG; use physical inches when this is a print asset
   const png = await capturePostPng({ node, width, height, scale });
-  if (printInches) {
-    const pdf = new jsPDF({
-      orientation:
-        printInches.width >= printInches.height ? "landscape" : "portrait",
-      unit: "in",
-      format: [printInches.width, printInches.height],
-    });
-    pdf.addImage(png, "PNG", 0, 0, printInches.width, printInches.height);
-    pdf.save(`${filename}.pdf`);
-    return;
-  }
-
-  const pdf = new jsPDF({
-    orientation: width >= height ? "landscape" : "portrait",
-    unit: "px",
-    format: [width, height],
-    hotfixes: ["px_scaling"],
+  const blob = await dataUrlToBlob(png);
+  await exportMultiPagePdf({
+    pages: [{ blob, dataUrl: png, width, height, printInches }],
+    filename,
   });
-  pdf.addImage(png, "PNG", 0, 0, width, height);
-  pdf.save(`${filename}.pdf`);
 }

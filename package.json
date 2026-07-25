@@ -10,6 +10,7 @@
     "fetch:storyset": "node scripts/fetch-storyset-illustrations.mjs",
     "design:compile": "node scripts/compile-design-config.mjs",
     "test:golden-briefs": "npx --yes tsx scripts/run-golden-briefs.ts",
+    "test:export-artboards": "npx --yes tsx src/lib/social-tool/exportArtboards.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
@@ -32,6 +33,7 @@
     "html-to-image": "^1.11.13",
     "js-yaml": "^5.2.1",
     "jspdf": "^4.2.1",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.26.0",
     "nanoid": "^6.0.0",
     "next": "16.2.10",
