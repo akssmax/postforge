@@ -143,9 +143,13 @@ export function LandingPage() {
           <p className="pf-logos-label">Works with any brand</p>
           <ul className="pf-logos-row">
             {LANDING_BRANDS.map((brand) => (
-              <li key={brand.id} aria-label={brand.name}>
+              <li key={brand.id}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={brand.logoSrc} alt="" width={22} height={22} />
+                <img
+                  src={brand.logoSrc}
+                  alt={brand.name}
+                  className="pf-logos-mark"
+                />
               </li>
             ))}
           </ul>
@@ -222,8 +226,69 @@ export function LandingPage() {
       </main>
 
       <footer className="pf-footer">
-        <Logo href="/" height={24} className="text-current" />
-        <p>© {new Date().getFullYear()} Postforge</p>
+        <div className="pf-footer-inner">
+          <div className="pf-footer-brand">
+            <Logo href="/" height={28} className="text-current" />
+            <p className="pf-footer-tagline">
+              From logo to finished post — design branded socials and slides in
+              one canvas.
+            </p>
+            <Link href="/tool" className="pf-btn pf-btn-accent pf-btn-sm">
+              Launch tool
+              <ArrowUpRight className="size-4" />
+            </Link>
+          </div>
+
+          <nav className="pf-footer-cols" aria-label="Footer">
+            <div className="pf-footer-col">
+              <h3 className="pf-footer-heading">Product</h3>
+              <ul>
+                <li>
+                  <Link href="/tool">Design tool</Link>
+                </li>
+                <li>
+                  <Link href="/designs">Your designs</Link>
+                </li>
+                <li>
+                  <Link href="/slides">Slide decks</Link>
+                </li>
+                <li>
+                  <Link href="/visuals">Visual library</Link>
+                </li>
+              </ul>
+            </div>
+            <div className="pf-footer-col">
+              <h3 className="pf-footer-heading">Explore</h3>
+              <ul>
+                <li>
+                  <a href="#playground">Shuffle</a>
+                </li>
+                <li>
+                  <a href="#gallery">Design gallery</a>
+                </li>
+                <li>
+                  <a href="#features">Features</a>
+                </li>
+              </ul>
+            </div>
+            <div className="pf-footer-col">
+              <h3 className="pf-footer-heading">Resources</h3>
+              <ul>
+                <li>
+                  <Link href="/layouts">Layouts</Link>
+                </li>
+                <li>
+                  <Link href="/design-system">Design system</Link>
+                </li>
+              </ul>
+            </div>
+          </nav>
+        </div>
+
+        <div className="pf-footer-bottom">
+          <p>© {new Date().getFullYear()} Postforge</p>
+          <p className="pf-footer-note">Built for brand-first social posts.</p>
+        </div>
       </footer>
     </div>
   );

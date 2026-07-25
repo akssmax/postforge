@@ -14,7 +14,7 @@ Reference for agents and contributors building UI in this repo. Prefer these con
 ## Typography
 
 - **UI chrome:** Inter (`font-sans` / `--font-inter`).
-- **Display / marketing:** Syne where already used on landing (`font-display`).
+- **Display / marketing:** Inter on landing (same as UI chrome). Syne remains available as `--font-social-display` for canvas presets.
 - **Canvas copy:** configurable via `SOCIAL_FONTS` in presets — separate from app UI fonts.
 - **Section labels:** `.social-tool-section-title` — uppercase, tracked, tertiary weight hierarchy.
 - **Field labels:** `.social-tool-label` — small caps-style labels above inputs.
