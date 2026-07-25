@@ -113,6 +113,7 @@ type Props = {
   logoAlign?: LogoAlign;
   logoPlacement?: LogoPlacement;
   textAlign?: TextAlign;
+  onTextAlignChange?: (value: TextAlign) => void;
   headingFont?: SocialFontId;
   subFont?: SocialFontId;
   showLogo?: boolean;
@@ -172,6 +173,7 @@ type Props = {
   onAddFeaturedSlot?: () => void;
   onReorderFeaturedSlot?: (slotId: string, direction: "left" | "right") => void;
   onRemoveFeaturedSlot?: (slotId: string) => void;
+  onShuffleFeaturedSlot?: (slotId: string) => void;
   dynamicLayout?: DynamicLayout;
   textSlots?: TextSlotContent[];
   featuredSlots?: FeaturedSlotContent[];
@@ -254,6 +256,7 @@ export function ProductShotPost({
   logoAlign = "left",
   logoPlacement = "top",
   textAlign = "center",
+  onTextAlignChange,
   headingFont = "sans",
   subFont = "sans",
   showLogo = true,
@@ -304,6 +307,7 @@ export function ProductShotPost({
   onAddFeaturedSlot,
   onReorderFeaturedSlot,
   onRemoveFeaturedSlot,
+  onShuffleFeaturedSlot,
 }: Props) {
   const layout = dynamicLayout
     ? dynamicLayoutAsPostLayout(dynamicLayout)
@@ -335,10 +339,12 @@ export function ProductShotPost({
   const hasPropertyPills =
     interactive &&
     showPropertyPills &&
-    ((selectionKind === "copy" && !!onTypeScaleChange) ||
+    ((selectionKind === "copy" &&
+      (!!onTypeScaleChange || !!onTextAlignChange)) ||
       (selectionKind === "logo" && !!onLogoScaleChange) ||
       (selectionKind === "featured" &&
-        (!!onReorderFeaturedSlot ||
+        (!!onShuffleFeaturedSlot ||
+          !!onReorderFeaturedSlot ||
           !!onRemoveFeaturedSlot ||
           !!onAddFeaturedSlot)));
   const spacingHistoryCoalesce = {
@@ -626,6 +632,8 @@ export function ProductShotPost({
           enabled
           typeScale={typeScale}
           onTypeScaleChange={onTypeScaleChange}
+          textAlign={textAlign}
+          onTextAlignChange={onTextAlignChange}
           logoScale={logoScale}
           onLogoScaleChange={onLogoScaleChange}
         />
@@ -970,6 +978,8 @@ export function ProductShotPost({
                 enabled
                 typeScale={typeScale}
                 onTypeScaleChange={onTypeScaleChange}
+                textAlign={textAlign}
+                onTextAlignChange={onTextAlignChange}
                 logoScale={logoScale}
                 onLogoScaleChange={onLogoScaleChange}
               />
@@ -1069,6 +1079,9 @@ export function ProductShotPost({
             typeScale={typeScale}
             featuredSlotIndex={slotMeta?.index ?? 0}
             featuredSlotCount={slotMeta?.total ?? 1}
+            featuredSlotHasVisual={Boolean(slotBlock || slotComposedMarkup)}
+            onShuffleFeaturedSlot={onShuffleFeaturedSlot}
+            shufflingFeaturedSlot={generatingVisualBlocks}
             onReorderFeaturedSlot={onReorderFeaturedSlot}
             onRemoveFeaturedSlot={onRemoveFeaturedSlot}
             onAddFeaturedSlot={onAddFeaturedSlot}

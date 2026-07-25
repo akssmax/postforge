@@ -43,7 +43,7 @@ export type DesignDocument = {
   /** Index into copyVariants for the active headline/subheading. */
   copyVariantIndex?: number;
   /** Inferred preferred asset type for the featured visual slot. */
-  featuredVisualKind?: "ui" | "illustration";
+  featuredVisualKind?: "ui" | "illustration" | "3d";
   pattern: PatternRef;
   patternOpacity: number;
   patternScale: number;

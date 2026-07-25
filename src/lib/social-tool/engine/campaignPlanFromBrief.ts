@@ -308,6 +308,8 @@ export function campaignPlanFromBrief(
       focus:
         featuredKind === "illustration"
           ? "illustration"
+          : featuredKind === "3d"
+            ? "brand"
           : pattern === "statistic"
             ? "metric"
             : "product_ui",

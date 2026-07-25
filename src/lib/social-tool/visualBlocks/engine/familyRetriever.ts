@@ -99,6 +99,7 @@ export function retrieveFamilyAssets(input: {
     if (excluded.has(p.id)) return false;
     // Hard filter: never mix UI/diagram into an illustration pick (or vice versa)
     if (preferredKind === "illustration") return p.kind === "illustration";
+    if (preferredKind === "3d") return p.kind === "3d";
     if (preferredKind === "ui") return p.kind === "ui" || p.kind === "diagram";
     return true;
   });
@@ -112,9 +113,16 @@ export function retrieveFamilyAssets(input: {
 
       let score = 20;
       if (preferredKind === "illustration" && pattern.kind === "illustration") score += 18;
+      if (preferredKind === "3d" && pattern.kind === "3d") score += 18;
       if (preferredKind === "ui" && pattern.kind === "ui") score += 18;
       if (preferredKind === "ui" && pattern.kind === "diagram") score += 12;
-      if (pattern.kind === "diagram" && preferredKind !== "illustration") score += 6;
+      if (
+        pattern.kind === "diagram" &&
+        preferredKind !== "illustration" &&
+        preferredKind !== "3d"
+      ) {
+        score += 6;
+      }
 
       const assetMeta = family.assets.find((a) => a.id === pattern.id);
       if (assetMeta?.role === "primary") score += 10;

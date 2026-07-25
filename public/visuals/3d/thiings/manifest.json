@@ -1,0 +1,184 @@
+[
+  {
+    "id": "thiings-rocket",
+    "label": "Rocket",
+    "slug": "rocket",
+    "assetPath": "/visuals/3d/thiings/rocket.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-WtteJ2W5xSZ9e19zvN5b5x3ULLxCRH.png",
+    "tags": [
+      "launch",
+      "growth",
+      "startup",
+      "product"
+    ],
+    "description": "3D rocket icon from Thiings."
+  },
+  {
+    "id": "thiings-laptop",
+    "label": "Laptop",
+    "slug": "laptop",
+    "assetPath": "/visuals/3d/thiings/laptop.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-UsyTZyMk2er8VfZu1T68Z4BbnfHYL1.png",
+    "tags": [
+      "product",
+      "saas",
+      "work",
+      "tech"
+    ],
+    "description": "3D laptop icon from Thiings."
+  },
+  {
+    "id": "thiings-megaphone",
+    "label": "Megaphone",
+    "slug": "megaphone",
+    "assetPath": "/visuals/3d/thiings/megaphone.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-SvsQzp9loTopQTNCj70C36xeF3x7p2.png",
+    "tags": [
+      "announce",
+      "marketing",
+      "campaign",
+      "launch"
+    ],
+    "description": "3D megaphone icon from Thiings."
+  },
+  {
+    "id": "thiings-bar-chart",
+    "label": "Bar chart",
+    "slug": "bar-chart",
+    "assetPath": "/visuals/3d/thiings/bar-chart.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-73pNGHJBFF75t0zRsAgQInW9DAM4vd.png",
+    "tags": [
+      "metrics",
+      "stats",
+      "analytics",
+      "growth"
+    ],
+    "description": "3D bar chart icon from Thiings."
+  },
+  {
+    "id": "thiings-sales-funnel",
+    "label": "Sales funnel",
+    "slug": "sales-funnel",
+    "assetPath": "/visuals/3d/thiings/sales-funnel.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-sAgL7tIQKp4pAoBGadtQNUVfjFmjEz.png",
+    "tags": [
+      "sales",
+      "pipeline",
+      "conversion",
+      "crm"
+    ],
+    "description": "3D sales funnel icon from Thiings."
+  },
+  {
+    "id": "thiings-calendar",
+    "label": "Calendar",
+    "slug": "calendar",
+    "assetPath": "/visuals/3d/thiings/calendar.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-ij7GEZhfmzLNlLgDJVhkST8FIm5rJV.png",
+    "tags": [
+      "schedule",
+      "event",
+      "meeting",
+      "planner"
+    ],
+    "description": "3D calendar icon from Thiings."
+  },
+  {
+    "id": "thiings-lock",
+    "label": "Lock",
+    "slug": "lock",
+    "assetPath": "/visuals/3d/thiings/lock.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-1ZcsBwwKPF9lpnaWTFwUAmxkHIeKXD.png",
+    "tags": [
+      "security",
+      "privacy",
+      "trust",
+      "auth"
+    ],
+    "description": "3D lock icon from Thiings."
+  },
+  {
+    "id": "thiings-trophy",
+    "label": "Trophy",
+    "slug": "trophy",
+    "assetPath": "/visuals/3d/thiings/trophy.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-BwtahaCLSoUOyWdITnlPCNiwzCLUdL.png",
+    "tags": [
+      "success",
+      "win",
+      "achievement",
+      "milestone"
+    ],
+    "description": "3D trophy icon from Thiings."
+  },
+  {
+    "id": "thiings-smartphone",
+    "label": "Smartphone",
+    "slug": "smartphone",
+    "assetPath": "/visuals/3d/thiings/smartphone.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-LxbDZUY1gzuzF4AEv0OHAqsSGpAng8.png",
+    "tags": [
+      "mobile",
+      "app",
+      "product",
+      "tech"
+    ],
+    "description": "3D smartphone icon from Thiings."
+  },
+  {
+    "id": "thiings-gift",
+    "label": "Gift",
+    "slug": "gift",
+    "assetPath": "/visuals/3d/thiings/gift.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-yqO1RPHoOjuNAvqMy997ClCPIwICsb.png",
+    "tags": [
+      "offer",
+      "promo",
+      "reward",
+      "gift"
+    ],
+    "description": "3D gift icon from Thiings."
+  },
+  {
+    "id": "thiings-cloud",
+    "label": "Cloud",
+    "slug": "cloud",
+    "assetPath": "/visuals/3d/thiings/cloud.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-K7DwuNB7r9RzuCFMvLWAAwck0LSGNa.png",
+    "tags": [
+      "cloud",
+      "saas",
+      "infra",
+      "hosting"
+    ],
+    "description": "3D cloud icon from Thiings."
+  },
+  {
+    "id": "thiings-target",
+    "label": "Target",
+    "slug": "target",
+    "assetPath": "/visuals/3d/thiings/target.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-QUD9QBFZRZ2ZYM6AV1VO3hYmCbUAq1.png",
+    "tags": [
+      "goals",
+      "focus",
+      "kpi",
+      "aim"
+    ],
+    "description": "3D target icon from Thiings."
+  },
+  {
+    "id": "thiings-briefcase",
+    "label": "Briefcase",
+    "slug": "briefcase",
+    "assetPath": "/visuals/3d/thiings/briefcase.png",
+    "sourceUrl": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-NPWlghgOkWsgF4xolYbb4TzXYD4tRh.png",
+    "tags": [
+      "business",
+      "work",
+      "b2b",
+      "office"
+    ],
+    "description": "3D briefcase icon from Thiings."
+  }
+]

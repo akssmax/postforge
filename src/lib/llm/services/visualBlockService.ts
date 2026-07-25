@@ -25,7 +25,7 @@ export const generateVisualBlocksBodySchema = z.object({
   excludeLibraryIds: z.array(z.string()).optional(),
   source: z.enum(["library", "generate"]).optional(),
   libraryIds: z.array(z.string()).optional(),
-  preferredKind: z.enum(["ui", "illustration"]).optional(),
+  preferredKind: z.enum(["ui", "illustration", "3d"]).optional(),
   intent: z
     .object({
       primaryIntent: z.string().optional(),
@@ -33,7 +33,7 @@ export const generateVisualBlocksBodySchema = z.object({
       goal: z.string().optional(),
       visualPriority: z.string().optional(),
       proofStrategy: z.string().optional(),
-      featuredVisualKind: z.enum(["ui", "illustration"]).optional(),
+      featuredVisualKind: z.enum(["ui", "illustration", "3d"]).optional(),
       keywords: z.array(z.string()).optional(),
       themes: z.array(z.string()).optional(),
     })
@@ -48,7 +48,7 @@ export const generateVisualBlocksBodySchema = z.object({
       readingPattern: z.enum(["F", "Z", "center"]).optional(),
       colorMood: z.string().optional(),
       brandTone: z.string().optional(),
-      featuredKind: z.enum(["ui", "illustration"]).optional(),
+      featuredKind: z.enum(["ui", "illustration", "3d"]).optional(),
       proof: z.string().optional(),
       platformId: z.string().optional(),
     })
@@ -61,7 +61,7 @@ export const modifyVisualBlockBodySchema = z.object({
   block: z.object({
     id: z.string(),
     label: z.string(),
-    kind: z.enum(["diagram", "ui", "illustration"]),
+    kind: z.enum(["diagram", "ui", "illustration", "3d"]),
     svgMarkup: z.string(),
     createdAt: z.number(),
     theme: z.string().optional(),

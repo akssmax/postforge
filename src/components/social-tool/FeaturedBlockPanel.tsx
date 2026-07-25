@@ -14,6 +14,7 @@ import {
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
 import {
   featuredVisualKindLabel,
+  isFeaturedVisualKind,
   type FeaturedVisualKind,
 } from "@/lib/social-tool/featuredVisualKind";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
@@ -61,6 +62,7 @@ type Props = {
 const KIND_OPTIONS: { id: FeaturedVisualKind; label: string }[] = [
   { id: "ui", label: "UI" },
   { id: "illustration", label: "Illustration" },
+  { id: "3d", label: "3D" },
 ];
 
 export function FeaturedBlockPanel({
@@ -95,12 +97,9 @@ export function FeaturedBlockPanel({
     return visualBlocks.find((block) => block.id === activeBlockId) ?? null;
   }, [activeBlockId, visualBlocks]);
 
-  const activeKind: FeaturedVisualKind =
-    activeBlock?.kind === "illustration"
-      ? "illustration"
-      : activeBlock?.kind === "ui"
-        ? "ui"
-        : featuredVisualKind ?? "ui";
+  const activeKind: FeaturedVisualKind = isFeaturedVisualKind(activeBlock?.kind)
+    ? activeBlock.kind
+    : featuredVisualKind ?? "ui";
 
   function switchKind(nextKind: FeaturedVisualKind) {
     if (nextKind === activeKind && activeBlock) return;
@@ -317,7 +316,7 @@ export function FeaturedBlockPanel({
                   onChange={(scale) =>
                     onFeaturedTransformChange({ ...featuredTransform, scale })
                   }
-                  min={0.6}
+                  min={0.12}
                   max={4}
                   step={0.01}
                   format={(v) => `${v.toFixed(2)}×`}

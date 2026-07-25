@@ -2,27 +2,34 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   isAssetPattern,
+  isIllustrationPattern,
   VISUAL_LIBRARY,
+  type AssetLibraryEntry,
   type VisualLibraryPattern,
 } from "./catalog";
 import type { IllustrationLibraryEntry } from "./illustrations/manifest";
 
-export function illustrationAssetPath(entry: IllustrationLibraryEntry): string {
+export function assetPublicPath(entry: AssetLibraryEntry): string {
   return path.join(process.cwd(), "public", entry.assetPath.replace(/^\//, ""));
 }
 
-/** True when the SVG file is present in this deployment (Storyset may be omitted in prod). */
-export function isIllustrationAssetDeployed(entry: IllustrationLibraryEntry): boolean {
+/** True when the asset file is present in this deployment. */
+export function isAssetDeployed(entry: AssetLibraryEntry): boolean {
   try {
-    return fs.existsSync(illustrationAssetPath(entry));
+    return fs.existsSync(assetPublicPath(entry));
   } catch {
     return false;
   }
 }
 
+/** @deprecated Prefer isAssetDeployed — kept for illustration-specific call sites. */
+export function isIllustrationAssetDeployed(entry: IllustrationLibraryEntry): boolean {
+  return isAssetDeployed(entry);
+}
+
 export function isDeployableVisualPattern(pattern: VisualLibraryPattern): boolean {
   if (!isAssetPattern(pattern)) return true;
-  return isIllustrationAssetDeployed(pattern);
+  return isAssetDeployed(pattern);
 }
 
 let deployableLibraryCache: VisualLibraryPattern[] | null = null;
@@ -43,8 +50,12 @@ export function countDeployedIllustrationsBySource(): Record<
     storyset: 0,
   };
   for (const pattern of getDeployableVisualLibrary()) {
-    if (!isAssetPattern(pattern)) continue;
+    if (!isIllustrationPattern(pattern)) continue;
     counts[pattern.source] += 1;
   }
   return counts;
+}
+
+export function countDeployedThreeDAssets(): number {
+  return getDeployableVisualLibrary().filter((pattern) => pattern.kind === "3d").length;
 }

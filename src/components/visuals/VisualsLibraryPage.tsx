@@ -7,10 +7,12 @@ import {
   ILLUSTRATION_SOURCE_LABELS,
   type IllustrationSource,
 } from "@/lib/social-tool/visualBlocks/library/illustrations/manifest";
+import { THREED_SOURCE_LABELS } from "@/lib/social-tool/visualBlocks/library/threeD/manifest";
 import {
   VISUAL_LIBRARY,
-  isAssetPattern,
+  isIllustrationPattern,
   isParametricPattern,
+  isThreeDPattern,
   type VisualLibraryPattern,
 } from "@/lib/social-tool/visualBlocks/library/catalog";
 import { VisualBlockRenderer } from "@/components/social-tool/visualBlocks/VisualBlockRenderer";
@@ -36,6 +38,7 @@ const KIND_FILTERS: { id: KindFilter; label: string }[] = [
   { id: "ui", label: "UI" },
   { id: "diagram", label: "Diagrams" },
   { id: "illustration", label: "Illustrations" },
+  { id: "3d", label: "3D" },
 ];
 
 const SOURCE_FILTERS: { id: SourceFilter; label: string }[] = [
@@ -74,7 +77,7 @@ export function VisualsLibraryPage() {
     return VISUAL_LIBRARY.filter((pattern) => {
       if (kindFilter !== "all" && pattern.kind !== kindFilter) return false;
       if (sourceFilter !== "all") {
-        if (!isAssetPattern(pattern)) return false;
+        if (!isIllustrationPattern(pattern)) return false;
         if (pattern.source !== sourceFilter) return false;
       }
       return matchesSearch(pattern, search);
@@ -92,7 +95,8 @@ export function VisualsLibraryPage() {
     const ui = VISUAL_LIBRARY.filter((p) => p.kind === "ui").length;
     const diagram = VISUAL_LIBRARY.filter((p) => p.kind === "diagram").length;
     const illustration = VISUAL_LIBRARY.filter((p) => p.kind === "illustration").length;
-    return { ui, diagram, illustration, total: VISUAL_LIBRARY.length };
+    const threeD = VISUAL_LIBRARY.filter((p) => p.kind === "3d").length;
+    return { ui, diagram, illustration, threeD, total: VISUAL_LIBRARY.length };
   }, []);
 
   return (
@@ -106,9 +110,9 @@ export function VisualsLibraryPage() {
           <p className="visuals-page__eyebrow">Visual blocks</p>
           <h1 className="visuals-page__title">Visuals library</h1>
           <p className="visuals-page__subtitle">
-            {counts.total} ready-made patterns — {counts.ui} HeroUI UI cards, {counts.diagram} diagrams,{" "}
-            {counts.illustration} illustrations. Pick instantly in the designer; the AI can swap
-            text in UI patterns without regenerating.
+            {counts.total} ready-made patterns — {counts.ui} HeroUI UI cards, {counts.diagram}{" "}
+            diagrams, {counts.illustration} illustrations, {counts.threeD} 3D elements. Pick
+            instantly in the designer; the AI can swap text in UI patterns without regenerating.
           </p>
         </div>
       </header>
@@ -134,7 +138,9 @@ export function VisualsLibraryPage() {
                       ? counts.ui
                       : filter.id === "diagram"
                         ? counts.diagram
-                        : counts.illustration}
+                        : filter.id === "3d"
+                          ? counts.threeD
+                          : counts.illustration}
                   </span>
                 ) : null}
               </button>
@@ -186,7 +192,8 @@ export function VisualsLibraryPage() {
       <div className="visuals-page__grid">
         {visible.map((pattern) => {
           const svg = parametricPreview(pattern);
-          const asset = isAssetPattern(pattern);
+          const asset =
+            isIllustrationPattern(pattern) || isThreeDPattern(pattern);
           const uiReact = isParametricPattern(pattern) && isUiReactPattern(pattern.id);
           const previewBlock: VisualBlockRecord | null = uiReact
             ? {
@@ -235,9 +242,13 @@ export function VisualsLibraryPage() {
                   <h2 className="visuals-card__label">{pattern.label}</h2>
                   <span className="visuals-card__kind">{pattern.kind}</span>
                 </div>
-                {asset ? (
+                {isIllustrationPattern(pattern) ? (
                   <p className="visuals-card__source">
                     {ILLUSTRATION_SOURCE_LABELS[pattern.source]} · {pattern.licenseLabel}
+                  </p>
+                ) : isThreeDPattern(pattern) ? (
+                  <p className="visuals-card__source">
+                    {THREED_SOURCE_LABELS[pattern.source]} · {pattern.licenseLabel}
                   </p>
                 ) : uiReact ? (
                   <p className="visuals-card__source">HeroUI · brand-themed</p>

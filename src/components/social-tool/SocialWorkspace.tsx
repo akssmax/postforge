@@ -842,6 +842,7 @@ function ToolSocialWorkspace() {
                   previewScale={previewScale}
                   interactive={!exporting}
                   textAlign={textAlign}
+                  onTextAlignChange={setTextAlign}
                   headingFont={headingFont}
                   subFont={subFont}
                   accentPeriod={template.accentPeriod}

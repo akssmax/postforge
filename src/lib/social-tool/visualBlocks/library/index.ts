@@ -9,17 +9,19 @@ import type {
 import {
   VISUAL_LIBRARY,
   VISUAL_LIBRARY_BY_ID,
-  isAssetPattern,
+  isIllustrationPattern,
   isParametricPattern,
+  isThreeDPattern,
   type VisualLibraryPattern,
 } from "./catalog";
 import {
   countDeployedIllustrationsBySource,
+  countDeployedThreeDAssets,
   getDeployableVisualLibrary,
   isDeployableVisualPattern,
 } from "./deployableLibrary";
 import { resolveIllustrationSvg } from "./illustrations/resolver";
-import { ILLUSTRATION_LIBRARY } from "./illustrations/manifest";
+import { resolveThreeDSvg } from "./threeD/resolver";
 import {
   rankVisualPatterns,
   resolvePreferredVisualKind,
@@ -36,6 +38,12 @@ export {
   type IllustrationLibraryEntry,
   type IllustrationSource,
 } from "./illustrations/manifest";
+export {
+  THREED_LIBRARY,
+  THREED_SOURCE_LABELS,
+  type ThreeDLibraryEntry,
+  type ThreeDSource,
+} from "./threeD/manifest";
 
 function buildTemplateContext(input: VisualBlockGenerateInput): VisualTemplateContext {
   return {
@@ -78,7 +86,7 @@ export function getLibraryPattern(id: string): VisualLibraryPattern | undefined 
   return VISUAL_LIBRARY_BY_ID.get(id);
 }
 
-const FEATURED_SLOT_KINDS: VisualBlockKind[] = ["ui", "illustration"];
+const FEATURED_SLOT_KINDS: VisualBlockKind[] = ["ui", "illustration", "3d"];
 
 function trySemanticFeaturedPick(
   input: VisualBlockGenerateInput,
@@ -116,7 +124,10 @@ function trySemanticFeaturedPick(
   const pattern = getLibraryPattern(primary.assetId);
   if (!pattern || !isDeployableVisualPattern(pattern)) return null;
   if (preferredKind === "illustration" && pattern.kind !== "illustration") return null;
-  if (preferredKind === "ui" && pattern.kind === "illustration") return null;
+  if (preferredKind === "3d" && pattern.kind !== "3d") return null;
+  if (preferredKind === "ui" && (pattern.kind === "illustration" || pattern.kind === "3d")) {
+    return null;
+  }
 
   const block = instantiateLibraryPattern(pattern, input);
   if (!block) return null;
@@ -134,7 +145,9 @@ function trySemanticFeaturedPick(
     stylePackId: composition.stylePackId,
     hierarchy: primary.hierarchy,
     compositionParts:
-      block.kind === "illustration" || composition.parts.length <= 1
+      block.kind === "illustration" ||
+      block.kind === "3d" ||
+      composition.parts.length <= 1
         ? undefined
         : composition.parts.map((part) => ({
             familyId: part.familyId,
@@ -169,7 +182,9 @@ export function pickShuffleFeaturedVisual(
     !preferredKind ||
     (preferredKind === "illustration"
       ? semanticHit?.kind === "illustration"
-      : semanticHit?.kind === "ui" || semanticHit?.kind === "diagram");
+      : preferredKind === "3d"
+        ? semanticHit?.kind === "3d"
+        : semanticHit?.kind === "ui" || semanticHit?.kind === "diagram");
 
   if (semanticHit && semanticMatchesKind && options?.randomize === false) {
     return semanticHit;
@@ -181,6 +196,7 @@ export function pickShuffleFeaturedVisual(
   let candidates = deployableLibrary.filter((pattern) => {
     if (excluded.has(pattern.id)) return false;
     if (preferredKind === "illustration") return pattern.kind === "illustration";
+    if (preferredKind === "3d") return pattern.kind === "3d";
     if (preferredKind === "ui") {
       return pattern.kind === "ui" || (Boolean(input.semantic) && pattern.kind === "diagram");
     }
@@ -271,11 +287,16 @@ export function instantiateLibraryPattern(
     };
   }
 
-  const raw = isAssetPattern(pattern)
-    ? resolveIllustrationSvg(pattern, ctx)
-    : pattern.render(ctx);
+  const raw = isThreeDPattern(pattern)
+    ? resolveThreeDSvg(pattern)
+    : isIllustrationPattern(pattern)
+      ? resolveIllustrationSvg(pattern, ctx)
+      : pattern.render(ctx);
   if (!raw) return null;
-  const svgMarkup = isAssetPattern(pattern) ? raw : sanitizeSvgMarkupServer(raw);
+  const svgMarkup =
+    isThreeDPattern(pattern) || isIllustrationPattern(pattern)
+      ? raw
+      : sanitizeSvgMarkupServer(raw);
   if (!svgMarkup) return null;
 
   return {
@@ -336,17 +357,19 @@ export function libraryPatternSummaryForPrompt(limit = 40): string {
 
   const deployedBySource = countDeployedIllustrationsBySource();
   const illustrationCount = Object.values(deployedBySource).reduce((sum, n) => sum + n, 0);
+  const threeDCount = countDeployedThreeDAssets();
 
   return [
     "Parametric UI + diagram patterns (instant, brand-themed):",
     parametricLines.join("\n"),
     "",
     `Illustration library: ${illustrationCount} deployed SVGs (${deployedBySource.storyset} Storyset, ${deployedBySource.undraw} unDraw, ${deployedBySource["open-doodles"]} Open Doodles).`,
+    `3D element library: ${threeDCount} Thiings PNG icons (kind=3d, libraryId thiings-*).`,
     "Do NOT enumerate all illustrations — pick by libraryId using tag/intent overlap with the brief.",
-    "Use intent.featuredVisualKind: ui → HeroUI stat/pricing/comparison cards; illustration → undraw/open-doodles/storyset scenes.",
+    "Use intent.featuredVisualKind: ui → HeroUI stat/pricing/comparison cards; illustration → undraw/open-doodles/storyset scenes; 3d → thiings clay icons.",
     "Match brief keywords to illustration tags (examples: sync/integration→undraw-data-transfer, team→collaboration tags, growth/sales→revenue tags, chat→support tags).",
     "Prefer storyset-* when deployed for narrative/brand visuals, undraw-* for SaaS/tech scenes, open-doodles for playful tone.",
-    "Use proofStrategy: product_ui → UI patterns; stats → diagrams; social_proof/awareness → illustrations.",
+    "Use proofStrategy: product_ui → UI patterns; stats → diagrams; social_proof/awareness → illustrations; iconic product metaphors → 3d.",
     "Pass libraryIds with the best tag match when you know the exact asset id.",
   ].join("\n");
 }

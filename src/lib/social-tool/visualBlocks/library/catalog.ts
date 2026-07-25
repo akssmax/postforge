@@ -3,6 +3,10 @@ import {
   ILLUSTRATION_LIBRARY,
   type IllustrationLibraryEntry,
 } from "./illustrations/manifest";
+import {
+  THREED_LIBRARY,
+  type ThreeDLibraryEntry,
+} from "./threeD/manifest";
 import { svgFrame, truncate, type VisualTemplateContext } from "./templateContext";
 
 export type ParametricVisualPattern = {
@@ -14,12 +18,26 @@ export type ParametricVisualPattern = {
   render: (ctx: VisualTemplateContext) => string;
 };
 
-export type VisualLibraryPattern = ParametricVisualPattern | IllustrationLibraryEntry;
+export type AssetLibraryEntry = IllustrationLibraryEntry | ThreeDLibraryEntry;
+
+export type VisualLibraryPattern = ParametricVisualPattern | AssetLibraryEntry;
 
 export function isAssetPattern(
   pattern: VisualLibraryPattern,
-): pattern is IllustrationLibraryEntry {
+): pattern is AssetLibraryEntry {
   return "assetPath" in pattern;
+}
+
+export function isIllustrationPattern(
+  pattern: VisualLibraryPattern,
+): pattern is IllustrationLibraryEntry {
+  return pattern.kind === "illustration" && "assetPath" in pattern;
+}
+
+export function isThreeDPattern(
+  pattern: VisualLibraryPattern,
+): pattern is ThreeDLibraryEntry {
+  return pattern.kind === "3d" && "assetPath" in pattern;
 }
 
 export function isParametricPattern(
@@ -438,6 +456,7 @@ const PARAMETRIC_VISUAL_LIBRARY: ParametricVisualPattern[] = [
 export const VISUAL_LIBRARY: VisualLibraryPattern[] = [
   ...PARAMETRIC_VISUAL_LIBRARY,
   ...ILLUSTRATION_LIBRARY,
+  ...THREED_LIBRARY,
 ];
 
 export const VISUAL_LIBRARY_BY_ID = new Map(VISUAL_LIBRARY.map((entry) => [entry.id, entry]));

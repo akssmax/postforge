@@ -128,6 +128,7 @@ export function validateDesignPlan(
         primaryFeatured?.mode === "genui"
           ? (primaryFeatured.productPage ?? "leads")
           : "leads",
+      featuredSlotCount: Math.max(1, input.featuredSlots.filter((s) => s.visible).length),
     });
   } catch (err) {
     return {

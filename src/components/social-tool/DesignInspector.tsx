@@ -64,7 +64,7 @@ type FeaturedPanelProps = {
   visualBlocks: import("@/lib/social-tool/visualBlocks/types").VisualBlockRecord[];
   activeBlockId?: string | null;
   generatingVisualBlocks?: boolean;
-  featuredVisualKind?: "ui" | "illustration";
+  featuredVisualKind?: "ui" | "illustration" | "3d";
   brandColors?: { primary?: string; accent?: string };
   selectedSlotId?: string;
   featuredSlotIds?: string[];
@@ -73,12 +73,12 @@ type FeaturedPanelProps = {
     source?: "library" | "generate",
     options?: {
       pickFeatured?: boolean;
-      preferredKind?: "ui" | "illustration";
+      preferredKind?: "ui" | "illustration" | "3d";
       slotId?: string;
     },
   ) => void;
   onShuffleVisualBlock: (
-    preferredKind?: "ui" | "illustration",
+    preferredKind?: "ui" | "illustration" | "3d",
     slotId?: string,
   ) => void;
   onSelectVisualBlock: (blockId: string, slotId?: string) => void;

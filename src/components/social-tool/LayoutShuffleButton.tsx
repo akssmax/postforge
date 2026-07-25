@@ -51,8 +51,17 @@ export function LayoutShuffleButton({
   const [preferences, setPreferences] = useState(() =>
     loadShufflePreferences(preferenceScopeId),
   );
+  const [portalContainer, setPortalContainer] = useState<Element | null>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<number | null>(null);
   const skipInitialSaveRef = useRef(true);
+
+  useEffect(() => {
+    // Portal into `.social-tool` so switches inherit brand accent tokens
+    // (same as the side-panel Visuals switch).
+    const root = toolbarRef.current?.closest(".social-tool") ?? null;
+    setPortalContainer(root);
+  }, []);
 
   useEffect(() => {
     skipInitialSaveRef.current = true;
@@ -96,7 +105,7 @@ export function LayoutShuffleButton({
   const shuffleAll = isShuffleAllEnabled(preferences);
 
   return (
-    <div className="layout-shuffle-toolbar">
+    <div ref={toolbarRef} className="layout-shuffle-toolbar">
       <div className="layout-shuffle-combobutton">
         <Tooltip delay={500}>
           <Tooltip.Trigger>
@@ -135,7 +144,13 @@ export function LayoutShuffleButton({
               <ChevronDown className="size-3.5 shrink-0" strokeWidth={2.25} />
             </Button>
           </Popover.Trigger>
-          <Popover.Content placement="bottom start" className="layout-shuffle-popover">
+          <Popover.Content
+            placement="bottom start"
+            className="layout-shuffle-popover"
+            {...(portalContainer
+              ? { UNSTABLE_portalContainer: portalContainer }
+              : {})}
+          >
             <Popover.Dialog className="layout-shuffle-popover-dialog">
               <p className="layout-shuffle-menu-title">Shuffle options</p>
               <ShuffleMenuRow
@@ -166,7 +181,9 @@ export function LayoutShuffleButton({
               <ShuffleMenuRow
                 label="Featured block"
                 checked={preferences.featuredPosition}
-                onChange={(featuredPosition) => patchPreferences({ featuredPosition })}
+                onChange={(featuredPosition) =>
+                  patchPreferences({ featuredPosition })
+                }
               />
             </Popover.Dialog>
           </Popover.Content>

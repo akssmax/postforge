@@ -1,4 +1,4 @@
-export type VisualBlockKind = "diagram" | "ui" | "illustration";
+export type VisualBlockKind = "diagram" | "ui" | "illustration" | "3d";
 
 export type VisualBlockSemanticMeta = {
   familyId?: string;
@@ -45,7 +45,7 @@ export type VisualBlockGenerateInput = {
     goal?: string;
     visualPriority?: string;
     proofStrategy?: string;
-    featuredVisualKind?: "ui" | "illustration";
+    featuredVisualKind?: "ui" | "illustration" | "3d";
     keywords?: string[];
     themes?: string[];
   };
@@ -59,12 +59,12 @@ export type VisualBlockGenerateInput = {
     readingPattern?: "F" | "Z" | "center";
     colorMood?: string;
     brandTone?: string;
-    featuredKind?: "ui" | "illustration";
+    featuredKind?: "ui" | "illustration" | "3d";
     proof?: string;
     platformId?: string;
   };
   /** Override featured slot kind when picking from library. */
-  preferredKind?: "ui" | "illustration";
+  preferredKind?: "ui" | "illustration" | "3d";
   slotWidth?: number;
   slotHeight?: number;
   count?: number;

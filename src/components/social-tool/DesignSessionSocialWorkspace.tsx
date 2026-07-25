@@ -1180,6 +1180,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       onCanvasSelect={handleCanvasSelect}
                       onTypeScaleChange={(v) => patchDocument({ typeScale: v })}
                       onLogoScaleChange={(v) => patchDocument({ logoScale: v })}
+                      onTextAlignChange={(v) => patchDocument({ textAlign: v })}
                       showPropertyPills={
                         !asideCollapsed && asideTab === "design"
                       }
@@ -1221,6 +1222,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                           handleCanvasSelect("featured");
                         }
                       }}
+                      onShuffleFeaturedSlot={(slotId) =>
+                        void session.shuffleFeaturedVisualBlock({ slotId })
+                      }
                       generatingVisualBlocks={session.generatingVisualBlocks}
                       canvasRef={isActive ? canvasRef : undefined}
                       viewportRef={isActive ? viewportRef : undefined}

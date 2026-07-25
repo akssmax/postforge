@@ -156,6 +156,7 @@ export function applyCanvasPatchToSession(
             ? resolveVisualBlockDimensions(activeBlock)
             : VISUAL_LIBRARY_FRAME
           : undefined,
+      featuredSlotCount: Math.max(1, (doc.featuredSlots ?? []).length),
     });
 
     next = {

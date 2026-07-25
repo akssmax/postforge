@@ -40,7 +40,7 @@ export const proofStrategySchema = z.enum([
   "none",
 ]);
 
-export const featuredVisualKindSchema = z.enum(["ui", "illustration"]);
+export const featuredVisualKindSchema = z.enum(["ui", "illustration", "3d"]);
 
 export const campaignIntentSchema = z.object({
   platform: z.string(),

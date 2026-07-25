@@ -46,10 +46,11 @@ export function VisualBlockRenderer({
   const isCompact = densityIsCompact(resolvedDensity, compact);
   const isHero = densityIsHero(resolvedDensity);
 
-  // Multi-part compositions are for UI/diagram stacks only — never stack illustrations
+  // Multi-part compositions are for UI/diagram stacks only — never stack illustrations/3D
   if (
     !asPart &&
     block.kind !== "illustration" &&
+    block.kind !== "3d" &&
     block.semantic?.compositionParts &&
     block.semantic.compositionParts.length > 1
   ) {
@@ -91,8 +92,8 @@ export function VisualBlockRenderer({
   }
 
   if (block.svgMarkup) {
-    // Illustrations sit bare on the canvas — no style-pack surface card / white plate
-    if (block.kind === "illustration") {
+    // Illustrations / 3D sit bare on the canvas — no style-pack surface card / white plate
+    if (block.kind === "illustration" || block.kind === "3d") {
       return (
         <div className="flex h-full w-full items-center justify-center overflow-hidden">
           <FeaturedImageContent imageSrc={null} svgMarkup={block.svgMarkup} bare />

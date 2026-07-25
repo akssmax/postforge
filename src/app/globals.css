@@ -273,15 +273,27 @@
   --border: var(--leap-line);
 
   /* Inset controls on primary surfaces — neutral lift, not brand-tinted secondary */
-  --overlay-subtle: color-mix(in oklab, var(--white) 4%, var(--surface-primary));
-  --overlay-muted: color-mix(in oklab, var(--white) 6%, var(--surface-primary));
-  --overlay-hover: color-mix(in oklab, var(--white) 9%, var(--surface-primary));
-  --overlay-active: color-mix(in oklab, var(--white) 14%, var(--surface-primary));
-  --overlay-border: var(--leap-line);
+  --overlay-subtle: color-mix(in oklab, var(--white) 8%, var(--surface-primary));
+  --overlay-muted: color-mix(in oklab, var(--white) 11%, var(--surface-primary));
+  --overlay-hover: color-mix(in oklab, var(--white) 15%, var(--surface-primary));
+  --overlay-active: color-mix(in oklab, var(--white) 20%, var(--surface-primary));
+  --overlay-border: color-mix(in oklab, var(--white) 16%, transparent);
 
   /* Align HeroUI popover / select surfaces with app dark palette */
-  --overlay: color-mix(in oklab, var(--white) 6%, var(--gray-900));
+  --overlay: color-mix(in oklab, var(--white) 8%, var(--gray-900));
   --overlay-foreground: var(--text-primary);
+
+  /*
+   * HeroUI default/secondary surfaces — must read as enabled controls on dark
+   * chrome (zoom pills, artboard switcher, header icon buttons). Stock HeroUI
+   * --default sits too close to gray-950 and --accent-soft-foreground washes out.
+   */
+  --default: var(--overlay-muted);
+  --default-foreground: var(--text-primary);
+  --default-hover: var(--overlay-hover);
+  --accent-soft-foreground: var(--text-secondary);
+  --segment: var(--overlay-active);
+  --segment-foreground: var(--text-primary);
 
   /* Dashboard CRM shell — dark surfaces + soft chip fills */
   --dash-sidebar: color-mix(in oklab, var(--brand-900) 72%, var(--gray-950));
@@ -693,8 +705,12 @@ body {
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /*
+   * Do not set --accent / --accent-foreground here — shadcn’s dark gray
+   * accent fights HeroUI Switch/Button (portaled popovers inherit .dark and
+   * lose the app [data-theme="dark"] brand accent). Use --sidebar-accent for
+   * shadcn-style muted surfaces instead.
+   */
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
@@ -712,6 +728,18 @@ body {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+/*
+ * Re-assert HeroUI control tokens after .dark so portaled overlays (shuffle
+ * menu, pickers) match aside Switches: off = overlay lift, on = brand accent.
+ */
+html[data-theme="dark"] {
+  --accent: var(--brand-accent);
+  --accent-foreground: var(--gray-950);
+  --default: var(--overlay-muted);
+  --default-foreground: var(--text-primary);
+  --default-hover: var(--overlay-hover);
 }
 
 @layer base {

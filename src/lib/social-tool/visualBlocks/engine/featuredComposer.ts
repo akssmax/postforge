@@ -60,7 +60,8 @@ export function composeFeaturedSemantic(input: {
     input.generateInput.preferredKind ??
     input.generateInput.intent?.featuredVisualKind ??
     input.ctx.featuredKind;
-  const illustrationOnly = preferredKind === "illustration";
+  const illustrationOnly =
+    preferredKind === "illustration" || preferredKind === "3d";
 
   const bundle = illustrationOnly ? null : retrieveBundle(input.ctx, recipe);
   const ranked = retrieveFamilyAssets({
@@ -112,8 +113,13 @@ export function composeFeaturedSemantic(input: {
     });
   }
 
-  // Illustrations never compose as multi-part stacks
-  const finalParts = illustrationOnly || parts[0]?.kind === "illustration" ? parts.slice(0, 1) : parts;
+  // Illustrations / 3D never compose as multi-part stacks
+  const finalParts =
+    illustrationOnly ||
+    parts[0]?.kind === "illustration" ||
+    parts[0]?.kind === "3d"
+      ? parts.slice(0, 1)
+      : parts;
   const guarded = enforceHierarchy(finalParts);
 
   return {

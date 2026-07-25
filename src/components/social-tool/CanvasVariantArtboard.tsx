@@ -28,7 +28,7 @@ import {
 } from "@/lib/brand/contrast";
 import { resolveDocumentLayout, layoutIdForDocument } from "@/lib/social-tool/layoutRegistry";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
-import { getTemplate, getPlatform } from "@/lib/social-tool/presets";
+import { getTemplate, getPlatform, type TextAlign } from "@/lib/social-tool/presets";
 import { activeVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
 import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
 import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
@@ -61,6 +61,7 @@ type Props = {
   onCanvasSelect?: (id: CanvasSelectionId | null) => void;
   onTypeScaleChange?: (value: number) => void;
   onLogoScaleChange?: (value: number) => void;
+  onTextAlignChange?: (value: TextAlign) => void;
   showPropertyPills?: boolean;
   onFeaturedTransformChange?: (
     t: FeaturedImageTransform,
@@ -77,6 +78,7 @@ type Props = {
   onAddFeaturedSlot?: () => void;
   onReorderFeaturedSlot?: (slotId: string, direction: "left" | "right") => void;
   onRemoveFeaturedSlot?: (slotId: string) => void;
+  onShuffleFeaturedSlot?: (slotId: string) => void;
   generatingVisualBlocks?: boolean;
   canvasRef?: React.Ref<HTMLDivElement>;
   viewportRef?: React.Ref<HTMLDivElement>;
@@ -112,6 +114,7 @@ export function CanvasVariantArtboard({
   onCanvasSelect,
   onTypeScaleChange,
   onLogoScaleChange,
+  onTextAlignChange,
   showPropertyPills = true,
   onFeaturedTransformChange,
   onHistoryCoalesceBegin,
@@ -122,6 +125,7 @@ export function CanvasVariantArtboard({
   onAddFeaturedSlot,
   onReorderFeaturedSlot,
   onRemoveFeaturedSlot,
+  onShuffleFeaturedSlot,
   generatingVisualBlocks = false,
   canvasRef,
   viewportRef,
@@ -389,6 +393,9 @@ export function CanvasVariantArtboard({
                 onRemoveFeaturedSlot={
                   isActive ? onRemoveFeaturedSlot : undefined
                 }
+                onShuffleFeaturedSlot={
+                  isActive ? onShuffleFeaturedSlot : undefined
+                }
                 featuredImageSrc={featuredImageSrc}
                 featuredSvgMarkup={board.featured.image?.svgMarkup ?? null}
                 hasFeaturedImage={!!board.featured.image}
@@ -414,6 +421,7 @@ export function CanvasVariantArtboard({
                 previewScale={previewScale}
                 interactive={interactive && isActive}
                 textAlign={doc.textAlign}
+                onTextAlignChange={isActive ? onTextAlignChange : undefined}
                 headingFont={doc.headingFont}
                 subFont={doc.subFont}
                 accentPeriod={template.accentPeriod}

@@ -29,7 +29,13 @@ const TYPE_SCALE_MIN = 0.75;
 const TYPE_SCALE_MAX = 4;
 const LOGO_SCALE_MIN = 0.5;
 const LOGO_SCALE_MAX = 3;
-const FEATURED_SCALE_MIN = 0.6;
+/** GenUI product frames stay reasonably large in the slot. */
+const GENUI_FEATURED_SCALE_MIN = 0.6;
+/**
+ * Composed library assets (illustrations / 3D / UI cards) must be allowed to
+ * shrink well below 1 — short featured bands often need ~0.2–0.5 fit scale.
+ */
+const COMPOSED_FEATURED_SCALE_MIN = 0.12;
 const FEATURED_SCALE_MAX = 4;
 
 const LINKEDIN_PLATFORMS = new Set<PlatformId>([
@@ -53,6 +59,8 @@ export type HierarchyInput = {
   featuredMode: FeaturedBlockMode;
   productPage: ProductPageId;
   visualBlockDimensions?: VisualBlockDimensions;
+  /** Visible featured cells sharing the product band (defaults to 1). */
+  featuredSlotCount?: number;
 };
 
 export type HierarchyResult = {
@@ -258,15 +266,18 @@ function computeFeaturedTransform(
     return base;
   }
 
+  const slotCount = Math.max(1, Math.round(input.featuredSlotCount ?? 1));
+  const cellWidth = slotWidth / slotCount;
+
   if (input.featuredMode === "genui") {
     const native = getProductPageFrame(input.productPage);
-    let scale = (slotWidth * 0.92) / native.width;
+    let scale = (cellWidth * 0.92) / native.width;
 
     if (layoutUsesSplit(input.layout)) {
       scale = Math.min(scale, (slotHeight * 0.95) / native.height);
     }
 
-    scale = clamp(scale, FEATURED_SCALE_MIN, FEATURED_SCALE_MAX);
+    scale = clamp(scale, GENUI_FEATURED_SCALE_MIN, FEATURED_SCALE_MAX);
 
     return {
       ...base,
@@ -278,12 +289,12 @@ function computeFeaturedTransform(
     const native = input.visualBlockDimensions ?? VISUAL_LIBRARY_FRAME;
     const scale = clamp(
       computeVisualBlockFitScale(
-        slotWidth,
+        cellWidth,
         slotHeight,
         native.width,
         native.height,
       ),
-      FEATURED_SCALE_MIN,
+      COMPOSED_FEATURED_SCALE_MIN,
       FEATURED_SCALE_MAX,
     );
 
@@ -368,6 +379,7 @@ export function resolveLayoutHierarchyFromIds(opts: {
   productPage: ProductPageId;
   hasUploadedFeaturedImage?: boolean;
   visualBlockDimensions?: VisualBlockDimensions;
+  featuredSlotCount?: number;
 }): HierarchyResult {
   const platform = getPlatform(opts.platformId);
   const layout = getPostLayout(opts.layoutId);
@@ -391,5 +403,6 @@ export function resolveLayoutHierarchyFromIds(opts: {
     featuredMode,
     productPage: opts.productPage,
     visualBlockDimensions: opts.visualBlockDimensions,
+    featuredSlotCount: opts.featuredSlotCount,
   });
 }

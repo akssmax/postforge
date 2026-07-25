@@ -82,13 +82,15 @@ import { useDesignHistory } from "@/lib/design/useDesignHistory";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
 import type { VisualBlockRecord, VisualBlockGenerateInput } from "@/lib/social-tool/visualBlocks/types";
 import { buildVisualPickIntentFromText } from "@/lib/social-tool/visualBlocks/library/scoring";
-import { inferFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
+import { inferFeaturedVisualKind, isFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
+import type { FeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import { campaignPlanFromBrief } from "@/lib/social-tool/engine/campaignPlanFromBrief";
 import { retrieveDesignSystem } from "@/lib/social-tool/engine/designSystemRetriever";
 import { resolveRecipe } from "@/lib/social-tool/engine/recipeResolver";
 import {
   FEATURED_PRIMARY_SLOT_ID,
   addFeaturedSlot,
+  ensureFeaturedSlots,
   patchFeaturedSlot,
   removeFeaturedSlot,
   reorderFeaturedSlot,
@@ -110,7 +112,7 @@ function visualBlockPickPayload(
     subheading?: string;
     theme?: string;
     brief?: string;
-    preferredKind?: "ui" | "illustration";
+    preferredKind?: "ui" | "illustration" | "3d";
   },
 ) {
   const headline = input?.headline ?? session.document.copy.heading;
@@ -211,7 +213,7 @@ export type UseDesignSessionResult = {
     source?: "library" | "generate";
     libraryIds?: string[];
     pickFeatured?: boolean;
-    preferredKind?: "ui" | "illustration";
+    preferredKind?: "ui" | "illustration" | "3d";
     slotId?: string;
   }) => Promise<void>;
   selectVisualBlock: (blockId: string, slotId?: string) => void;
@@ -219,7 +221,7 @@ export type UseDesignSessionResult = {
   shuffleFeaturedVisualBlock: (copy?: {
     headline?: string;
     subheading?: string;
-    preferredKind?: "ui" | "illustration";
+    preferredKind?: "ui" | "illustration" | "3d";
     slotId?: string;
   }) => Promise<void>;
   addFeaturedVisualSlot: () => string | null;
@@ -820,6 +822,10 @@ export function useDesignSession(
         : null;
       const platform = getPlatform(prev.document.platformId);
       const layout = getPostLayout(prev.document.layoutId);
+      const featuredSlotCount = Math.max(
+        1,
+        (prev.document.featuredSlots ?? []).length,
+      );
 
       return resolveLayoutHierarchy({
         width: platform.width,
@@ -835,6 +841,7 @@ export function useDesignSession(
         visualBlockDimensions: block
           ? resolveVisualBlockDimensions(block)
           : VISUAL_LIBRARY_FRAME,
+        featuredSlotCount,
       }).featuredTransform;
     },
     [],
@@ -1095,7 +1102,7 @@ export function useDesignSession(
       source?: "library" | "generate";
       libraryIds?: string[];
       pickFeatured?: boolean;
-      preferredKind?: "ui" | "illustration";
+      preferredKind?: "ui" | "illustration" | "3d";
       slotId?: string;
     }) => {
       const currentSession = sessionRef.current;
@@ -1134,7 +1141,7 @@ export function useDesignSession(
           }
           const nextKind =
             input?.preferredKind ??
-            (block.kind === "illustration" || block.kind === "ui" ? block.kind : undefined);
+            (isFeaturedVisualKind(block.kind) ? block.kind : undefined);
           updateSession((prev) =>
             syncComposedFeaturedSlots(
               {
@@ -1192,7 +1199,11 @@ export function useDesignSession(
       updateSession((prev) => {
         const block = (prev.featured.visualBlocks ?? []).find((b) => b.id === blockId);
         const kind =
-          block?.kind === "ui" || block?.kind === "illustration" ? block.kind : undefined;
+          block?.kind === "ui" ||
+          block?.kind === "illustration" ||
+          block?.kind === "3d"
+            ? block.kind
+            : undefined;
         return syncComposedFeaturedSlots(
           kind
             ? {
@@ -1271,7 +1282,7 @@ export function useDesignSession(
     async (copyOverride?: {
       headline?: string;
       subheading?: string;
-      preferredKind?: "ui" | "illustration";
+      preferredKind?: "ui" | "illustration" | "3d";
       slotId?: string;
     }) => {
       if (!session) return;
@@ -1287,9 +1298,9 @@ export function useDesignSession(
         blocks,
         slot?.activeBlockId ?? featured.activeBlockId,
       );
-      const activeKind: "ui" | "illustration" =
+      const activeKind: FeaturedVisualKind =
         copyOverride?.preferredKind ??
-        (active?.kind === "ui" || active?.kind === "illustration"
+        (isFeaturedVisualKind(active?.kind)
           ? active.kind
           : session.document.featuredVisualKind) ??
         inferFeaturedVisualKind(session.document.copy.heading);
@@ -1335,13 +1346,21 @@ export function useDesignSession(
         const newBlock = payload.blocks[0];
         if (!newBlock) {
           setFeaturedError(
-            `No matching ${activeKind === "illustration" ? "illustration" : "UI"} found for this brief.`,
+            `No matching ${
+              activeKind === "illustration"
+                ? "illustration"
+                : activeKind === "3d"
+                  ? "3D element"
+                  : "UI"
+            } found for this brief.`,
           );
           return;
         }
         if (
           (activeKind === "illustration" && newBlock.kind !== "illustration") ||
-          (activeKind === "ui" && newBlock.kind === "illustration")
+          (activeKind === "3d" && newBlock.kind !== "3d") ||
+          (activeKind === "ui" &&
+            (newBlock.kind === "illustration" || newBlock.kind === "3d"))
         ) {
           setFeaturedError("Shuffle returned the wrong visual kind. Try again.");
           return;
@@ -1403,17 +1422,39 @@ export function useDesignSession(
   const removeFeaturedVisualSlot = useCallback(
     (slotId: string) => {
       updateSession((prev) => {
-        const nextSlots = removeFeaturedSlot(prev.document.featuredSlots, slotId);
-        if (nextSlots === prev.document.featuredSlots) return prev;
+        const prevSlots = ensureFeaturedSlots(prev.document.featuredSlots);
+        const nextSlots = removeFeaturedSlot(prevSlots, slotId);
+        const unchanged =
+          nextSlots.length === prevSlots.length &&
+          nextSlots.every((slot, i) => {
+            const before = prevSlots[i]!;
+            return (
+              slot.slotId === before.slotId &&
+              slot.mode === before.mode &&
+              slot.activeBlockId === before.activeBlockId
+            );
+          });
+        if (unchanged) return prev;
+
         const primary =
           nextSlots.find((slot) => slot.slotId === FEATURED_PRIMARY_SLOT_ID) ??
           nextSlots[0];
+        const clearedSoleSlot =
+          prevSlots.length === 1 &&
+          nextSlots.length === 1 &&
+          nextSlots[0]?.mode === "placeholder" &&
+          !nextSlots[0]?.activeBlockId;
+
         return {
           ...prev,
           featured: {
             ...prev.featured,
-            activeBlockId: primary?.activeBlockId ?? prev.featured.activeBlockId,
-            mode: primary?.mode ?? prev.featured.mode,
+            activeBlockId: clearedSoleSlot
+              ? null
+              : (primary?.activeBlockId ?? null),
+            mode: clearedSoleSlot
+              ? ("placeholder" as const)
+              : (primary?.mode ?? prev.featured.mode),
           },
           document: {
             ...prev.document,

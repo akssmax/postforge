@@ -1,5 +1,6 @@
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
 import type { FeaturedSlotContent } from "@/lib/social-tool/dynamicLayout";
+import { isFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import type { ProductPageId } from "@/lib/social-tool/presets";
 import { findVisualBlock, upsertVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
@@ -55,7 +56,23 @@ export function removeFeaturedSlot(
   slotId: string,
 ): FeaturedSlotContent[] {
   const current = ensureFeaturedSlots(slots);
-  if (current.length <= 1) return current;
+
+  // Last remaining slot: clear it back to an empty placeholder instead of
+  // deleting the row (layouts always keep at least one featured cell).
+  if (current.length <= 1) {
+    const only = current[0];
+    if (!only || only.slotId !== slotId) return current;
+    if (only.mode === "placeholder" && !only.activeBlockId) return current;
+    return [
+      {
+        ...only,
+        mode: "placeholder",
+        activeBlockId: null,
+        productPage: undefined,
+      },
+    ];
+  }
+
   const next = current.filter((slot) => slot.slotId !== slotId);
   return next.length > 0 ? next : current;
 }
@@ -146,8 +163,8 @@ export function withAssignedVisualBlock(
     const keepForKindToggle =
       !!previous &&
       previous.kind !== nextBlock.kind &&
-      (previous.kind === "ui" || previous.kind === "illustration") &&
-      (nextBlock.kind === "ui" || nextBlock.kind === "illustration");
+      isFeaturedVisualKind(previous.kind) &&
+      isFeaturedVisualKind(nextBlock.kind);
     if (!stillUsedElsewhere && !keepForKindToggle) {
       next = next.filter((block) => block.id !== previousId);
     }

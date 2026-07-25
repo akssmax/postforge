@@ -67,7 +67,7 @@ export const designSnapshotSchema = z.object({
         z.object({
           id: z.string(),
           label: z.string(),
-          kind: z.enum(["diagram", "ui", "illustration"]),
+          kind: z.enum(["diagram", "ui", "illustration", "3d"]),
           svgMarkup: z.string().optional(),
           content: z.record(z.string(), z.string()).optional(),
           theme: z.string().optional(),

@@ -16,7 +16,8 @@ import { withShuffleAll } from "@/lib/social-tool/shufflePreferences";
 import { getLayoutShuffleFamily, type PostLayoutId } from "@/lib/social-tool/postLayouts";
 import { layoutIdForDocument } from "@/lib/social-tool/layoutRegistry";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
-import { inferFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
+import { inferFeaturedVisualKind, isFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
+import type { FeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import { activeVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
 import {
   FEATURED_PRIMARY_SLOT_ID,
@@ -50,8 +51,8 @@ export async function shuffleFeaturedVisualForSession(
   if (blocks.length === 0) return { session };
 
   const active = activeVisualBlock(blocks, session.featured.activeBlockId);
-  const activeKind: "ui" | "illustration" =
-    (active?.kind === "ui" || active?.kind === "illustration"
+  const activeKind: FeaturedVisualKind =
+    (isFeaturedVisualKind(active?.kind)
       ? active.kind
       : session.document.featuredVisualKind) ??
     inferFeaturedVisualKind(session.document.copy.heading);

@@ -6,7 +6,7 @@ import type { FeaturedPolicy } from "@/lib/llm/rules/types";
 
 export type FeaturedStrategyResult = {
   featuredPolicy: FeaturedPolicy;
-  featuredKind: "ui" | "illustration";
+  featuredKind: "ui" | "illustration" | "3d";
   reason: string;
 };
 
@@ -19,7 +19,11 @@ export function resolveFeaturedStrategy(input: {
   const campaignHint = table[input.plan.campaign.type];
   const featuredKind =
     input.plan.visual.featuredKind ??
-    (campaignHint === "illustration" ? "illustration" : "ui");
+    (campaignHint === "illustration"
+      ? "illustration"
+      : campaignHint === "3d"
+        ? "3d"
+        : "ui");
 
   return {
     featuredPolicy: input.rulesProfile.featuredPolicy,

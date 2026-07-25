@@ -11,6 +11,9 @@ const META_TAGS = new Set([
   "cuate",
   "undraw",
   "open-doodles",
+  "thiings",
+  "3d",
+  "icon",
 ]);
 
 const STOP_TOKENS = new Set([
@@ -38,14 +41,14 @@ export type VisualPickIntent = {
   goal?: string;
   visualPriority?: string;
   proofStrategy?: string;
-  featuredVisualKind?: "ui" | "illustration";
+  featuredVisualKind?: "ui" | "illustration" | "3d";
   keywords?: string[];
   themes?: string[];
 };
 
 export function resolvePreferredVisualKind(
   input: VisualBlockGenerateInput,
-): "ui" | "illustration" | undefined {
+): "ui" | "illustration" | "3d" | undefined {
   return input.preferredKind ?? input.intent?.featuredVisualKind;
 }
 
@@ -91,18 +94,22 @@ function kindIntentBonus(
   if (intent.proofStrategy === "product_ui" && kind === "ui") bonus += 10;
   if (intent.proofStrategy === "stats" && kind === "diagram") bonus += 10;
   if (intent.proofStrategy === "social_proof" && kind === "illustration") bonus += 6;
+  if (intent.proofStrategy === "social_proof" && kind === "3d") bonus += 4;
 
   if (intent.visualPriority === "product" && kind === "ui") bonus += 8;
   if (intent.visualPriority === "brand" && kind === "illustration") bonus += 8;
+  if (intent.visualPriority === "brand" && kind === "3d") bonus += 5;
   if (intent.visualPriority === "copy" && kind === "illustration") bonus += 3;
   if (intent.visualPriority === "balanced") {
     if (kind === "illustration") bonus += 2;
+    if (kind === "3d") bonus += 2;
     if (kind === "ui") bonus += 2;
   }
 
   if (intent.goal === "book_demo" && kind === "ui") bonus += 4;
   if (intent.goal === "signup" && kind === "ui") bonus += 3;
   if (intent.goal === "awareness" && kind === "illustration") bonus += 3;
+  if (intent.goal === "awareness" && kind === "3d") bonus += 2;
 
   return bonus;
 }
@@ -118,7 +125,13 @@ export function scoreVisualPattern(
   const preferredKind = resolvePreferredVisualKind(input);
   if (preferredKind) {
     if (pattern.kind === preferredKind) score += 18;
-    else if (pattern.kind === "ui" || pattern.kind === "illustration") score -= 10;
+    else if (
+      pattern.kind === "ui" ||
+      pattern.kind === "illustration" ||
+      pattern.kind === "3d"
+    ) {
+      score -= 10;
+    }
   }
 
   let intentTagHits = 0;
@@ -152,7 +165,10 @@ export function scoreVisualPattern(
     if (id.includes(token)) score += 2;
   }
 
-  if (pattern.kind === "illustration" && intentTagHits >= 2) {
+  if (
+    (pattern.kind === "illustration" || pattern.kind === "3d") &&
+    intentTagHits >= 2
+  ) {
     score += intentTagHits * 2;
   }
 

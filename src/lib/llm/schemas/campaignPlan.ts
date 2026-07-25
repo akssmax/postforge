@@ -179,6 +179,7 @@ function focusFromIntent(
   intent: CampaignIntent,
 ): CampaignPlan["visual"]["focus"] {
   if (intent.featuredVisualKind === "illustration") return "illustration";
+  if (intent.featuredVisualKind === "3d") return "brand";
   if (intent.visualPriority === "product") return "product_ui";
   if (intent.visualPriority === "brand") return "brand";
   if (intent.proofStrategy === "stats") return "metric";

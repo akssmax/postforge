@@ -1,12 +1,23 @@
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 
-export type FeaturedVisualKind = "ui" | "illustration";
+export type FeaturedVisualKind = "ui" | "illustration" | "3d";
+
+const FEATURED_KINDS = new Set<FeaturedVisualKind>(["ui", "illustration", "3d"]);
+
+export function isFeaturedVisualKind(
+  kind: string | undefined | null,
+): kind is FeaturedVisualKind {
+  return Boolean(kind && FEATURED_KINDS.has(kind as FeaturedVisualKind));
+}
 
 const UI_SIGNALS =
   /\b(product|saas|ui|ux|app|dashboard|crm|demo|feature|platform|software|metric|metrics|stat|stats|roi|kpi|pricing|automation|pipeline|integration|api|widget|screenshot|interface|workflow|book demo|signup|trial)\b/i;
 
 const ILLUSTRATION_SIGNALS =
   /\b(illustration|story|narrative|brand story|culture|team|people|celebration|celebrate|festival|diwali|holiday|food|craving|emotion|emotional|friendly|consumer|lifestyle|mascot|scene|creative|awareness|delight|playful|hero image|storytelling|community|values|mission|vision)\b/i;
+
+const THREED_SIGNALS =
+  /\b(3d|three[- ]?d|thiings|clay icon|isometric icon|3d icon|3d element|3d asset)\b/i;
 
 export function inferFeaturedVisualKind(
   brief: string,
@@ -27,9 +38,11 @@ export function inferFeaturedVisualKind(
 
   let uiScore = 0;
   let illustrationScore = 0;
+  let threeDScore = 0;
 
   if (UI_SIGNALS.test(haystack)) uiScore += 3;
   if (ILLUSTRATION_SIGNALS.test(haystack)) illustrationScore += 3;
+  if (THREED_SIGNALS.test(haystack)) threeDScore += 5;
 
   if (intent?.proofStrategy === "product_ui" || intent?.proofStrategy === "stats") {
     uiScore += 4;
@@ -57,9 +70,17 @@ export function inferFeaturedVisualKind(
   }
   if (intent?.campaignType === "product_launch") uiScore += 2;
 
+  if (threeDScore > uiScore && threeDScore > illustrationScore) return "3d";
   return illustrationScore > uiScore ? "illustration" : "ui";
 }
 
 export function featuredVisualKindLabel(kind: FeaturedVisualKind): string {
-  return kind === "ui" ? "UI block" : "Illustration";
+  switch (kind) {
+    case "ui":
+      return "UI block";
+    case "illustration":
+      return "Illustration";
+    case "3d":
+      return "3D element";
+  }
 }

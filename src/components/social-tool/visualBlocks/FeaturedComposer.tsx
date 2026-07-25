@@ -74,7 +74,7 @@ export function FeaturedComposer({
           svgMarkup: part.assetId === block.libraryId ? block.svgMarkup : "",
         };
 
-        const isIllustration = part.kind === "illustration";
+        const isIllustration = part.kind === "illustration" || part.kind === "3d";
 
         return (
           <div

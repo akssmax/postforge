@@ -14,23 +14,32 @@ export type VisualBlockDimensions = {
 
 export function parseSvgViewBox(svg: string): VisualBlockDimensions | null {
   const match = svg.match(/viewBox=["']([^"']+)["']/i);
-  if (!match) return null;
+  if (match) {
+    const parts = match[1]
+      .trim()
+      .split(/[\s,]+/)
+      .map((value) => Number.parseFloat(value));
 
-  const parts = match[1]
-    .trim()
-    .split(/[\s,]+/)
-    .map((value) => Number.parseFloat(value));
-
-  if (parts.length < 4) return null;
-
-  const width = parts[2]!;
-  const height = parts[3]!;
-
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return null;
+    if (parts.length >= 4) {
+      const width = parts[2]!;
+      const height = parts[3]!;
+      if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+        return { width, height };
+      }
+    }
   }
 
-  return { width, height };
+  const widthAttr = svg.match(/\bwidth=["']([0-9.]+)(?:px)?["']/i);
+  const heightAttr = svg.match(/\bheight=["']([0-9.]+)(?:px)?["']/i);
+  if (widthAttr && heightAttr) {
+    const width = Number.parseFloat(widthAttr[1]!);
+    const height = Number.parseFloat(heightAttr[1]!);
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return { width, height };
+    }
+  }
+
+  return null;
 }
 
 export function resolveVisualBlockDimensions(
@@ -45,7 +54,7 @@ export function resolveVisualBlockDimensions(
     return { ...VISUAL_LIBRARY_FRAME };
   }
 
-  if (block.kind === "illustration" || block.kind === "diagram" || block.kind === "ui") {
+  if (block.kind === "illustration" || block.kind === "3d" || block.kind === "diagram" || block.kind === "ui") {
     return { ...VISUAL_LIBRARY_FRAME };
   }
 

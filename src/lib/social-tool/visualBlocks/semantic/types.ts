@@ -30,7 +30,7 @@ export type SemanticPickContext = {
   readingPattern?: "F" | "Z" | "center";
   colorMood?: string;
   brandTone?: string;
-  featuredKind?: "ui" | "illustration";
+  featuredKind?: "ui" | "illustration" | "3d";
   proof?: string;
   platformId?: string;
 };
