@@ -50,6 +50,21 @@ const LandingDesignGallery = dynamic(
   },
 );
 
+const LandingToolShowcase = dynamic(
+  () =>
+    import("@/components/landing/LandingToolShowcase").then(
+      (m) => m.LandingToolShowcase,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="pf-tool-skeleton" aria-hidden>
+        Loading tool demo…
+      </div>
+    ),
+  },
+);
+
 const ease = [0.22, 1, 0.36, 1] as const;
 
 const FEATURES: ReadonlyArray<{
@@ -123,6 +138,7 @@ export function LandingPage() {
           <nav className="pf-nav-links" aria-label="Primary">
             <Link href="#playground">Shuffle</Link>
             <Link href="#gallery">Designs</Link>
+            <Link href="#tool-demo">Tool</Link>
             <Link href="#features">Features</Link>
             <Link href="/tool">Open tool</Link>
           </nav>
@@ -214,6 +230,23 @@ export function LandingPage() {
             </p>
           </motion.div>
           <LandingDesignGallery />
+        </section>
+
+        <section id="tool-demo" className="pf-tool-section">
+          <motion.div
+            className="pf-section-head"
+            initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.55, ease }}
+          >
+            <h2>The design tool, in motion.</h2>
+            <p>
+              A full editor chrome — brand kit, Shuffle, AI chat, spacing checks,
+              and export — walking through the flow that ships a post.
+            </p>
+          </motion.div>
+          <LandingToolShowcase />
         </section>
 
         <section id="features" className="pf-features">
@@ -315,6 +348,9 @@ export function LandingPage() {
                 </li>
                 <li>
                   <a href="#gallery">Design gallery</a>
+                </li>
+                <li>
+                  <a href="#tool-demo">Tool demo</a>
                 </li>
                 <li>
                   <a href="#features">Features</a>
