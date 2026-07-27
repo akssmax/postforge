@@ -2612,6 +2612,40 @@ html:has(.social-tool) body {
   line-height: 1;
 }
 
+.brief-chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 100%;
+}
+
+.brief-chat-message-actions {
+  margin-top: 0;
+  padding-left: 0.125rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.brief-chat-message:hover .brief-chat-message-actions,
+.brief-chat-message:focus-within .brief-chat-message-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.brief-chat-message-actions [data-slot="button"] {
+  width: 1.75rem;
+  height: 1.75rem;
+  min-width: 1.75rem;
+  padding: 0;
+  color: var(--text-tertiary);
+}
+
+.brief-chat-message-actions [data-slot="button"]:hover {
+  color: var(--text-secondary);
+  background: var(--overlay-subtle);
+}
+
 .social-tool-section {
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--leap-line);

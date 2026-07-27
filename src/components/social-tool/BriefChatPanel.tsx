@@ -8,9 +8,12 @@ import {
 } from "@/components/ai-elements/conversation";
 import {
   Message,
+  MessageAction,
+  MessageActions,
   MessageContent,
   MessageResponse,
 } from "@/components/ai-elements/message";
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@heroui/react";
 import type { BriefChatState } from "@/lib/llm/useBriefChat";
 import type { UIMessage } from "ai";
@@ -20,6 +23,7 @@ import {
   AlignVerticalSpaceAround,
   ArrowUp,
   CheckCircle2,
+  Copy,
   Eye,
   Grid3x3,
   Image,
@@ -29,6 +33,8 @@ import {
   RefreshCw,
   Sparkles,
   Stamp,
+  ThumbsDown,
+  ThumbsUp,
   Type,
   Wand2,
 } from "lucide-react";
@@ -38,6 +44,7 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
+  Fragment,
   type ReactNode,
 } from "react";
 import { DesignCategoryPicker } from "@/components/social-tool/DesignCategoryPicker";
@@ -320,12 +327,25 @@ function BriefChatEmptyState({
   );
 }
 
+function thinkingLabel(lastMessage: UIMessage | undefined): string {
+  if (
+    lastMessage?.role === "assistant" &&
+    lastMessage.parts.some(
+      (part) => typeof part.type === "string" && part.type.startsWith("tool-"),
+    )
+  ) {
+    return "Updating your design…";
+  }
+  return "Thinking…";
+}
+
 function BriefChatMessages({
   messages,
   isGenerating,
   mode,
   onFillPrompt,
   onSuggest,
+  onRetry,
   selectedCategory,
   onSelectCategory,
 }: {
@@ -334,9 +354,14 @@ function BriefChatMessages({
   mode: BriefChatPanelMode;
   onFillPrompt?: (prompt: string) => void;
   onSuggest?: (prompt: string) => void;
+  onRetry?: (messageIndex: number) => void;
   selectedCategory?: ArtifactCategoryId | null;
   onSelectCategory?: (category: ArtifactCategoryId | null) => void;
 }) {
+  const [feedbackByMessageId, setFeedbackByMessageId] = useState<
+    Record<string, "up" | "down">
+  >({});
+
   const lastMessage = messages.at(-1);
   const streamingAssistant =
     isGenerating &&
@@ -364,7 +389,7 @@ function BriefChatMessages({
 
   return (
     <>
-      {messages.map((message) => {
+      {messages.map((message, messageIndex) => {
         const isLast = message.id === lastMessage?.id;
         const parts = renderMessageParts(
           message,
@@ -377,16 +402,75 @@ function BriefChatMessages({
         );
         if (parts.length === 0 && message.role !== "assistant") return null;
 
+        const assistantText = messageText(message).trim();
+        const showFeedback =
+          message.role === "assistant" &&
+          assistantText.length > 0 &&
+          !(isGenerating && isLast);
+        const feedback = feedbackByMessageId[message.id];
+
         return (
-          <Message from={message.role} key={message.id}>
-            <MessageContent>{parts}</MessageContent>
-          </Message>
+          <div key={message.id} className="brief-chat-message group/row">
+            <Message from={message.role}>
+              <MessageContent>{parts}</MessageContent>
+            </Message>
+            {showFeedback ? (
+              <MessageActions className="brief-chat-message-actions">
+                {onRetry ? (
+                  <MessageAction
+                    tooltip="Retry"
+                    label="Retry"
+                    onClick={() => onRetry(messageIndex)}
+                  >
+                    <RefreshCw className="size-3.5" />
+                  </MessageAction>
+                ) : null}
+                <MessageAction
+                  tooltip="Copy"
+                  label="Copy"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(assistantText);
+                  }}
+                >
+                  <Copy className="size-3.5" />
+                </MessageAction>
+                <MessageAction
+                  tooltip="Good response"
+                  label="Good response"
+                  variant={feedback === "up" ? "secondary" : "ghost"}
+                  onClick={() =>
+                    setFeedbackByMessageId((prev) => ({
+                      ...prev,
+                      [message.id]: "up",
+                    }))
+                  }
+                >
+                  <ThumbsUp className="size-3.5" />
+                </MessageAction>
+                <MessageAction
+                  tooltip="Bad response"
+                  label="Bad response"
+                  variant={feedback === "down" ? "secondary" : "ghost"}
+                  onClick={() =>
+                    setFeedbackByMessageId((prev) => ({
+                      ...prev,
+                      [message.id]: "down",
+                    }))
+                  }
+                >
+                  <ThumbsDown className="size-3.5" />
+                </MessageAction>
+              </MessageActions>
+            ) : null}
+          </div>
         );
       })}
       {showThinking ? (
         <Message from="assistant">
           <MessageContent>
-            <MessageResponse isAnimating>Thinking…</MessageResponse>
+            <Shimmer as="span" className="text-sm" duration={1.6} spread={2.5}>
+              {thinkingLabel(lastMessage)}
+            </Shimmer>
           </MessageContent>
         </Message>
       ) : null}
@@ -589,6 +673,15 @@ export function BriefChatPanel({
             onFillPrompt={(prompt) => setDraftPrompt(prompt)}
             onSuggest={(prompt) => {
               submitText(prompt);
+            }}
+            onRetry={(messageIndex) => {
+              for (let i = messageIndex - 1; i >= 0; i -= 1) {
+                const prior = messages[i];
+                if (prior?.role === "user") {
+                  submitText(messageText(prior));
+                  break;
+                }
+              }
             }}
           />
         </ConversationContent>
