@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Shuffle } from "lucide-react";
 import {
   ProductShotPost,
@@ -45,8 +45,25 @@ export function LandingShufflePlayground({
   );
 
   const platform = getPlatform(demo.platformId);
-  /** Fit the full square under the centered hero copy. */
-  const previewScale = compact ? 0.46 : 0.52;
+  const stageRef = useRef<HTMLDivElement>(null);
+  const maxPreviewScale = compact ? 0.46 : 0.52;
+  const [previewScale, setPreviewScale] = useState(maxPreviewScale);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const updateScale = () => {
+      const width = stage.clientWidth;
+      if (width <= 0) return;
+      setPreviewScale(Math.min(maxPreviewScale, width / platform.width));
+    };
+
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [maxPreviewScale, platform.width]);
   const illustrationMarkup = useBrandRecoloredIllustration(
     demo.illustrationSrc,
     brand,
@@ -88,7 +105,7 @@ export function LandingShufflePlayground({
 
   return (
     <div className={`pf-playground ${compact ? "pf-playground-compact" : ""} ${className}`.trim()}>
-      <div className="pf-playground-stage">
+      <div className="pf-playground-stage" ref={stageRef}>
         <div className="pf-playground-canvas-shell" style={canvasStyle}>
           <div
             className="pf-playground-canvas-scale"

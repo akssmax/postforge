@@ -69,9 +69,11 @@ export function buildDesignSnapshotInput(input: {
           ? "image"
           : session.featured.mode === "composed"
             ? "composed"
-            : session.featured.mode === "placeholder"
-              ? "placeholder"
-              : "placeholder",
+            : session.featured.mode === "genui"
+              ? "genui"
+              : session.featured.mode === "placeholder"
+                ? "placeholder"
+                : "placeholder",
       productPage: session.featured.productPage,
       hasUploadedImage: !!session.featured.image,
       visible: doc.showFeaturedImage,
@@ -82,9 +84,11 @@ export function buildDesignSnapshotInput(input: {
             ? "image"
             : session.featured.mode === "composed"
               ? "composed"
-              : session.featured.mode === "placeholder"
-                ? "placeholder"
-                : "placeholder",
+              : session.featured.mode === "genui"
+                ? "genui"
+                : session.featured.mode === "placeholder"
+                  ? "placeholder"
+                  : "placeholder",
         visible: doc.showFeaturedImage,
         activeBlockId: session.featured.activeBlockId ?? null,
       }).map((slot) => ({
@@ -139,7 +143,12 @@ export function buildDesignSnapshotInput(input: {
       logoAlign: doc.logoAlign,
     },
     layoutSpacing: doc.layoutSpacing,
+    canvasShapes: doc.canvasShapes ?? [],
     selection: selection ?? null,
+    artifactId: doc.artifactId,
+    artifactCategory: doc.artifactCategory,
+    rendererId: doc.rendererId,
+    canvasSpec: doc.canvasSpec,
     ...(artboards ? { artboards } : {}),
   };
 }

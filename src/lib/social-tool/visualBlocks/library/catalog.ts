@@ -451,6 +451,11 @@ const PARAMETRIC_VISUAL_LIBRARY: ParametricVisualPattern[] = [
   uiCatalogEntry("inbox-preview", "Inbox preview", ["product", "inbox", "notifications", "ui"], "Inbox notification preview."),
   uiCatalogEntry("cta-banner", "CTA banner", ["cta", "hero", "convert", "action"], "Primary CTA banner with button."),
   uiCatalogEntry("value-prop-card", "Value prop card", ["cta", "value", "message", "hero"], "Short value proposition card."),
+  uiCatalogEntry("cta-button-primary", "Primary button", ["cta", "button", "action", "convert"], "Single filled call-to-action button."),
+  uiCatalogEntry("cta-button-outline", "Outline button", ["cta", "button", "secondary", "action"], "Outlined call-to-action button."),
+  uiCatalogEntry("cta-pill-pair", "CTA pill pair", ["cta", "rsvp", "dual", "action"], "Primary and secondary action pill buttons."),
+  uiCatalogEntry("badge-pill", "Badge pill", ["badge", "label", "offer", "tag"], "Compact promotional badge pill."),
+  uiCatalogEntry("contact-row", "Contact row", ["contact", "email", "phone", "footer"], "Contact details row for cards and invites."),
 ];
 
 export const VISUAL_LIBRARY: VisualLibraryPattern[] = [

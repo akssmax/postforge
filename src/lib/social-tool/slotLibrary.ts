@@ -1,4 +1,10 @@
 import type { TextSlotRole } from "@/lib/social-tool/dynamicLayout";
+import {
+  isCopyOnlyArtifact,
+  isInviteArtifact,
+  isSocialAdArtifact,
+} from "@/lib/design-engine/artifactReference";
+import { isEventArtifact } from "@/lib/design-engine/artifactBriefParser";
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
 
 export type SlotConstraint = {
@@ -34,18 +40,196 @@ const DEFAULT_CONSTRAINTS: Record<TextSlotRole, SlotConstraint> = {
     minCharacters: 0,
     label: "Caption",
   },
+  title: {
+    role: "title",
+    maxCharacters: 64,
+    minCharacters: 0,
+    label: "Title",
+  },
+  name: {
+    role: "name",
+    maxCharacters: 48,
+    minCharacters: 0,
+    label: "Name",
+  },
+  cta: {
+    role: "cta",
+    maxCharacters: 32,
+    minCharacters: 0,
+    label: "Call to action",
+  },
+  contact: {
+    role: "contact",
+    maxCharacters: 120,
+    minCharacters: 0,
+    label: "Contact",
+  },
 };
+
+export function resolveSlotLabel(role: TextSlotRole, artifactId?: string): string {
+  if (isEventArtifact(artifactId)) {
+    switch (role) {
+      case "headline":
+        return "Event title";
+      case "subheading":
+        return "Audience";
+      case "body":
+        return "Date & time";
+      case "contact":
+        return "Venue";
+      case "cta":
+        return "RSVP / CTA";
+      case "caption":
+        return "RSVP / CTA";
+      default:
+        break;
+    }
+  }
+  if (isInviteArtifact(artifactId)) {
+    switch (role) {
+      case "headline":
+        return "Event title";
+      case "subheading":
+        return "Host / couple";
+      case "body":
+        return "Date & details";
+      case "contact":
+        return "Location";
+      case "cta":
+        return "RSVP";
+      default:
+        break;
+    }
+  }
+  if (artifactId === "business_card") {
+    switch (role) {
+      case "headline":
+        return "Name";
+      case "subheading":
+        return "Title";
+      case "contact":
+        return "Contact";
+      case "body":
+        return "Company";
+      default:
+        break;
+    }
+  }
+  if (isCopyOnlyArtifact(artifactId)) {
+    switch (role) {
+      case "headline":
+        return artifactId === "certificate" ? "Recipient name" : "Quote";
+      case "subheading":
+        return artifactId === "certificate" ? "Award title" : "Attribution";
+      case "body":
+        return artifactId === "certificate" ? "Citation" : "Context";
+      case "contact":
+        return "Signatory";
+      default:
+        break;
+    }
+  }
+  if (artifactId === "proposal_cover") {
+    switch (role) {
+      case "headline":
+        return "Project title";
+      case "subheading":
+        return "Client / subtitle";
+      case "body":
+        return "Summary";
+      case "contact":
+        return "Prepared for";
+      default:
+        break;
+    }
+  }
+  if (artifactId === "hiring_post") {
+    switch (role) {
+      case "headline":
+        return "Role title";
+      case "subheading":
+        return "Team / location";
+      case "body":
+        return "Highlights";
+      case "cta":
+        return "Apply CTA";
+      default:
+        break;
+    }
+  }
+  if (isSocialAdArtifact(artifactId)) {
+    switch (role) {
+      case "headline":
+        return "Hook";
+      case "subheading":
+        return "Value prop";
+      case "body":
+        return "Supporting copy";
+      case "cta":
+        return "Call to action";
+      default:
+        break;
+    }
+  }
+  if (artifactId === "checklist") {
+    switch (role) {
+      case "headline":
+        return "Title";
+      case "subheading":
+        return "Subtitle";
+      case "body":
+        return "Checklist items";
+      default:
+        break;
+    }
+  }
+  if (
+    artifactId === "flowchart" ||
+    artifactId === "org_chart" ||
+    artifactId === "process_flow" ||
+    artifactId === "comparison_chart"
+  ) {
+    switch (role) {
+      case "headline":
+        return "Diagram title";
+      case "body":
+        return "Notes";
+      default:
+        break;
+    }
+  }
+  if (
+    artifactId === "framework" ||
+    artifactId === "timeline" ||
+    artifactId === "infographic"
+  ) {
+    switch (role) {
+      case "headline":
+        return "Title";
+      case "subheading":
+        return "Subtitle";
+      case "body":
+        return "Sections";
+      default:
+        break;
+    }
+  }
+  return DEFAULT_CONSTRAINTS[role].label;
+}
 
 export function getSlotConstraint(
   role: TextSlotRole,
   rulesProfile?: DesignRulesProfile,
+  artifactId?: string,
 ): SlotConstraint {
   const base = DEFAULT_CONSTRAINTS[role];
-  if (!rulesProfile) return base;
+  const label = resolveSlotLabel(role, artifactId);
+  const withLabel = { ...base, label };
+  if (!rulesProfile) return withLabel;
 
   const maxChars = rulesProfile.slotLimits[role];
   if (maxChars === 0) {
-    return { ...base, maxCharacters: 0, minCharacters: 0, maxWords: 0 };
+    return { ...withLabel, maxCharacters: 0, minCharacters: 0, maxWords: 0 };
   }
   if (maxChars != null) {
     const wordKey =
@@ -57,12 +241,12 @@ export function getSlotConstraint(
             ? "ctaWords"
             : undefined;
     return {
-      ...base,
+      ...withLabel,
       maxCharacters: maxChars,
       maxWords: wordKey ? rulesProfile.copyBudget[wordKey] : undefined,
     };
   }
-  return base;
+  return withLabel;
 }
 
 export function slotConstraintsPrompt(

@@ -1,0 +1,28 @@
+id: education_framework
+name: Education Framework
+pattern: narrative
+slots:
+  - headline
+  - subheading
+  - body
+attention: headline
+proof: stat
+density: medium
+readingPattern: center
+artifactSupports:
+  - infographic
+  - timeline
+  - framework
+  - comparison_chart
+  - checklist
+  - flowchart
+  - process_flow
+preferredLayouts:
+  - centered-announcement
+  - copy-statement
+bundles:
+  - process-explain
+  - growth-proof
+families:
+  - diagram
+  - benefits

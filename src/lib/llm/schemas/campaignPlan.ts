@@ -135,6 +135,8 @@ export const campaignPlanSchema = z.object({
   keywords: z.array(z.string()).default([]),
   themes: z.array(z.string()).default([]),
   primaryMessage: z.string().min(1),
+  /** Design Compiler artifact plugin id (e.g. linkedin_ad, birthday_invite). */
+  artifactId: z.string().optional(),
 });
 
 export type CampaignPlan = z.infer<typeof campaignPlanSchema>;

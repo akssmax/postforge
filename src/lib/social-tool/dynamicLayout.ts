@@ -14,10 +14,33 @@ import type {
   PostLayoutTextSide,
 } from "@/lib/social-tool/postLayouts";
 
-export type SlotKind = "logo" | "text" | "featured";
-export type LayoutZone = "textColumn" | "featuredColumn" | "stackMain" | "footer";
+export type SlotKind =
+  | "logo"
+  | "text"
+  | "featured"
+  | "cta"
+  | "contact"
+  | "photo"
+  | "badge"
+  | "diagram"
+  | "metric";
+export type LayoutZone =
+  | "textColumn"
+  | "featuredColumn"
+  | "stackMain"
+  | "footer"
+  | "hero"
+  | "sidebar";
 
-export type TextSlotRole = "headline" | "subheading" | "body" | "caption";
+export type TextSlotRole =
+  | "headline"
+  | "subheading"
+  | "body"
+  | "caption"
+  | "cta"
+  | "contact"
+  | "name"
+  | "title";
 
 export type SlotDefinition = {
   id: string;
@@ -65,6 +88,14 @@ export type FeaturedSlotContent = {
   activeBlockId?: string | null;
   transform?: FeaturedImageTransform;
   visible: boolean;
+  /** Stock photo source when mode is image. */
+  imageSource?: "upload" | "unsplash";
+  unsplash?: {
+    id: string;
+    url: string;
+    photographer: string;
+    attribution: string;
+  };
 };
 
 export function sortSlots(slots: SlotDefinition[]): SlotDefinition[] {

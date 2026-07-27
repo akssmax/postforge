@@ -23,3 +23,6 @@ bundles:
 families:
   - pricing
   - metric
+artifactSupports:
+  - linkedin_ad
+  - instagram_post

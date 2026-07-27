@@ -1,0 +1,21 @@
+id: hiring-post
+platforms: [all]
+campaigns:
+  - hiring
+  - announcement
+visualPriority: medium
+contentDensity: medium
+readingPattern: F
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - body
+  - cta
+score:
+  hiring: 0.98
+  announcement: 0.7
+artifactSupports:
+  - hiring_post

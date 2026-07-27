@@ -1,0 +1,23 @@
+id: quote_card
+category: social
+label: Quote Card
+capabilities:
+  multiPage: false
+  slides: 1
+  aspectRatios: ["1:1", "4:5"]
+  primaryContent: text
+constraints:
+  requiredSlots: [headline]
+  optionalSlots: [body, logo]
+allowedRecipes:
+  - narrative_statement
+  - announcement_center
+recommendedLayouts:
+  - copy-only
+  - copy-statement
+  - centered-announcement
+renderer: product-shot
+inferenceKeywords:
+  - quote
+  - testimonial
+  - inspiration

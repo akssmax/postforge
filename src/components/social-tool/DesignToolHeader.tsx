@@ -23,7 +23,7 @@ export function DesignToolHeader({ center, children, showQuickNew = true }: Prop
   }
 
   return (
-    <header className="design-tool-header sticky top-0 z-40 grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-leap-line bg-surface-primary px-4 py-3 sm:px-6">
+    <header className="design-tool-header sticky top-0 z-40 grid shrink-0 grid-cols-[1fr_auto] items-center gap-3 border-b border-leap-line bg-surface-primary px-4 py-3 sm:px-6">
       <div className="design-tool-header-start flex min-w-0 items-center justify-self-start gap-2 sm:gap-3">
         <AppNav />
         <Logo href="/designs" height={24} animation="none" className="text-current" />
@@ -49,13 +49,17 @@ export function DesignToolHeader({ center, children, showQuickNew = true }: Prop
         ) : null}
       </div>
 
-      <div className="design-tool-header-center min-w-0 justify-self-center">
-        {center ?? null}
-      </div>
-
       <div className="design-tool-header-end flex shrink-0 items-center justify-self-end gap-3">
-        <UserAvatarButton />
-        {children}
+        {center ? (
+          <>
+            <div className="design-tool-header-artboard min-w-0">{center}</div>
+            <div className="design-tool-header-separator" aria-hidden />
+          </>
+        ) : null}
+        <div className="design-tool-header-actions flex shrink-0 items-center gap-3">
+          <UserAvatarButton />
+          {children}
+        </div>
       </div>
     </header>
   );

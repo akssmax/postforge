@@ -1,0 +1,19 @@
+id: presentation_title
+name: Presentation Title
+pattern: announcement_hero
+slots:
+  - headline
+  - subheading
+attention: headline
+proof: none
+density: low
+readingPattern: center
+artifactSupports:
+  - pitch_deck
+  - webinar_slides
+  - roadmap
+preferredLayouts:
+  - deck-sidebar
+  - centered-announcement
+bundles:
+  - feature-launch

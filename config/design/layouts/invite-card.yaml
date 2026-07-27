@@ -1,0 +1,23 @@
+id: invite-card
+platforms: [all]
+campaigns:
+  - event
+visualPriority: medium
+contentDensity: medium
+readingPattern: center
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - body
+  - cta
+  - contact
+  - product_image
+score:
+  event: 0.96
+artifactSupports:
+  - birthday_invite
+  - wedding_invite
+  - rsvp_card

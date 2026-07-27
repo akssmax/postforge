@@ -71,6 +71,7 @@ export function createBlankDocument(): DesignDocument {
       phase: "needsLogo",
       briefSkipped: false,
     },
+    canvasShapes: [],
   });
   return base;
 }
@@ -117,6 +118,7 @@ function normalizeDocument(
     pattern: migratePatternRef(
       typeof raw.pattern === "string" ? raw.pattern : undefined,
     ),
+    canvasShapes: Array.isArray(raw.canvasShapes) ? raw.canvasShapes : [],
   };
   return migrateDocumentV1ToV2(merged, featured);
 }

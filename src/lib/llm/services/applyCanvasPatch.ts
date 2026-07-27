@@ -3,6 +3,7 @@ import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
 import type { FeaturedSlotContent } from "@/lib/social-tool/dynamicLayout";
+import { mergeCanvasShapeArrays } from "@/lib/social-tool/shapes/storage";
 import { getPlatform } from "@/lib/social-tool/presets";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { resolveLayoutHierarchy } from "@/lib/social-tool/layoutHierarchy";
@@ -105,6 +106,13 @@ export function applyCanvasPatchToSession(
               session.document.featuredSlots,
               documentPatch.featuredSlots,
             ),
+            canvasShapes:
+              documentPatch.canvasShapes !== undefined
+                ? mergeCanvasShapeArrays(
+                    session.document.canvasShapes ?? [],
+                    documentPatch.canvasShapes,
+                  )
+                : session.document.canvasShapes,
           },
           session.document,
         )

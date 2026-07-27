@@ -1,0 +1,19 @@
+id: presentation_problem
+name: Presentation Problem
+pattern: problem_solution
+slots:
+  - headline
+  - subheading
+  - body
+attention: headline
+proof: stat
+density: medium
+readingPattern: F
+artifactSupports:
+  - pitch_deck
+  - webinar_slides
+preferredLayouts:
+  - copy-statement
+  - professional-left
+bundles:
+  - growth-proof

@@ -1,0 +1,25 @@
+id: rsvp_card
+category: events
+label: RSVP Card
+capabilities:
+  multiPage: false
+  print: true
+  slides: 1
+  aspectRatios: ["5:7", "3:2"]
+  primaryContent: text
+constraints:
+  requiredSlots: [headline, cta, contact]
+  optionalSlots: [body]
+allowedRecipes:
+  - invitation_rsvp
+  - invitation_hero
+recommendedLayouts:
+  - invite-card
+  - event-footer
+  - centered-announcement
+renderer: product-shot
+campaignType: event
+inferenceKeywords:
+  - rsvp
+  - respond
+  - invitation card

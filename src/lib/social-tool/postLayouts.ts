@@ -29,7 +29,18 @@ export type PostLayoutId =
   | "event-footer"
   | "split-feature-right"
   | "split-feature-left"
-  | "deck-sidebar";
+  | "deck-sidebar"
+  | "copy-only"
+  | "diagram-primary"
+  | "contact-footer"
+  | "business-card"
+  | "event-poster"
+  | "invite-card"
+  | "hiring-post"
+  | "social-ad"
+  | "proposal-cover"
+  | "section-stack"
+  | "comparison-columns";
 
 /** Vertical bands vs side-by-side columns */
 export type PostLayoutComposition = "stack" | "split";
@@ -44,7 +55,7 @@ export type PostLayoutStack = "text-first" | "featured-first";
 export type PostContentBlock = "headline" | "subheading" | "extras";
 
 /** Blocks that can appear in the footer strip */
-export type PostFooterBlock = "logo" | "extras";
+export type PostFooterBlock = "logo" | "extras" | "contact";
 
 /** Where optional extra copy lines render */
 export type ExtrasPlacement = "main" | "footer" | "hidden";
@@ -93,6 +104,14 @@ export type PostLayout = {
   footerBlocks: PostFooterBlock[];
   /** Phrases users might say in a future AI prompt box */
   promptHints: string[];
+  /** When false, layout has no featured/product zone (copy-only designs) */
+  includeFeaturedSlot?: boolean;
+  /** Additional body sections beyond the main extras block */
+  sectionSlotCount?: number;
+  /** Dedicated footer contact strip */
+  footerContact?: boolean;
+  /** Second featured column (comparisons, dual visuals) */
+  secondFeaturedSlot?: boolean;
 };
 
 export const DEFAULT_POST_LAYOUT_ID: PostLayoutId = "classic-hero";
@@ -472,6 +491,255 @@ export const POST_LAYOUTS: PostLayout[] = [
       "event standee",
     ],
   },
+  {
+    id: "copy-only",
+    name: "Copy only",
+    summary: "Typography-focused layout with no product frame",
+    description:
+      "Minimal layout for certificates, quote cards, and text-heavy invites where the message is the design.",
+    tags: ["certificate", "quote", "minimal", "typography", "print"],
+    bestFor: "all",
+    stack: "text-first",
+    textZoneRatio: 0.92,
+    textZoneMax: 0.98,
+    textVerticalAlign: "center",
+    logoPlacement: "top",
+    logoAlign: "center",
+    textAlign: "center",
+    featuredRadius: "none",
+    mainBlocks: ["headline", "subheading", "extras"],
+    extrasPlacement: "main",
+    footerBlocks: [],
+    includeFeaturedSlot: false,
+    promptHints: ["copy only", "text only", "certificate", "quote card", "minimal"],
+  },
+  {
+    id: "diagram-primary",
+    name: "Diagram primary",
+    summary: "Large diagram or visual with a short headline band",
+    description:
+      "Diagram-first layout for flowcharts, org charts, and process flows where the visual structure is primary.",
+    tags: ["diagram", "flowchart", "org-chart", "documentation"],
+    bestFor: "all",
+    stack: "featured-first",
+    textZoneRatio: 0.2,
+    textZoneMax: 0.28,
+    textVerticalAlign: "start",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "top-left",
+    mainBlocks: ["headline"],
+    extrasPlacement: "hidden",
+    footerBlocks: [],
+    promptHints: ["flowchart", "org chart", "diagram", "process flow"],
+  },
+  {
+    id: "contact-footer",
+    name: "Contact footer",
+    summary: "Headline stack with RSVP or contact strip",
+    description:
+      "Invitation and business layouts with headline copy and a dedicated contact or RSVP footer.",
+    tags: ["invite", "rsvp", "business-card", "contact", "event"],
+    bestFor: ["instagram-story", "instagram-square", "linkedin-square"],
+    stack: "text-first",
+    textZoneRatio: 0.52,
+    textZoneMax: 0.62,
+    textVerticalAlign: "center",
+    logoPlacement: "top",
+    logoAlign: "center",
+    textAlign: "center",
+    featuredRadius: "top-left",
+    mainBlocks: ["headline", "subheading", "extras"],
+    extrasPlacement: "main",
+    footerBlocks: [],
+    footerContact: true,
+    includeFeaturedSlot: false,
+    promptHints: ["wedding invite", "rsvp", "business card", "contact details"],
+  },
+  {
+    id: "business-card",
+    name: "Business card",
+    summary: "Name, title, company, and contact strip",
+    description:
+      "Print-ready business card with logo, name/title stack, optional company line, and contact footer.",
+    tags: ["business-card", "contact", "print", "corporate"],
+    bestFor: "all",
+    stack: "text-first",
+    textZoneRatio: 0.68,
+    textZoneMax: 0.78,
+    textVerticalAlign: "center",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "none",
+    mainBlocks: ["headline", "subheading", "extras"],
+    extrasPlacement: "main",
+    footerBlocks: [],
+    footerContact: true,
+    includeFeaturedSlot: false,
+    promptHints: ["business card", "contact card", "name title email phone"],
+  },
+  {
+    id: "event-poster",
+    name: "Event poster",
+    summary: "Event title, date/time body, venue footer, and RSVP line",
+    description:
+      "Portrait-friendly event layout with title stack, schedule in the body band, venue in the contact footer, and RSVP in footer extras.",
+    tags: ["event", "meetup", "poster", "rsvp", "portrait"],
+    bestFor: ["poster-portrait", "instagram-story", "instagram-square"],
+    stack: "text-first",
+    textZoneRatio: 0.52,
+    textZoneMax: 0.62,
+    textVerticalAlign: "start",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "top-left",
+    mainBlocks: ["headline", "subheading", "extras"],
+    extrasPlacement: "main",
+    footerBlocks: ["extras"],
+    footerContact: true,
+    promptHints: [
+      "meetup poster",
+      "event title date time venue",
+      "community gathering",
+      "RSVP footer",
+    ],
+  },
+  {
+    id: "invite-card",
+    name: "Invite card",
+    summary: "Centered invitation with date, location, and RSVP",
+    description:
+      "Personal and celebration invites — centered typography, optional photo hero, date/location/RSVP bands.",
+    tags: ["invite", "birthday", "wedding", "rsvp", "celebration"],
+    bestFor: ["invite-portrait", "instagram-story", "poster-portrait"],
+    stack: "text-first",
+    textZoneRatio: 0.48,
+    textZoneMax: 0.58,
+    textVerticalAlign: "center",
+    logoPlacement: "top",
+    logoAlign: "center",
+    textAlign: "center",
+    featuredRadius: "top-left",
+    mainBlocks: ["headline", "subheading", "extras"],
+    extrasPlacement: "main",
+    footerBlocks: ["extras"],
+    footerContact: true,
+    promptHints: ["birthday invite", "wedding save the date", "RSVP card", "party invitation"],
+  },
+  {
+    id: "hiring-post",
+    name: "Hiring post",
+    summary: "Role headline, team hook, details, and apply CTA",
+    description:
+      "Recruiting social post with open-role headline, culture hook, role details, and footer apply CTA.",
+    tags: ["hiring", "recruiting", "jobs", "team"],
+    bestFor: ["linkedin-square", "instagram-square"],
+    stack: "text-first",
+    textZoneRatio: 0.55,
+    textZoneMax: 0.65,
+    textVerticalAlign: "start",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "top-left",
+    mainBlocks: ["headline", "subheading", "extras"],
+    extrasPlacement: "main",
+    footerBlocks: ["extras"],
+    promptHints: ["we are hiring", "open role", "join our team", "careers"],
+  },
+  {
+    id: "social-ad",
+    name: "Social ad",
+    summary: "Benefit headline, proof subline, and CTA for paid social",
+    description:
+      "Conversion-focused ad layout — punchy headline, supporting proof line, optional visual, footer CTA.",
+    tags: ["ad", "linkedin", "instagram", "marketing", "cta"],
+    bestFor: ["linkedin-square", "instagram-square", "instagram-story"],
+    stack: "text-first",
+    textZoneRatio: 0.42,
+    textZoneMax: 0.52,
+    textVerticalAlign: "start",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "top-left",
+    mainBlocks: ["headline", "subheading"],
+    extrasPlacement: "footer",
+    footerBlocks: ["extras"],
+    promptHints: ["linkedin ad", "instagram ad", "sponsored post", "product launch ad"],
+  },
+  {
+    id: "proposal-cover",
+    name: "Proposal cover",
+    summary: "Client-facing cover with project title and date",
+    description:
+      "Print-ready proposal or quote cover — project title, client name, date line, logo top.",
+    tags: ["proposal", "cover", "rfp", "quote", "print"],
+    bestFor: ["linkedin-landscape", "certificate-landscape"],
+    stack: "text-first",
+    textZoneRatio: 0.72,
+    textZoneMax: 0.82,
+    textVerticalAlign: "center",
+    logoPlacement: "top",
+    logoAlign: "center",
+    textAlign: "center",
+    featuredRadius: "none",
+    mainBlocks: ["headline", "subheading", "extras"],
+    extrasPlacement: "main",
+    footerBlocks: [],
+    includeFeaturedSlot: false,
+    promptHints: ["proposal cover", "cover page", "client proposal", "rfp cover"],
+  },
+  {
+    id: "section-stack",
+    name: "Section stack",
+    summary: "Headline with multiple body sections",
+    description:
+      "Checklists, timelines, and frameworks with a headline and several stacked detail sections.",
+    tags: ["checklist", "timeline", "framework", "infographic", "sections"],
+    bestFor: "all",
+    stack: "text-first",
+    textZoneRatio: 0.55,
+    textZoneMax: 0.68,
+    textVerticalAlign: "start",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "top-left",
+    mainBlocks: ["headline", "subheading"],
+    extrasPlacement: "hidden",
+    footerBlocks: [],
+    sectionSlotCount: 3,
+    promptHints: ["checklist", "timeline", "framework", "steps", "sections"],
+  },
+  {
+    id: "comparison-columns",
+    name: "Comparison columns",
+    summary: "Split layout with dual visuals or copy columns",
+    description:
+      "Side-by-side comparison for charts, before/after, or A/B product highlights.",
+    tags: ["comparison", "versus", "before-after", "split"],
+    bestFor: ["linkedin-landscape", "linkedin-square", "twitter"],
+    composition: "split",
+    textSide: "left",
+    textColumnRatio: 0.34,
+    textColumnMax: 0.4,
+    stack: "text-first",
+    textZoneRatio: 1,
+    textVerticalAlign: "start",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "none",
+    mainBlocks: ["headline", "subheading"],
+    extrasPlacement: "hidden",
+    footerBlocks: [],
+    secondFeaturedSlot: true,
+    promptHints: ["comparison", "versus", "before and after", "side by side"],
+  },
 ];
 
 const layoutById = new Map(POST_LAYOUTS.map((layout) => [layout.id, layout]));
@@ -590,6 +858,8 @@ export function estimateTextBandMinHeight(opts: {
   typeScale?: number;
   copy?: Pick<PostCopy, "heading" | "subheading" | "extraFields">;
   platformId?: PlatformId;
+  /** Override copy wrap width (split text column). */
+  copyLineWidth?: number;
 }): number {
   const {
     width,
@@ -615,10 +885,9 @@ export function estimateTextBandMinHeight(opts: {
   const logoCopyGap = spacingTokenToPx(spacing.logoCopyGap, width, height);
   const copyBlockGap = spacingTokenToPx(spacing.copyBlockGap, width, height);
 
-  const copyLineWidth = Math.min(
-    width - 2 * layoutPad,
-    Math.round(920 * scale),
-  );
+  const copyLineWidth =
+    opts.copyLineWidth ??
+    Math.min(width - 2 * layoutPad, Math.round(920 * scale));
   const charWidthFactor = linkedInAd ? 0.34 : 0.4;
   const headlineFontSize = 52 * scale * typeScale;
   const headlineCharWidth = charWidthFactor * headlineFontSize;
@@ -875,7 +1144,11 @@ export function resolveSplitLayoutZones(opts: {
 
   const spacingResolved = spacing ?? DEFAULT_POST_LAYOUT_SPACING;
   const layoutPad = spacingTokenToPx(spacingResolved.layoutPad, width, height);
-  const columnGap = spacingTokenToPx(spacingResolved.copyBlockGap, width, height);
+  const columnGap = spacingTokenToPx(
+    spacingResolved.splitColumnGap ?? spacingResolved.copyBlockGap,
+    width,
+    height,
+  );
   const innerWidth = width - 2 * layoutPad;
   const rowHeight = Math.max(0, height - 2 * layoutPad - footerH);
 
@@ -889,7 +1162,8 @@ export function resolveSplitLayoutZones(opts: {
   }
 
   const aspect = height / width;
-  const textRatio = layout.textColumnRatio ?? 0.38;
+  const textRatio =
+    spacingResolved.splitTextColumnShare ?? layout.textColumnRatio ?? 0.38;
   const textMax = layout.textColumnMax ?? 0.45;
   const minFeatured = Math.round(innerWidth * minFeaturedColumnShare(aspect));
   const maxTextColumn = Math.max(
@@ -917,19 +1191,22 @@ export function resolveSplitLayoutZones(opts: {
 
 /** Whether this layout renders a footer strip below the featured block */
 export function layoutHasFooterStrip(layout: PostLayout): boolean {
-  return layout.footerBlocks.length > 0;
+  return layout.footerBlocks.length > 0 || layout.footerContact === true;
 }
 
 /** Footer blocks to render — honors user logo placement over layout defaults */
 export function resolveFooterBlocks(
   layout: PostLayout,
   showFooterLogo: boolean,
-): ("logo" | "extras")[] {
+): ("logo" | "extras" | "contact")[] {
   const blocks = layout.footerBlocks.filter(
     (block) => block !== "logo" || showFooterLogo,
   );
   if (showFooterLogo && !blocks.includes("logo")) {
     blocks.push("logo");
+  }
+  if (layout.footerContact && !blocks.includes("contact")) {
+    blocks.push("contact");
   }
   return blocks;
 }

@@ -1,0 +1,26 @@
+id: timeline
+category: education
+label: Timeline
+capabilities:
+  multiPage: false
+  slides: 1
+  aspectRatios: ["16:9", "2:3", "1:1"]
+  primaryContent: diagram
+constraints:
+  requiredSlots: [headline]
+  optionalSlots: [body, diagram]
+  maxSections: 8
+allowedRecipes:
+  - education_timeline
+  - education_framework
+recommendedBundles: []
+recommendedLayouts:
+  - section-stack
+  - diagram-primary
+  - deck-sidebar
+renderer: diagram
+inferenceKeywords:
+  - timeline
+  - chronology
+  - history
+  - roadmap steps

@@ -1,0 +1,28 @@
+id: infographic
+category: education
+label: Infographic
+capabilities:
+  multiPage: false
+  slides: 1
+  aspectRatios: ["2:3", "9:16", "1:1"]
+  primaryContent: diagram
+constraints:
+  requiredSlots: [headline]
+  optionalSlots: [body, metric, diagram]
+  maxTextBlocks: 8
+  maxSections: 6
+allowedRecipes:
+  - education_timeline
+  - education_framework
+  - statistic_hero
+recommendedBundles: []
+recommendedLayouts:
+  - section-stack
+  - diagram-primary
+  - deck-sidebar
+renderer: diagram
+unsplashHints: null
+inferenceKeywords:
+  - infographic
+  - visual guide
+  - data story

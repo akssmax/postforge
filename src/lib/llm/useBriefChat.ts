@@ -8,11 +8,12 @@ import {
   saveBriefChatMessages,
 } from "@/lib/design/designSession";
 import {
-  extractCanvasPatchFromMessage,
+  extractCanvasPatchesFromMessage,
   extractLatestClientAction,
 } from "@/lib/llm/extractCanvasActions";
 import {
   extractDesignPlanFromMessage,
+  extractDesignPlanApplyOptionsFromMessage,
   extractDesignVariantsFromMessage,
   type DesignVariantResult,
 } from "@/lib/llm/extractDesignPlan";
@@ -23,10 +24,13 @@ import { runCanvasAgentOffline } from "@/lib/llm/stages/canvasAgentOffline";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
+import type { DesignPlanApplyOptions } from "@/lib/llm/services/applyDesignPlan";
+import { resolvePipelineBrandContext } from "@/lib/brand/starterPalettes";
 /** @deprecated Internal helper for slotWriterOffline only — prefer runDesignPipelineOffline. */
 import { generateFromBrief } from "@/lib/social-tool/briefGeneration";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
 import type { PlatformId } from "@/lib/social-tool/presets";
+import type { ArtifactCategoryId } from "@/lib/design-config/schemas";
 
 type BrandSummary = {
   primary?: string;
@@ -38,9 +42,10 @@ export type UseBriefChatOptions = {
   /** Origin design id — chat is shared across artboard variants. */
   designId: string;
   platformId: PlatformId;
+  artifactCategory?: import("@/lib/design-config/schemas").ArtifactCategoryId | null;
   brandSummary?: BrandSummary;
   designSnapshot?: DesignSnapshot | null;
-  onApplyPlan: (plan: ValidatedDesignPlan) => void;
+  onApplyPlan: (plan: ValidatedDesignPlan, options?: DesignPlanApplyOptions) => void;
   onApplyCanvasPatch: (patch: CanvasPatchResult) => boolean;
   onFallbackGenerate: (result: BriefGenerationResult) => void;
   onOpenFeaturedUpload?: () => void;
@@ -61,10 +66,12 @@ function extractTurnPayload(
   lastUserIndex: number,
 ): {
   plan: ValidatedDesignPlan | null;
+  planOptions?: DesignPlanApplyOptions;
   patches: CanvasPatchResult[];
   variants: DesignVariantResult[] | null;
 } {
   let plan: ValidatedDesignPlan | null = null;
+  let planOptions: DesignPlanApplyOptions | undefined;
   let variants: DesignVariantResult[] | null = null;
   const patches: CanvasPatchResult[] = [];
 
@@ -76,13 +83,16 @@ function extractTurnPayload(
     if (messageVariants?.length) variants = messageVariants;
 
     const messagePlan = extractDesignPlanFromMessage(message);
-    if (messagePlan) plan = messagePlan;
+    if (messagePlan) {
+      plan = messagePlan;
+      planOptions = extractDesignPlanApplyOptionsFromMessage(message);
+    }
 
-    const messagePatch = extractCanvasPatchFromMessage(message);
-    if (messagePatch) patches.push(messagePatch);
+    const messagePatches = extractCanvasPatchesFromMessage(message);
+    if (messagePatches.length > 0) patches.push(...messagePatches);
   }
 
-  return { plan, patches, variants };
+  return { plan, planOptions, patches, variants };
 }
 
 function turnApplyFingerprint(
@@ -100,6 +110,7 @@ function isOfflineChatError(error: Error | undefined) {
 export function useBriefChat({
   designId,
   platformId,
+  artifactCategory,
   brandSummary,
   designSnapshot,
   onApplyPlan,
@@ -120,17 +131,21 @@ export function useBriefChat({
   const [activeVariantTheme, setActiveVariantTheme] = useState<string | null>(null);
   const hasRestoredRef = useRef(false);
 
+  const resolvedArtifactCategory = (artifactCategory ??
+    designSnapshot?.artifactCategory) as ArtifactCategoryId | undefined;
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/brief/chat",
         body: {
           platformId,
+          artifactCategory: resolvedArtifactCategory,
           brandSummary,
           designSnapshot: designSnapshot ?? undefined,
         },
       }),
-    [platformId, brandSummary, designSnapshot],
+    [platformId, resolvedArtifactCategory, brandSummary, designSnapshot],
   );
 
   const { messages, sendMessage, status, error, setMessages } = useChat({
@@ -198,7 +213,7 @@ export function useBriefChat({
       lastClientActionRef.current = "";
     }
 
-    const { plan, patches, variants } = extractTurnPayload(messages, lastUserIndex);
+    const { plan, planOptions, patches, variants } = extractTurnPayload(messages, lastUserIndex);
 
     if (variants?.length) {
       setPendingVariants(variants);
@@ -214,7 +229,7 @@ export function useBriefChat({
     applyTimerRef.current = setTimeout(() => {
       lastAppliedRef.current = fingerprint;
       if (plan) {
-        onApplyPlanRef.current(plan);
+        onApplyPlanRef.current(plan, planOptions);
       } else {
         for (const patch of patches) {
           onApplyCanvasPatchRef.current(patch);
@@ -266,12 +281,59 @@ export function useBriefChat({
           }
         }
 
+        const hasLogo = designSnapshot?.brand.hasLogo ?? false;
+        const offlineBrandContext = resolvePipelineBrandContext({
+          brief: trimmed,
+          platformId,
+          hasLogo,
+          sessionColors:
+            designSnapshot?.brand.primary &&
+            designSnapshot?.brand.secondary &&
+            designSnapshot?.brand.accent
+              ? {
+                  primary: designSnapshot.brand.primary,
+                  secondary: designSnapshot.brand.secondary,
+                  accent: designSnapshot.brand.accent,
+                }
+              : undefined,
+          backgroundCatalog: designSnapshot?.brand.backgroundPresets,
+          seed: trimmed,
+        });
         const pipeline = runDesignPipelineOffline({
           userMessage: trimmed,
           platformId,
+          artifactCategory: resolvedArtifactCategory,
+          backgroundCatalog: offlineBrandContext.backgroundCatalog,
+          hasLogo,
         });
         if (pipeline) {
-          onApplyPlan(pipeline.validatedPlan);
+          onApplyPlan(pipeline.validatedPlan, {
+            artifactId: pipeline.artifactId,
+            artifactCategory: pipeline.artifactCategory,
+            canvasSpec: pipeline.canvasSpec,
+            rendererId: pipeline.rendererId,
+            stockPhoto: pipeline.stockPhoto,
+            platformId: pipeline.platformId,
+            platformReason: pipeline.platformReason,
+            bundleId: pipeline.bundleId,
+            assumedBrandColors: hasLogo ? undefined : offlineBrandContext.brandColors,
+            decorationLevel: pipeline.campaignPlan.visual.decorationLevel,
+            designId,
+            brandColors: hasLogo
+              ? {
+                  primary:
+                    designSnapshot?.brand.primary ??
+                    offlineBrandContext.brandColors.primary,
+                  secondary:
+                    designSnapshot?.brand.secondary ??
+                    offlineBrandContext.brandColors.secondary,
+                  accent:
+                    designSnapshot?.brand.accent ??
+                    offlineBrandContext.brandColors.accent,
+                  neutral: offlineBrandContext.brandColors.neutral,
+                }
+              : offlineBrandContext.brandColors,
+          });
           return true;
         }
 
@@ -295,6 +357,7 @@ export function useBriefChat({
       onApplyPlan,
       onFallbackGenerate,
       platformId,
+      resolvedArtifactCategory,
       sendMessage,
     ],
   );

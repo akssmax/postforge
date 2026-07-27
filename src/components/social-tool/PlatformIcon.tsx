@@ -51,6 +51,50 @@ export function PlatformIcon({ platformId, className }: Props) {
     );
   }
 
+  if (platformId === "business-card") {
+    return (
+      <IconShell className={className}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <rect x="3" y="6" width="18" height="12" rx="1.5" />
+          <path d="M7 10h6M7 13h4" />
+        </svg>
+      </IconShell>
+    );
+  }
+
+  if (platformId === "poster-portrait") {
+    return (
+      <IconShell className={className}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <rect x="5" y="3" width="14" height="18" rx="1.5" />
+          <path d="M8 8h8M8 12h5" />
+        </svg>
+      </IconShell>
+    );
+  }
+
+  if (platformId === "invite-portrait") {
+    return (
+      <IconShell className={className}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <rect x="6" y="2" width="12" height="20" rx="1.5" />
+          <path d="M9 7h6M9 11h4M9 15h5" />
+        </svg>
+      </IconShell>
+    );
+  }
+
+  if (platformId === "certificate-landscape") {
+    return (
+      <IconShell className={className}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <rect x="2" y="7" width="20" height="10" rx="1.5" />
+          <path d="M6 11h12M6 14h8" />
+        </svg>
+      </IconShell>
+    );
+  }
+
   return (
     <IconShell className={className}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

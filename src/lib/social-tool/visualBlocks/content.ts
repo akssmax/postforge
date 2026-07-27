@@ -44,6 +44,11 @@ export const UI_REACT_PATTERN_IDS = new Set([
   "inbox-preview",
   "cta-banner",
   "value-prop-card",
+  "cta-button-primary",
+  "cta-button-outline",
+  "cta-pill-pair",
+  "badge-pill",
+  "contact-row",
 ]);
 
 export function isUiReactPattern(libraryId?: string | null): boolean {
@@ -226,6 +231,20 @@ export function buildDefaultUiContent(
       return { title: headline, subtitle: theme, cta: "Book a demo" };
     case "value-prop-card":
       return { title: headline, subtitle: theme };
+    case "cta-button-primary":
+      return { cta: "Get started" };
+    case "cta-button-outline":
+      return { cta: "Learn more" };
+    case "cta-pill-pair":
+      return { cta: "RSVP", ctaSecondary: "Details" };
+    case "badge-pill":
+      return { badge: "Limited time", label: "Limited time" };
+    case "contact-row":
+      return {
+        contact: "hello@company.com · (555) 010-0200",
+        email: "hello@company.com",
+        phone: "(555) 010-0200",
+      };
     default:
       return { title: headline, subtitle: theme };
   }

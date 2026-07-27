@@ -79,6 +79,21 @@ function pickFormatOverlay(input: {
   return getFormatOverlay("default");
 }
 
+const TEXT_SLOT_ROLES = new Set<TextSlotRole>([
+  "headline",
+  "subheading",
+  "body",
+  "caption",
+  "title",
+  "name",
+  "cta",
+  "contact",
+]);
+
+function isTextSlotRole(value: string): value is TextSlotRole {
+  return TEXT_SLOT_ROLES.has(value as TextSlotRole);
+}
+
 function mergeCampaignIntoProfile(
   profile: DesignRulesProfile,
   campaignType: string,
@@ -86,14 +101,8 @@ function mergeCampaignIntoProfile(
   const rules = tryGetCampaignRules(campaignType);
   if (!rules) return profile;
 
-  const requiredFromCampaign = rules.requiredSlots.filter(
-    (s): s is TextSlotRole =>
-      s === "headline" || s === "subheading" || s === "body" || s === "caption",
-  );
-  const bannedFromCampaign = rules.bannedSlots.filter(
-    (s): s is TextSlotRole =>
-      s === "headline" || s === "subheading" || s === "body" || s === "caption",
-  );
+  const requiredFromCampaign = rules.requiredSlots.filter(isTextSlotRole);
+  const bannedFromCampaign = rules.bannedSlots.filter(isTextSlotRole);
 
   return {
     ...profile,
@@ -104,9 +113,13 @@ function mergeCampaignIntoProfile(
       maxTotalWords: rules.copy?.maxTotalWords ?? profile.copyBudget.maxTotalWords,
     },
     requiredSlots: [
-      ...new Set([...profile.requiredSlots, ...requiredFromCampaign]),
+      ...new Set(
+        [...profile.requiredSlots, ...requiredFromCampaign].filter(isTextSlotRole),
+      ),
     ],
-    bannedSlots: [...new Set([...profile.bannedSlots, ...bannedFromCampaign])],
+    bannedSlots: [
+      ...new Set([...profile.bannedSlots, ...bannedFromCampaign].filter(isTextSlotRole)),
+    ],
   };
 }
 

@@ -1,0 +1,27 @@
+id: wedding_invite
+category: events
+label: Wedding Invite
+capabilities:
+  multiPage: false
+  print: true
+  slides: 1
+  aspectRatios: ["5:7", "2:3"]
+  primaryContent: photo
+constraints:
+  requiredSlots: [headline, body, cta]
+  optionalSlots: [photo, contact]
+allowedRecipes:
+  - invitation_hero
+  - invitation_rsvp
+recommendedBundles: []
+recommendedLayouts:
+  - invite-card
+  - event-footer
+  - centered-announcement
+renderer: product-shot
+campaignType: event
+unsplashHints: wedding elegant flowers couple
+inferenceKeywords:
+  - wedding
+  - save the date
+  - ceremony

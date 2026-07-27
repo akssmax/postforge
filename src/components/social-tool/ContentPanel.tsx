@@ -1,15 +1,15 @@
 "use client";
 
-import { AlignCenter, AlignLeft, AlignRight, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
-import { Button, Label, Switch, TextArea, TextField, Tooltip } from "@heroui/react";
+import { AlignCenter, AlignLeft, AlignRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button, Label, Switch, TextArea, Tooltip } from "@heroui/react";
 import {
   InspectorSegment,
   InspectorSelect,
   InspectorSlider,
 } from "@/components/social-tool/InspectorControls";
+import type { EditableTextSlot } from "@/lib/social-tool/layoutAdapter";
 import {
   SOCIAL_FONTS,
-  type PostCopy,
   type SocialFontId,
   type TextAlign,
 } from "@/lib/social-tool/presets";
@@ -23,11 +23,8 @@ const ALIGN_OPTIONS = [
 type Props = {
   showContent: boolean;
   onShowContentChange: (value: boolean) => void;
-  copy: PostCopy;
-  onUpdateField: <K extends keyof PostCopy>(key: K, value: PostCopy[K]) => void;
-  onAddExtraField: () => void;
-  onRemoveExtraField: (id: string) => void;
-  onUpdateExtraField: (id: string, value: string) => void;
+  editableSlots: EditableTextSlot[];
+  onUpdateTextSlot: (slotId: string, text: string) => void;
   textAlign: TextAlign;
   onTextAlignChange: (value: TextAlign) => void;
   headingFont: SocialFontId;
@@ -41,14 +38,19 @@ type Props = {
   onCycleCopyVariant?: (delta: 1 | -1) => void;
 };
 
+function slotFieldId(slotId: string): string {
+  return `content-slot-${slotId}`;
+}
+
+function isMultilineRole(role: EditableTextSlot["role"]): boolean {
+  return role === "body" || role === "caption" || role === "contact";
+}
+
 export function ContentPanel({
   showContent,
   onShowContentChange,
-  copy,
-  onUpdateField,
-  onAddExtraField,
-  onRemoveExtraField,
-  onUpdateExtraField,
+  editableSlots,
+  onUpdateTextSlot,
   textAlign,
   onTextAlignChange,
   headingFont,
@@ -78,38 +80,32 @@ export function ContentPanel({
                 <Tooltip.Trigger>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     isIconOnly
                     aria-label="Previous copy variant"
-                    onPress={() => onCycleCopyVariant(-1)}
+                    onPress={() => onCycleCopyVariant?.(-1)}
                   >
-                    <ChevronLeft className="size-3.5" aria-hidden />
+                    <ChevronLeft className="size-3.5" />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content placement="bottom" offset={8}>
-                  <p className="layout-shuffle-tooltip-title">Previous variant</p>
-                  <p className="layout-shuffle-tooltip-body">Shortcut [</p>
-                </Tooltip.Content>
+                <Tooltip.Content>Previous variant</Tooltip.Content>
               </Tooltip>
-              <span className="copy-variant-cycle__label" aria-live="polite">
+              <span className="copy-variant-cycle-label text-xs text-text-tertiary">
                 {copyVariantIndex + 1}/{copyVariantCount}
               </span>
               <Tooltip delay={500}>
                 <Tooltip.Trigger>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     isIconOnly
                     aria-label="Next copy variant"
-                    onPress={() => onCycleCopyVariant(1)}
+                    onPress={() => onCycleCopyVariant?.(1)}
                   >
-                    <ChevronRight className="size-3.5" aria-hidden />
+                    <ChevronRight className="size-3.5" />
                   </Button>
                 </Tooltip.Trigger>
-                <Tooltip.Content placement="bottom" offset={8}>
-                  <p className="layout-shuffle-tooltip-title">Next variant</p>
-                  <p className="layout-shuffle-tooltip-body">Shortcut ]</p>
-                </Tooltip.Content>
+                <Tooltip.Content>Next variant</Tooltip.Content>
               </Tooltip>
             </div>
           ) : null}
@@ -119,126 +115,88 @@ export function ContentPanel({
             onChange={onShowContentChange}
             aria-label="Show content on canvas"
           >
-            <Switch.Content>
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-            </Switch.Content>
+            Show
           </Switch>
         </div>
       </div>
 
-      {showContent ? (
-        <>
-          <TextField
-            fullWidth
-            name="heading"
-            value={copy.heading}
-            onChange={(v) => onUpdateField("heading", v)}
-          >
-            <Label className="social-tool-label">Heading</Label>
-            <TextArea rows={3} className="min-h-[4.5rem] resize-y" />
-          </TextField>
-          <p className="text-[11px] leading-4 text-text-tertiary">
-            Optional: wrap accent phrases in [[double brackets]] in the headline.
-          </p>
-          <TextField
-            fullWidth
-            name="subheading"
-            value={copy.subheading}
-            onChange={(v) => onUpdateField("subheading", v)}
-          >
-            <Label className="social-tool-label">Subheading</Label>
-            <TextArea rows={3} className="min-h-[4.5rem] resize-y" />
-          </TextField>
-
-          {copy.extraFields.map((field, idx) => (
-            <div key={field.id} className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="social-tool-label !mb-0">Extra {idx + 1}</span>
-                <Tooltip delay={500}>
-                  <Tooltip.Trigger>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      isIconOnly
-                      aria-label={`Remove field ${idx + 1}`}
-                      onPress={() => onRemoveExtraField(field.id)}
-                    >
-                      <Trash2 className="size-3.5" aria-hidden />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content placement="bottom" offset={8}>
-                    <p className="layout-shuffle-tooltip-title">
-                      Remove field {idx + 1}
-                    </p>
-                  </Tooltip.Content>
-                </Tooltip>
-              </div>
-              <TextField
-                fullWidth
-                value={field.value}
-                onChange={(v) => onUpdateExtraField(field.id, v)}
-              >
+      <div className="space-y-3">
+        {editableSlots.map((slot) => {
+          const fieldId = slotFieldId(slot.slotId);
+          const multiline = isMultilineRole(slot.role);
+          return (
+            <div key={slot.slotId} className="space-y-1.5">
+              <Label htmlFor={fieldId} className="text-xs text-text-secondary">
+                {slot.label}
+              </Label>
+              {multiline ? (
                 <TextArea
-                  rows={2}
-                  className="min-h-[3rem] resize-y"
-                  placeholder="Additional line…"
+                  id={fieldId}
+                  value={slot.text}
+                  onChange={(e) => onUpdateTextSlot(slot.slotId, e.target.value)}
+                  rows={slot.role === "body" ? 3 : 2}
+                  className="content-slot-textarea w-full"
+                  data-slot-role={slot.role}
                 />
-              </TextField>
+              ) : (
+                <TextArea
+                  id={fieldId}
+                  value={slot.text}
+                  onChange={(e) => onUpdateTextSlot(slot.slotId, e.target.value)}
+                  rows={slot.role === "headline" ? 2 : 1}
+                  className="content-slot-textarea w-full"
+                  data-slot-role={slot.role}
+                />
+              )}
+              {slot.role === "headline" ? (
+                <p className="text-[0.6875rem] text-text-tertiary">
+                  Use [[accent]]text[[/accent]] for emphasis
+                </p>
+              ) : null}
             </div>
-          ))}
+          );
+        })}
+      </div>
 
-          <Button fullWidth variant="outline" onPress={onAddExtraField}>
-            <Plus className="size-4" />
-            Add field
-          </Button>
+      <InspectorSegment
+        aria-label="Text alignment"
+        value={textAlign}
+        onChange={(value) => onTextAlignChange(value as TextAlign)}
+        options={ALIGN_OPTIONS.map((opt) => ({
+          id: opt.id,
+          label: opt.label,
+          icon: opt.icon,
+        }))}
+      />
 
-          <div className="copy-typography-block space-y-3">
-            <div className="social-tool-row">
-              <span className="social-tool-row-label">Align</span>
-              <InspectorSegment
-                aria-label="Text alignment"
-                value={textAlign}
-                onChange={(v) => onTextAlignChange(v as TextAlign)}
-                options={[...ALIGN_OPTIONS]}
-              />
-            </div>
-            <InspectorSelect
-              label="Heading font"
-              value={headingFont}
-              onChange={(v) => onHeadingFontChange(v as SocialFontId)}
-              options={SOCIAL_FONTS.map((f) => ({
-                id: f.id,
-                label: f.label,
-                description: f.token,
-              }))}
-            />
-            <InspectorSelect
-              label="Subheading font"
-              value={subFont}
-              onChange={(v) => onSubFontChange(v as SocialFontId)}
-              options={SOCIAL_FONTS.map((f) => ({
-                id: f.id,
-                label: f.label,
-                description: f.token,
-              }))}
-            />
-            <InspectorSlider
-              label="Scale"
-              value={typeScale}
-              onChange={onTypeScaleChange}
-              min={0.75}
-              max={4}
-              step={0.05}
-              format={(v) =>
-                `${v.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1")}×`
-              }
-              aria-label="Content text scale"
-            />
-          </div>
-        </>
-      ) : null}
+      <InspectorSelect
+        label="Heading font"
+        value={headingFont}
+        onChange={(value) => onHeadingFontChange(value as SocialFontId)}
+        options={SOCIAL_FONTS.map((font) => ({
+          id: font.id,
+          label: font.label,
+        }))}
+      />
+
+      <InspectorSelect
+        label="Subheading font"
+        value={subFont}
+        onChange={(value) => onSubFontChange(value as SocialFontId)}
+        options={SOCIAL_FONTS.map((font) => ({
+          id: font.id,
+          label: font.label,
+        }))}
+      />
+
+      <InspectorSlider
+        label="Type scale"
+        value={typeScale}
+        min={0.85}
+        max={1.15}
+        step={0.01}
+        onChange={onTypeScaleChange}
+      />
     </section>
   );
 }

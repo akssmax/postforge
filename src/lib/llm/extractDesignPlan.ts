@@ -1,5 +1,7 @@
 import type { UIMessage } from "ai";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
+import type { DesignPlanApplyOptions } from "@/lib/llm/services/applyDesignPlan";
+import type { PlatformId } from "@/lib/social-tool/presets";
 
 export type DesignVariantResult = {
   theme: string;
@@ -15,6 +17,15 @@ type ToolOutput = {
   plan?: ValidatedDesignPlan;
   variants?: DesignVariantResult[];
   error?: string;
+  artifactId?: string;
+  artifactCategory?: DesignPlanApplyOptions["artifactCategory"];
+  canvasSpec?: DesignPlanApplyOptions["canvasSpec"];
+  rendererId?: DesignPlanApplyOptions["rendererId"];
+  stockPhoto?: DesignPlanApplyOptions["stockPhoto"];
+  platformId?: PlatformId;
+  platformReason?: string;
+  bundleId?: string;
+  assumedBrandColors?: DesignPlanApplyOptions["assumedBrandColors"];
 };
 
 export function extractDesignPlanFromMessage(
@@ -36,6 +47,46 @@ export function extractDesignPlanFromMessage(
     }
   }
   return null;
+}
+
+export function extractDesignPlanApplyOptionsFromMessage(
+  message: UIMessage,
+): DesignPlanApplyOptions | undefined {
+  if (message.role !== "assistant") return undefined;
+
+  for (const part of message.parts) {
+    if (
+      part.type === "tool-updateDesign" &&
+      "state" in part &&
+      part.state === "output-available" &&
+      "output" in part
+    ) {
+      const output = part.output as ToolOutput;
+      if (!output?.success || !output.plan) continue;
+      if (
+        !output.artifactId &&
+        !output.canvasSpec &&
+        !output.stockPhoto &&
+        !output.platformId &&
+        !output.bundleId &&
+        !output.assumedBrandColors
+      ) {
+        return undefined;
+      }
+      return {
+        artifactId: output.artifactId,
+        artifactCategory: output.artifactCategory,
+        canvasSpec: output.canvasSpec,
+        rendererId: output.rendererId,
+        stockPhoto: output.stockPhoto,
+        platformId: output.platformId,
+        platformReason: output.platformReason,
+        bundleId: output.bundleId,
+        assumedBrandColors: output.assumedBrandColors,
+      };
+    }
+  }
+  return undefined;
 }
 
 export function extractLatestDesignPlan(

@@ -1,0 +1,16 @@
+id: business_minimal
+name: Business Minimal
+pattern: narrative
+slots:
+  - headline
+  - contact
+attention: headline
+proof: none
+density: low
+readingPattern: center
+artifactSupports:
+  - business_card
+preferredLayouts:
+  - business-card
+  - contact-footer
+  - copy-only

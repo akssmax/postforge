@@ -1,0 +1,32 @@
+id: pitch_deck
+category: presentations
+label: Pitch Deck
+capabilities:
+  multiPage: true
+  slides: 20
+  speakerNotes: true
+  aspectRatios: ["16:9"]
+  primaryContent: mixed
+constraints:
+  requiredSlots: [headline]
+  optionalSlots: [body, metric, diagram, featured]
+  maxSections: 12
+allowedRecipes:
+  - presentation_title
+  - presentation_agenda
+  - presentation_problem
+  - presentation_solution
+  - presentation_roadmap
+  - presentation_closing
+recommendedBundles: []
+recommendedLayouts:
+  - deck-sidebar
+  - section-stack
+  - copy-statement
+renderer: slide-deck
+unsplashHints: startup office presentation
+inferenceKeywords:
+  - pitch deck
+  - investor deck
+  - seed round
+  - fundraising

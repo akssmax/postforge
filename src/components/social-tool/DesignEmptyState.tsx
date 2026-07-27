@@ -1,16 +1,22 @@
 "use client";
 
 import { useRef } from "react";
-import { ImagePlus, Loader2 } from "lucide-react";
+import { ImagePlus, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@heroui/react";
 
 type Props = {
   onUpload: (file: File) => Promise<void>;
+  onDescribe?: () => void;
   uploading?: boolean;
   error?: string | null;
 };
 
-export function DesignEmptyState({ onUpload, uploading, error }: Props) {
+export function DesignEmptyState({
+  onUpload,
+  onDescribe,
+  uploading,
+  error,
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -26,24 +32,32 @@ export function DesignEmptyState({ onUpload, uploading, error }: Props) {
         <ImagePlus className="size-6 text-text-tertiary" aria-hidden />
       </div>
       <h2 className="mt-5 text-base font-semibold text-text-primary">
-        Upload your logo to get started
+        Start with your brand or a brief
       </h2>
-      <p className="mt-2 max-w-[240px] text-sm leading-5 text-text-tertiary">
-        We&apos;ll extract brand colors and unlock layout tools for your post.
+      <p className="mt-2 max-w-[260px] text-sm leading-5 text-text-tertiary">
+        Upload a logo to extract brand colors, or describe the post you want and
+        we&apos;ll generate a layout without one.
       </p>
-      <Button
-        variant="primary"
-        className="mt-6"
-        isDisabled={uploading}
-        onPress={() => inputRef.current?.click()}
-      >
-        {uploading ? (
-          <Loader2 className="size-4 animate-spin" aria-hidden />
-        ) : (
-          <ImagePlus className="size-4" aria-hidden />
-        )}
-        {uploading ? "Uploading…" : "Upload logo"}
-      </Button>
+      <div className="mt-6 flex w-full max-w-[240px] flex-col gap-2">
+        <Button
+          variant="primary"
+          isDisabled={uploading}
+          onPress={() => inputRef.current?.click()}
+        >
+          {uploading ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+          ) : (
+            <ImagePlus className="size-4" aria-hidden />
+          )}
+          {uploading ? "Uploading…" : "Upload logo"}
+        </Button>
+        {onDescribe ? (
+          <Button variant="secondary" onPress={onDescribe}>
+            <Sparkles className="size-4" aria-hidden />
+            Describe your design
+          </Button>
+        ) : null}
+      </div>
       <input
         ref={inputRef}
         type="file"

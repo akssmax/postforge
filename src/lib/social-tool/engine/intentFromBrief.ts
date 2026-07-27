@@ -21,12 +21,38 @@ function tokenize(text: string): string[] {
     .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
 }
 
+function isBrandEvolutionBrief(lower: string): boolean {
+  return (
+    lower.includes("brand refresh") ||
+    lower.includes("brand evolution") ||
+    lower.includes("brand guidelines") ||
+    lower.includes("logo reveal") ||
+    lower.includes("rebrand") ||
+    lower.includes("new mark") ||
+    lower.includes("updated logo") ||
+    lower.includes("refreshed palette") ||
+    (lower.includes("brand") &&
+      (lower.includes("logo") || lower.includes("palette") || lower.includes("identity")))
+  );
+}
+
 function inferCampaignType(brief: string): CampaignIntent["campaignType"] {
   const lower = normalizeBrief(brief);
   if (lower.includes("webinar") || lower.includes("event") || lower.includes("conference")) {
     return "event";
   }
-  if (lower.includes("launch") || lower.includes("introducing") || lower.includes("new product")) {
+  if (isBrandEvolutionBrief(lower)) {
+    return "announcement";
+  }
+  if (lower.includes("new product") || (lower.includes("product") && lower.includes("launch"))) {
+    return "product_launch";
+  }
+  if (lower.includes("introducing")) {
+    return lower.includes("feature") || lower.includes("saas") || lower.includes("platform")
+      ? "product_launch"
+      : "announcement";
+  }
+  if (lower.includes("launch")) {
     return "product_launch";
   }
   if (lower.includes("ad ") || lower.includes("advert") || lower.includes("promote")) {

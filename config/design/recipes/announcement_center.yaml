@@ -24,3 +24,7 @@ bundles:
 families:
   - product
   - benefits
+artifactSupports:
+  - linkedin_ad
+  - instagram_post
+  - quote_card

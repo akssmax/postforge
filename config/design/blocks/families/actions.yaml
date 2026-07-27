@@ -1,0 +1,42 @@
+id: actions
+label: Actions & CTAs
+purpose:
+  - drive_action
+  - contact
+supports:
+  - marketing
+  - events
+  - social
+  - commerce
+hierarchy: supporting
+density:
+  - compact
+  - medium
+compositions:
+  - centered
+  - inline
+stylePacks:
+  - minimal
+  - bold
+  - enterprise
+compatibleRecipes:
+  - invitation_hero
+  - invitation_rsvp
+  - offer_hero
+  - presentation_closing
+assets:
+  - id: cta-button-primary
+    kind: ui
+    role: cta
+  - id: cta-button-outline
+    kind: ui
+    role: cta
+  - id: cta-pill-pair
+    kind: ui
+    role: cta
+  - id: badge-pill
+    kind: ui
+    role: badge
+  - id: contact-row
+    kind: ui
+    role: contact

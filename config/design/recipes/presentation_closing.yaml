@@ -1,0 +1,18 @@
+id: presentation_closing
+name: Presentation Closing
+pattern: announcement_hero
+slots:
+  - headline
+  - cta
+attention: headline
+proof: none
+density: low
+readingPattern: center
+artifactSupports:
+  - pitch_deck
+  - webinar_slides
+preferredLayouts:
+  - centered-announcement
+  - deck-sidebar
+families:
+  - product

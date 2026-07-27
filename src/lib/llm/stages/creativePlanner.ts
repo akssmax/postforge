@@ -68,6 +68,7 @@ export async function planCampaign(input: {
         `Allowed communication.recipeId values (optional hint): ${recipes.join(", ")}`,
         "Pick the best communication pattern for the message, not a layout name.",
         "Set visual.featuredKind to ui for product/metrics/SaaS proof; illustration for narrative/brand/lifestyle.",
+        "Brand refresh, logo reveal, and identity announcements are announcement (not product_launch) — use illustration.",
         format === "ad"
           ? "This is an advertisement — set campaign.type to advertisement or promotion and format to ad."
           : "",

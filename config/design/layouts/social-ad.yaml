@@ -1,0 +1,25 @@
+id: social-ad
+platforms: [all]
+campaigns:
+  - advertisement
+  - promotion
+  - product_launch
+visualPriority: high
+contentDensity: low
+readingPattern: F
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - cta
+  - product_image
+  - badge
+score:
+  advertisement: 0.95
+  promotion: 0.92
+  product_launch: 0.88
+artifactSupports:
+  - linkedin_ad
+  - instagram_post

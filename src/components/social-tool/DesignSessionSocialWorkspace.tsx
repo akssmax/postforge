@@ -10,17 +10,26 @@ import {
 import { DesignToolHeader } from "@/components/social-tool/DesignToolHeader";
 import { ExportMenu } from "@/components/social-tool/ExportMenu";
 import { ExportProgressOverlay } from "@/components/social-tool/ExportProgressOverlay";
-import { CanvasPlatformPicker } from "@/components/social-tool/CanvasPlatformPicker";
+import { CanvasPlatformBadge } from "@/components/social-tool/CanvasPlatformPicker";
 import { ContrastIssuesToggle } from "@/components/social-tool/ContrastIssuesToggle";
 import {
   DEFAULT_FEATURED_TRANSFORM,
   type FeaturedImageTransform,
 } from "@/components/social-tool/templates/ProductShotPost";
 import {
+  catalogLayoutRef,
+  getEditableTextSlots,
+  patchTextSlot,
+  resolveLayoutRef,
+  syncDocumentTextSlots,
+  textSlotsFromCopy,
+} from "@/lib/social-tool/layoutAdapter";
+import {
   getPlatform,
-  type PlatformId,
   type PostCopy,
-} from "@/lib/social-tool/presets";import type { ExportFormat } from "@/lib/social-tool/exportPost";
+} from "@/lib/social-tool/presets";
+import type { ExportFormat } from "@/lib/social-tool/exportPost";
+import { resolveDesignCanvasSize } from "@/lib/design-engine/canvasSpec";
 import {
   buildCampaignSlug,
   exportArtboards,
@@ -39,6 +48,7 @@ import {
   CanvasVariantArtboard,
   CanvasVariantSkeleton,
 } from "@/components/social-tool/CanvasVariantArtboard";
+import { DesignRendererArtboard } from "@/components/social-tool/DesignRendererArtboard";
 import {
   ASIDE_PANEL_WIDTH_PX,
   asidePanelSpring,
@@ -176,8 +186,13 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const isReady = doc.onboarding.phase === "ready";
   const isNeedsLogo = doc.onboarding.phase === "needsLogo";
   const isNeedsBrief = doc.onboarding.phase === "needsBrief";
+  const showLayoutPreview = isNeedsLogo || isNeedsBrief;
   const showCanvasBlocks = !isNeedsLogo;
   const platform = getPlatform(doc.platformId);
+  const canvasSize = useMemo(
+    () => resolveDesignCanvasSize(doc),
+    [doc],
+  );
 
   useEffect(() => {
     setSelectedBlock(null);
@@ -448,8 +463,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     stagePanProps,
   } = useCanvasPreviewViewport({
     stageEl,
-    platformWidth: platform.width,
-    platformHeight: platform.height,
+    platformWidth: canvasSize.width,
+    platformHeight: canvasSize.height,
   });
 
   const artboardSwitcherItems = useMemo(() => {
@@ -477,13 +492,14 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
           : [];
     return boards.map((board, index) => {
       const platformForBoard = getPlatform(board.document.platformId);
+      const boardCanvas = resolveDesignCanvasSize(board.document);
       return {
         boardId: board.designId,
         index: index + 1,
         name: variantGroup.group.boardNames?.[board.designId],
         platformId: board.document.platformId,
-        width: platformForBoard.width,
-        height: platformForBoard.height,
+        width: boardCanvas.width,
+        height: boardCanvas.height,
         printInches: platformForBoard.printInches,
       };
     });
@@ -492,7 +508,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   useEffect(() => {
     if (variantGroup.phase !== "revealing") return;
     // Nudge stage so newly revealed variants sit in view
-    nudgePan({ x: -(platform.width * previewScale * 0.35) });
+    nudgePan({ x: -(canvasSize.width * previewScale * 0.35) });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- settle pan once per generate reveal
   }, [variantGroup.phase]);
 
@@ -682,13 +698,17 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       (canvasLogo.variant === "primary" ? session.kit.logoSrc : null))
     : null;
   const textColor =
-    doc.showBrand && (session.kit.activeBackgroundPresetId || doc.textContrastBoost)
+    doc.showBackground &&
+    doc.showBrand &&
+    (session.kit.activeBackgroundPresetId || doc.textContrastBoost)
       ? doc.textContrastBoost
         ? readableTextOnBackground(bgHex)
         : session.activeBackground.css.textOnBrand
       : undefined;
   const subTextColor =
-    doc.showBrand && (session.kit.activeBackgroundPresetId || doc.textContrastBoost)
+    doc.showBackground &&
+    doc.showBrand &&
+    (session.kit.activeBackgroundPresetId || doc.textContrastBoost)
       ? doc.textContrastBoost
         ? readableSubTextOnBackground(bgHex)
         : session.activeBackground.css.subText
@@ -937,7 +957,35 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   }
 
   function updateField<K extends keyof PostCopy>(key: K, value: PostCopy[K]) {
-    patchDocument({ copy: { ...doc.copy, [key]: value } });
+    const nextCopy = { ...doc.copy, [key]: value };
+    const layout = resolveLayoutRef(doc.layoutRef ?? catalogLayoutRef(doc.layoutId));
+    patchDocument({
+      copy: nextCopy,
+      textSlots: textSlotsFromCopy(nextCopy, layout),
+    });
+  }
+
+  function updateTextSlot(slotId: string, text: string) {
+    const synced = syncDocumentTextSlots(doc, (slots) =>
+      patchTextSlot(slots, slotId, text),
+    );
+    patchDocument(synced);
+  }
+
+  const editableTextSlots = useMemo(
+    () =>
+      getEditableTextSlots(doc.layoutRef, doc.layoutId, doc.textSlots, doc.copy, doc.artifactId),
+    [doc.layoutRef, doc.layoutId, doc.textSlots, doc.copy],
+  );
+
+  const showFeaturedInspector = useMemo(() => {
+    return getPostLayout(doc.layoutId).includeFeaturedSlot !== false;
+  }, [doc.layoutId]);
+
+  function handleBriefCategoryChange(
+    category: import("@/lib/design-config/schemas").ArtifactCategoryId | null,
+  ) {
+    patchDocument({ artifactCategory: category ?? undefined });
   }
 
   function cycleCopyVariant(delta: 1 | -1) {
@@ -1006,39 +1054,25 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     setEditingCopyField(null);
   }
 
-  function addExtraField() {
-    const n = doc.copy.extraFields.length + 1;
-    patchDocument({
-      copy: {
-        ...doc.copy,
-        extraFields: [
-          ...doc.copy.extraFields,
-          {
-            id: `field-${Date.now()}`,
-            label: `Field ${n}`,
-            value: "",
-          },
-        ],
-      },
-    });
+  function updateExtraField(id: string, value: string) {
+    updateTextSlot(id, value);
   }
 
-  function updateExtraField(id: string, value: string) {
-    patchDocument({
-      copy: {
-        ...doc.copy,
-        extraFields: doc.copy.extraFields.map((f) =>
-          f.id === id ? { ...f, value } : f,
-        ),
-      },
-    });
+  function addExtraField() {
+    const n = doc.copy.extraFields.length + 1;
+    const id = `extra-${n - 1}`;
+    updateTextSlot(id, "");
   }
 
   function removeExtraField(id: string) {
+    const synced = syncDocumentTextSlots(doc, (slots) =>
+      slots.filter((s) => s.slotId !== id),
+    );
     patchDocument({
+      ...synced,
       copy: {
-        ...doc.copy,
-        extraFields: doc.copy.extraFields.filter((f) => f.id !== id),
+        ...synced.copy,
+        extraFields: synced.copy.extraFields.filter((f) => f.id !== id),
       },
     });
   }
@@ -1047,8 +1081,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     session.applyBriefGeneration(result);
   }
 
-  function handleBriefApplyPlan(plan: ValidatedDesignPlan) {
-    session.applyDesignPlan(plan);
+  function handleBriefApplyPlan(
+    plan: ValidatedDesignPlan,
+    options?: import("@/lib/llm/services/applyDesignPlan").DesignPlanApplyOptions,
+  ) {
+    session.applyDesignPlan(plan, options);
   }
 
   function resolveTargetBoardIds(target: ArtboardTarget | undefined): string[] {
@@ -1156,6 +1193,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     doc.showBackground,
     doc.showFeaturedImage,
     doc.featuredSlots,
+    doc.canvasShapes,
     session.kit.activeBackgroundPresetId,
     session.featured.mode,
     session.featured.productPage,
@@ -1169,6 +1207,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const briefChat = useBriefChat({
     designId: originDesignId,
     platformId: doc.platformId,
+    artifactCategory: doc.artifactCategory,
     brandSummary,
     designSnapshot,
     onApplyPlan: handleBriefApplyPlan,
@@ -1186,16 +1225,6 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     setContrastPanelOpen(false);
     setSelectedBlock(null);
     briefChat.submitText(buildContrastIssueChatPrompt(result));
-  }
-
-  function handlePlatformChange(next: PlatformId) {
-    const patch: Partial<DesignDocument> = { platformId: next };
-    if (next === "event-standee") {
-      patch.textAlign = "left";
-      patch.logoAlign = "left";
-    }
-    patchDocument(patch);
-    variantGroup.broadcastPlatform(next);
   }
 
   function handleFeaturedTransformChange(
@@ -1242,10 +1271,13 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     <div ref={toolThemeRef} className="social-tool flex flex-col">
       <DesignToolHeader
         center={
-          <CanvasPlatformPicker
-            value={doc.platformId}
-            onChange={handlePlatformChange}
-          />
+          isReady ? (
+            <CanvasPlatformBadge
+              platformId={doc.platformId}
+              canvasSpec={doc.canvasSpec}
+              artifactId={doc.artifactId}
+            />
+          ) : null
         }
       >
         <div ref={exportMenuRef} className="relative">
@@ -1274,7 +1306,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               onSelectedBoardIdsChange={setSelectedBoardIds}
               exportScale={exportScale}
               onExportScaleChange={setExportScale}
-              platformLabel={`${platform.width}×${platform.height}`}
+              platformLabel={`${canvasSize.width}×${canvasSize.height}`}
               exporting={exporting}
               disabled={!isReady}
               onExport={handleExport}
@@ -1322,10 +1354,16 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             showContent={doc.showContent}
             onShowContentChange={handleShowContentChange}
             copy={doc.copy}
+            editableTextSlots={editableTextSlots}
+            onUpdateTextSlot={updateTextSlot}
             onUpdateField={updateField}
-            onAddExtraField={addExtraField}
-            onRemoveExtraField={removeExtraField}
-            onUpdateExtraField={updateExtraField}
+            artifactId={doc.artifactId}
+            artifactCategory={doc.artifactCategory}
+            layoutId={doc.layoutId}
+            platformReason={doc.platformReason}
+            showFeaturedInspector={showFeaturedInspector}
+            briefArtifactCategory={doc.artifactCategory ?? null}
+            onBriefArtifactCategoryChange={handleBriefCategoryChange}
             textAlign={doc.textAlign}
             onTextAlignChange={(v) => patchDocument({ textAlign: v })}
             headingFont={doc.headingFont}
@@ -1431,12 +1469,35 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                 session.uploadFeaturedImage(file, selectedFeaturedSlotId),
               onRemoveImage: () =>
                 session.removeFeaturedImage(selectedFeaturedSlotId),
+              onApplyStockPhoto: (photo, slotId) =>
+                session.applyUnsplashPhoto(photo, slotId ?? selectedFeaturedSlotId),
+              stockAttribution:
+                doc.featuredSlots?.find(
+                  (slot) =>
+                    slot.slotId === selectedFeaturedSlotId &&
+                    slot.imageSource === "unsplash",
+                )?.unsplash?.attribution ?? null,
             }}
             onBriefGenerate={handleBriefGenerate}
             onBriefApplyPlan={handleBriefApplyPlan}
             onBriefSkip={session.skipBrief}
+            onSkipLogo={session.skipLogo}
             briefChat={briefChat}
             brandSummary={brandSummary}
+            canvasShapes={doc.canvasShapes ?? []}
+            onAddCanvasShape={(libraryId) => {
+              const shapeId = session.addCanvasShape(libraryId);
+              if (shapeId) handleCanvasSelect(`shape:${shapeId}`);
+            }}
+            onUpdateCanvasShape={(id, patch) =>
+              session.updateCanvasShape(id, patch)
+            }
+            onRemoveCanvasShape={(id) => {
+              session.removeCanvasShape(id);
+              if (canvasSelection === `shape:${id}`) {
+                handleCanvasSelect(null);
+              }
+            }}
           />
           </div>
         </motion.aside>
@@ -1521,27 +1582,18 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               className="canvas-zoom-layer flex w-max max-w-none shrink-0 flex-col items-center gap-3"
               style={zoomStyle}
             >
-            {isNeedsLogo ? (
+            {showLayoutPreview ? (
               <div
-                className="canvas-preview-stack"
-                style={{ width: platform.width * fitScale }}
+                ref={viewportRef}
+                className="canvas-preview-viewport layout-preview-viewport relative overflow-visible"
               >
-                <div
-                  ref={viewportRef}
-                  className="canvas-preview-viewport relative overflow-hidden"
-                  style={{
-                    width: platform.width * fitScale,
-                    height: platform.height * fitScale,
-                  }}
-                >
-                  <div ref={canvasRef}>
-                    <LayoutPreviewEmptyState
-                      width={platform.width}
-                      height={platform.height}
-                      previewScale={previewScale}
-                      layoutScale={fitScale}
-                    />
-                  </div>
+                <div ref={canvasRef}>
+                  <LayoutPreviewEmptyState
+                    width={canvasSize.width}
+                    height={canvasSize.height}
+                    previewScale={previewScale}
+                    layoutScale={fitScale}
+                  />
                 </div>
               </div>
             ) : (
@@ -1561,7 +1613,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       : board;
 
                   return (
-                    <CanvasVariantArtboard
+                    <DesignRendererArtboard
                       key={board.designId}
                       board={liveBoard}
                       originDesignId={originDesignId}
@@ -1635,6 +1687,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       onCopyFieldCancel={handleCopyFieldCancel}
                       onSpacingChange={(v) =>
                         patchDocument({ layoutSpacing: v })
+                      }
+                      onCanvasShapesChange={(shapes) =>
+                        session.setCanvasShapes(shapes)
                       }
                       onSelectVisualBlock={(blockId, slotId) =>
                         session.selectVisualBlock(
@@ -1750,8 +1805,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         (_, i) => (
                           <CanvasVariantSkeleton
                             key={`skeleton-${i}`}
-                            width={platform.width}
-                            height={platform.height}
+                            width={canvasSize.width}
+                            height={canvasSize.height}
                             previewScale={previewScale}
                             layoutScale={fitScale}
                             index={

@@ -5,6 +5,7 @@ import {
   type V2CampaignType,
 } from "@/lib/llm/schemas/campaignPlan";
 import { detectFormatFromBrief, extractThemesFromBrief } from "@/lib/llm/rules";
+import { resolveArtifactId } from "@/lib/design-engine/artifactRegistry";
 import { inferFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import type { PlatformId } from "@/lib/social-tool/presets";
 
@@ -25,6 +26,21 @@ function tokenize(text: string): string[] {
     .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
 }
 
+function isBrandEvolutionBrief(lower: string): boolean {
+  return (
+    lower.includes("brand refresh") ||
+    lower.includes("brand evolution") ||
+    lower.includes("brand guidelines") ||
+    lower.includes("logo reveal") ||
+    lower.includes("rebrand") ||
+    lower.includes("new mark") ||
+    lower.includes("updated logo") ||
+    lower.includes("refreshed palette") ||
+    (lower.includes("brand") &&
+      (lower.includes("logo") || lower.includes("palette") || lower.includes("identity")))
+  );
+}
+
 function inferCampaignType(brief: string): V2CampaignType {
   const lower = normalizeBrief(brief);
   if (lower.includes("case study") || lower.includes("customer story") || lower.includes("testimonial")) {
@@ -38,7 +54,18 @@ function inferCampaignType(brief: string): V2CampaignType {
   if (lower.includes("feature") && (lower.includes("release") || lower.includes("shipped") || lower.includes("new feature"))) {
     return "feature_release";
   }
-  if (lower.includes("launch") || lower.includes("introducing") || lower.includes("new product")) {
+  if (isBrandEvolutionBrief(lower)) {
+    return "announcement";
+  }
+  if (lower.includes("new product") || (lower.includes("product") && lower.includes("launch"))) {
+    return "product_launch";
+  }
+  if (lower.includes("introducing")) {
+    return lower.includes("feature") || lower.includes("saas") || lower.includes("platform")
+      ? "product_launch"
+      : "announcement";
+  }
+  if (lower.includes("launch")) {
     return "product_launch";
   }
   if (
@@ -343,5 +370,6 @@ export function campaignPlanFromBrief(
     keywords: tokenize(brief),
     themes: extractThemesFromBrief(brief),
     primaryMessage,
+    artifactId: resolveArtifactId({ brief, platformId }),
   });
 }

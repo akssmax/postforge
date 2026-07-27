@@ -1,0 +1,27 @@
+id: comparison_chart
+category: education
+label: Comparison Chart
+capabilities:
+  multiPage: false
+  slides: 1
+  aspectRatios: ["16:9", "1:1"]
+  primaryContent: diagram
+constraints:
+  requiredSlots: [headline]
+  optionalSlots: [body, metric]
+  maxSections: 4
+allowedRecipes:
+  - comparison_switch
+  - education_framework
+recommendedBundles: []
+recommendedLayouts:
+  - comparison-columns
+  - balanced-split
+  - section-stack
+renderer: diagram
+inferenceKeywords:
+  - comparison
+  - versus
+  - vs
+  - compare
+  - chart

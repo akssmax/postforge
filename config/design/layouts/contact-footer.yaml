@@ -1,0 +1,27 @@
+id: contact-footer
+platforms: [all]
+campaigns:
+  - event
+  - announcement
+visualPriority: medium
+contentDensity: medium
+readingPattern: center
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - body
+  - cta
+  - contact
+score:
+  event: 0.92
+  announcement: 0.75
+  thought_leadership: 0.6
+artifactSupports:
+  - wedding_invite
+  - birthday_invite
+  - rsvp_card
+  - business_card
+  - meetup_poster

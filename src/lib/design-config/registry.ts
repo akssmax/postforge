@@ -9,8 +9,10 @@ import {
   layoutMetaConfigSchema,
   patternConfigSchema,
   recipeConfigSchema,
+  artifactDefinitionSchema,
   stylePackSchema,
   visualsStrategySchema,
+  type ArtifactDefinition,
   type BlockBundleConfig,
   type BlockFamilyConfig,
   type CampaignRules,
@@ -46,6 +48,9 @@ function indexCampaigns(items: CampaignRules[]): Map<string, CampaignRules> {
   return map;
 }
 
+const artifacts = (
+  "artifacts" in designConfigData ? designConfigData.artifacts : []
+).map((a) => artifactDefinitionSchema.parse(a));
 const campaigns = designConfigData.campaigns.map((c) =>
   campaignRulesSchema.parse(c),
 );
@@ -84,6 +89,7 @@ const illustrationMap: IllustrationFamilyMap = illustrationFamilyMapSchema.parse
 );
 
 const campaignByType = indexCampaigns(campaigns);
+const artifactById = indexById(artifacts);
 const patternById = indexById(patterns);
 const recipeById = indexById(recipes);
 const layoutMetaById = indexById(layouts);
@@ -92,6 +98,20 @@ const overlayById = indexById(overlays);
 const familyById = indexById(blockFamilies);
 const bundleById = indexById(blockBundles);
 const stylePackById = indexById(stylePacks);
+
+export function getArtifact(id: string): ArtifactDefinition {
+  const artifact = artifactById.get(id);
+  if (!artifact) throw new Error(`Unknown artifact: ${id}`);
+  return artifact;
+}
+
+export function tryGetArtifact(id: string): ArtifactDefinition | undefined {
+  return artifactById.get(id);
+}
+
+export function listArtifacts(): ArtifactDefinition[] {
+  return artifacts;
+}
 
 export function getCampaignRules(type: string): CampaignRules {
   const rules = campaignByType.get(type);
@@ -238,6 +258,7 @@ export function illustrationTagsForFamily(familyId: string): string[] {
 }
 
 export type {
+  ArtifactDefinition,
   BlockBundleConfig,
   BlockFamilyConfig,
   CampaignRules,

@@ -1,0 +1,23 @@
+id: presentation_roadmap
+name: Presentation Roadmap
+pattern: narrative
+slots:
+  - headline
+  - body
+  - metric
+attention: headline
+proof: stat
+density: medium
+readingPattern: F
+artifactSupports:
+  - pitch_deck
+  - roadmap
+  - timeline
+preferredLayouts:
+  - deck-sidebar
+  - copy-statement
+bundles:
+  - process-explain
+families:
+  - diagram
+  - process

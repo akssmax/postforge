@@ -11,12 +11,14 @@ export type SlotNeed =
   | "body"
   | "caption"
   | "cta"
+  | "contact"
   | "product_image"
   | "badge"
   | "offer_badge"
   | "quote"
   | "metric"
-  | "customer_logo";
+  | "customer_logo"
+  | "diagram";
 
 export type LayoutDensityClass = "visualFirst" | "balanced" | "copyHeavy";
 

@@ -1,0 +1,22 @@
+id: invitation_rsvp
+name: Invitation RSVP
+pattern: announcement_hero
+slots:
+  - headline
+  - body
+  - cta
+attention: headline
+proof: none
+density: low
+readingPattern: center
+campaigns:
+  - event
+artifactSupports:
+  - birthday_invite
+  - wedding_invite
+  - rsvp_card
+preferredLayouts:
+  - centered-announcement
+  - event-footer
+families:
+  - product

@@ -1,0 +1,24 @@
+id: section-stack
+platforms: [all]
+campaigns:
+  - documentation
+  - thought_leadership
+visualPriority: low
+contentDensity: high
+readingPattern: F
+visualWeight: light
+densityClass: copyHeavy
+supports:
+  - logo
+  - headline
+  - subheading
+  - body
+  - metric
+score:
+  documentation: 0.9
+  thought_leadership: 0.85
+artifactSupports:
+  - checklist
+  - timeline
+  - framework
+  - infographic

@@ -27,3 +27,7 @@ families:
   - product
   - benefits
   - process
+artifactSupports:
+  - linkedin_ad
+  - instagram_post
+  - infographic

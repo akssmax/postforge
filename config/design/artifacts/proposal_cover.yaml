@@ -1,0 +1,25 @@
+id: proposal_cover
+category: business
+label: Proposal Cover
+capabilities:
+  multiPage: false
+  print: true
+  slides: 1
+  aspectRatios: ["8.5:11", "16:9"]
+  primaryContent: text
+constraints:
+  requiredSlots: [headline, subheading]
+  optionalSlots: [logo, body, contact]
+allowedRecipes:
+  - announcement_hero_layout
+  - narrative_statement
+recommendedLayouts:
+  - proposal-cover
+  - copy-only
+  - centered-announcement
+renderer: print-doc
+inferenceKeywords:
+  - proposal
+  - cover page
+  - quote
+  - rfp

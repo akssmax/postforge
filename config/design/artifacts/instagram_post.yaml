@@ -1,0 +1,28 @@
+id: instagram_post
+category: marketing
+label: Instagram Post
+capabilities:
+  multiPage: false
+  slides: 1
+  aspectRatios: ["1:1", "4:5"]
+  primaryContent: mixed
+constraints:
+  requiredSlots: [headline]
+  optionalSlots: [logo, featured, cta, subheading]
+  maxTextBlocks: 4
+allowedRecipes:
+  - offer_hero
+  - announcement_center
+  - narrative_statement
+recommendedBundles: []
+recommendedLayouts:
+  - social-ad
+  - visual-first
+  - centered-announcement
+renderer: product-shot
+campaignType: promotion
+unsplashHints: lifestyle brand social media
+inferenceKeywords:
+  - instagram
+  - ig post
+  - social post

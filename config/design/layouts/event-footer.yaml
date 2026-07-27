@@ -29,3 +29,8 @@ score:
   feature_release: 0.45
   webinar: 0.93
   hiring: 0.45
+artifactSupports:
+  - birthday_invite
+  - wedding_invite
+  - meetup_poster
+  - rsvp_card

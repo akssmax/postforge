@@ -24,3 +24,6 @@ bundles:
 families:
   - proof
   - metric
+artifactSupports:
+  - linkedin_ad
+  - hiring_post

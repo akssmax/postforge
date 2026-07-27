@@ -1,0 +1,25 @@
+id: certificate
+category: business
+label: Certificate
+capabilities:
+  multiPage: false
+  print: true
+  slides: 1
+  aspectRatios: ["11:8.5", "16:9"]
+  primaryContent: text
+constraints:
+  requiredSlots: [headline, body]
+  optionalSlots: [logo, contact]
+allowedRecipes:
+  - business_certificate
+  - narrative_statement
+recommendedLayouts:
+  - copy-only
+  - copy-statement
+  - centered-announcement
+renderer: print-doc
+inferenceKeywords:
+  - certificate
+  - award
+  - completion
+  - achievement

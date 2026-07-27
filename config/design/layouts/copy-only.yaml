@@ -1,0 +1,22 @@
+id: copy-only
+platforms: [all]
+campaigns:
+  - announcement
+  - thought_leadership
+visualPriority: low
+contentDensity: high
+readingPattern: center
+visualWeight: light
+densityClass: copyHeavy
+supports:
+  - logo
+  - headline
+  - subheading
+  - body
+  - quote
+score:
+  announcement: 0.85
+  thought_leadership: 0.9
+artifactSupports:
+  - certificate
+  - quote_card

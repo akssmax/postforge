@@ -6,6 +6,20 @@ import {
 } from "@/lib/design-config/registry";
 import type { SemanticPickContext } from "@/lib/social-tool/visualBlocks/semantic/types";
 
+const EVENT_INCOMPATIBLE_BUNDLES = new Set([
+  "process-explain",
+  "feature-launch",
+  "pricing-offer",
+  "growth-proof",
+]);
+
+function bundleAllowed(ctx: SemanticPickContext, bundle: BlockBundleConfig): boolean {
+  if (ctx.campaignType === "event" && EVENT_INCOMPATIBLE_BUNDLES.has(bundle.id)) {
+    return false;
+  }
+  return true;
+}
+
 function scoreBundle(
   bundle: BlockBundleConfig,
   ctx: SemanticPickContext,
@@ -30,11 +44,12 @@ export function retrieveBundle(
   if (recipe?.bundles?.length) {
     for (const id of recipe.bundles) {
       const bundle = tryGetBundle(id);
-      if (bundle) return bundle;
+      if (bundle && bundleAllowed(ctx, bundle)) return bundle;
     }
   }
 
   const ranked = listBundles()
+    .filter((bundle) => bundleAllowed(ctx, bundle))
     .map((bundle) => ({ bundle, score: scoreBundle(bundle, ctx, recipe) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score);

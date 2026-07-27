@@ -1,0 +1,22 @@
+id: documentation_flow
+name: Documentation Flow
+pattern: narrative
+slots:
+  - headline
+  - body
+attention: headline
+proof: none
+density: medium
+readingPattern: F
+artifactSupports:
+  - flowchart
+  - process_flow
+  - org_chart
+preferredLayouts:
+  - deck-sidebar
+  - copy-statement
+bundles:
+  - process-explain
+families:
+  - diagram
+  - process

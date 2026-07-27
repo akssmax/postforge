@@ -1,0 +1,26 @@
+id: invitation_hero
+name: Invitation Hero
+pattern: announcement_hero
+slots:
+  - headline
+  - subheading
+  - body
+  - cta
+attention: headline
+proof: none
+density: medium
+readingPattern: center
+campaigns:
+  - event
+artifactSupports:
+  - birthday_invite
+  - wedding_invite
+  - meetup_poster
+  - rsvp_card
+preferredLayouts:
+  - event-poster
+  - event-footer
+  - split-feature-right
+  - classic-hero
+families:
+  - product

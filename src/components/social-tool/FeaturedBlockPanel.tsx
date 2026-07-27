@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { ImagePlus, RotateCcw, Shuffle, Trash2 } from "lucide-react";
+import { ImagePlus, Loader2, RotateCcw, Search, Shuffle, Trash2 } from "lucide-react";
 import { Button, Switch, Tooltip } from "@heroui/react";
 import {
   InspectorSlider,
@@ -56,6 +56,16 @@ type Props = {
   error?: string | null;
   onUploadImage: (file: File, slotId?: string) => Promise<void>;
   onRemoveImage: (slotId?: string) => Promise<void>;
+  onApplyStockPhoto?: (
+    photo: {
+      id: string;
+      url: string;
+      photographer: string;
+      attribution: string;
+    },
+    slotId?: string,
+  ) => void;
+  stockAttribution?: string | null;
   featuredTransform: FeaturedImageTransform;
   onFeaturedTransformChange: (next: FeaturedImageTransform) => void;
 };
@@ -86,11 +96,24 @@ export function FeaturedBlockPanel({
   error,
   onUploadImage,
   onRemoveImage,
+  onApplyStockPhoto,
+  stockAttribution,
   featuredTransform,
   onFeaturedTransformChange,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dropActive, setDropActive] = useState(false);
+  const [stockQuery, setStockQuery] = useState("");
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockResults, setStockResults] = useState<
+    Array<{
+      id: string;
+      url: string;
+      thumbUrl: string;
+      photographer: string;
+      attribution: string;
+    }>
+  >([]);
   const showImageUpload = mode === "image";
   const targetSlotId = selectedSlotId;
 
@@ -102,6 +125,30 @@ export function FeaturedBlockPanel({
   const activeKind: FeaturedVisualKind = isFeaturedVisualKind(activeBlock?.kind)
     ? activeBlock.kind
     : featuredVisualKind ?? "ui";
+
+  async function searchStockPhotos() {
+    const query = stockQuery.trim();
+    if (!query || !onApplyStockPhoto) return;
+    setStockLoading(true);
+    try {
+      const response = await fetch(
+        `/api/stock/unsplash/search?q=${encodeURIComponent(query)}&limit=8`,
+      );
+      if (!response.ok) return;
+      const payload = (await response.json()) as {
+        results?: Array<{
+          id: string;
+          url: string;
+          thumbUrl: string;
+          photographer: string;
+          attribution: string;
+        }>;
+      };
+      setStockResults(payload.results ?? []);
+    } finally {
+      setStockLoading(false);
+    }
+  }
 
   function switchKind(nextKind: FeaturedVisualKind) {
     if (nextKind === activeKind && activeBlock) return;
@@ -247,6 +294,69 @@ export function FeaturedBlockPanel({
               Or drop / paste an image onto the canvas slot
             </p>
           </div>
+
+          {onApplyStockPhoto ? (
+            <div className="mt-3 space-y-2 border-t border-leap-line pt-3">
+              <p className="text-xs font-medium text-text-secondary">Stock photos</p>
+              <div className="flex gap-2">
+                <input
+                  type="search"
+                  value={stockQuery}
+                  onChange={(e) => setStockQuery(e.target.value)}
+                  placeholder="Search Unsplash…"
+                  className="min-w-0 flex-1 rounded-md border border-leap-line bg-surface px-2 py-1.5 text-xs"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void searchStockPhotos();
+                  }}
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  isDisabled={stockLoading || !stockQuery.trim()}
+                  onPress={() => void searchStockPhotos()}
+                  aria-label="Search stock photos"
+                >
+                  {stockLoading ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <Search className="size-3.5" aria-hidden />
+                  )}
+                </Button>
+              </div>
+              {stockResults.length > 0 ? (
+                <div className="grid grid-cols-4 gap-1.5">
+                  {stockResults.map((photo) => (
+                    <button
+                      key={photo.id}
+                      type="button"
+                      className="aspect-square overflow-hidden rounded-md border border-leap-line"
+                      onClick={() =>
+                        onApplyStockPhoto(
+                          {
+                            id: photo.id,
+                            url: photo.url,
+                            photographer: photo.photographer,
+                            attribution: photo.attribution,
+                          },
+                          targetSlotId,
+                        )
+                      }
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photo.thumbUrl}
+                        alt=""
+                        className="size-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {stockAttribution ? (
+                <p className="text-[10px] leading-snug text-text-tertiary">{stockAttribution}</p>
+              ) : null}
+            </div>
+          ) : null}
 
           {showImageUpload && image ? (
             <div className="featured-image-upload-preview">

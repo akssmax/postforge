@@ -6,6 +6,8 @@ import {
   computeUpdatePatternPatch,
   computeUpdateVisibilityPatch,
   computeRefreshCopyVariantsPatch,
+  computeAddShapePatch,
+  computeRemoveShapePatch,
   mergeCanvasPatches,
 } from "@/lib/llm/services/computeCanvasPatch";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
@@ -87,6 +89,27 @@ export function runCanvasAgentOffline(
         showFeaturedImage: false,
         showPattern: false,
       }),
+    );
+  }
+
+  if (
+    lower.includes("remove shape") ||
+    lower.includes("remove decoration") ||
+    lower.includes("remove blob") ||
+    lower.includes("no shapes")
+  ) {
+    const firstShape = snapshot.canvasShapes?.[0];
+    if (firstShape) {
+      patches.push(computeRemoveShapePatch(snapshot, { shapeId: firstShape.id }));
+    }
+  } else if (
+    lower.includes("add shape") ||
+    lower.includes("add blob") ||
+    lower.includes("add decoration") ||
+    lower.includes("decorative shape")
+  ) {
+    patches.push(
+      computeAddShapePatch(snapshot, { libraryId: "shape-organic-blob-soft-01" }),
     );
   }
 

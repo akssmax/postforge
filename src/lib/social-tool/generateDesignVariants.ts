@@ -25,6 +25,11 @@ import {
 } from "@/lib/social-tool/featuredSlots";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 import { buildBackgroundPresets } from "@/lib/brand/backgroundPresets";
+import {
+  defaultBackgroundPresetIdForColors,
+  isUnbrandedKit,
+  pickStarterPalette,
+} from "@/lib/brand/starterPalettes";
 
 export type GenerateVariantsPhase =
   | "idle"
@@ -212,15 +217,33 @@ export async function generateDesignVariants(
     if (block?.libraryId) usedLibraryIds.push(block.libraryId);
   }
 
-  const backgrounds = buildBackgroundPresets(originSession.brand.colors);
   const prefs = withShuffleAll(true);
   // Keep origin shuffle panel fully enabled when exploring variants.
   seedShufflePreferencesAllOn(originId);
   const variantSessions: DesignSessionPersisted[] = [];
+  const usedPaletteIds: string[] = [];
 
   for (let i = 0; i < batchSize; i++) {
     const clone = cloneDesignSession(originSession, createDesignId());
-    const shuffled = applyShuffleToSession(clone, {
+    let sessionForShuffle = clone;
+    if (isUnbrandedKit(clone.brand)) {
+      const palette = pickStarterPalette({
+        seed: `${clone.designId}:${i}`,
+        excludeIds: usedPaletteIds,
+      });
+      usedPaletteIds.push(palette.id);
+      sessionForShuffle = {
+        ...clone,
+        brand: {
+          ...clone.brand,
+          colors: palette.colors,
+          activeBackgroundPresetId: defaultBackgroundPresetIdForColors(palette.colors),
+        },
+      };
+    }
+
+    const backgrounds = buildBackgroundPresets(sessionForShuffle.brand.colors);
+    const shuffled = applyShuffleToSession(sessionForShuffle, {
       prefs,
       excludeLayoutIds: usedLayoutIds,
       excludeFamilies: usedFamilies,

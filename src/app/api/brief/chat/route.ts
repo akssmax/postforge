@@ -1,6 +1,7 @@
 import {
   briefChatBodySchema,
   handleBriefChatRequest,
+  type BriefChatRequestBody,
 } from "@/lib/llm/services/briefChatService";
 import { normalizePlatformId } from "@/lib/social-tool/presets";
 
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
     return handleBriefChatRequest({
       messages: parsed.data.messages,
       platformId,
+      artifactCategory: parsed.data.artifactCategory as BriefChatRequestBody["artifactCategory"],
       brandSummary: parsed.data.brandSummary,
       designSnapshot: parsed.data.designSnapshot,
     });

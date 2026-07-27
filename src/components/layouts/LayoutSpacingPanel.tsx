@@ -8,8 +8,10 @@ import {
 import {
   SPACING_TOKENS,
   spacingTokenLabel,
+  SPACING_TOKEN_KEYS,
   type PostLayoutSpacing,
   type SpacingToken,
+  type SpacingTokenKey,
 } from "@/lib/social-tool/layoutSpacing";
 
 type Props = {
@@ -27,7 +29,7 @@ export function LayoutSpacingPanel({
   onShowOverlaysChange,
   readOnly = false,
 }: Props) {
-  function setToken(key: keyof PostLayoutSpacing, token: SpacingToken) {
+  function setToken(key: SpacingTokenKey, token: SpacingToken) {
     if (readOnly) return;
     onChange({ ...spacing, [key]: token });
   }
@@ -58,8 +60,7 @@ export function LayoutSpacingPanel({
             : "Overlays hidden — use sliders below or turn overlays back on to drag on canvas."}
       </p>
       <div className="layout-playground-spacing-grid">
-        {(Object.keys(LAYOUT_SPACING_LABELS) as (keyof PostLayoutSpacing)[]).map(
-          (key) => {
+        {SPACING_TOKEN_KEYS.map((key) => {
             const tokenIndex = Math.max(0, SPACING_TOKENS.indexOf(spacing[key]));
             return (
               <InspectorSlider
@@ -80,8 +81,7 @@ export function LayoutSpacingPanel({
                 }
               />
             );
-          },
-        )}
+          })}
       </div>
     </div>
   );

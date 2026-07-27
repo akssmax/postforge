@@ -30,6 +30,7 @@ import {
 } from "@/lib/llm/services/canvasAgentService";
 import { validateDesignPlan } from "@/lib/llm/services/layoutValidator";
 import type { PlatformId } from "@/lib/social-tool/presets";
+import { resolvePipelineBrandContext } from "@/lib/brand/starterPalettes";
 
 const designVariantResultSchema = z.object({
   theme: z.string(),
@@ -43,6 +44,7 @@ const designVariantResultSchema = z.object({
 export type BriefChatRequestBody = {
   messages: UIMessage[];
   platformId: PlatformId;
+  artifactCategory?: import("@/lib/design-config/schemas").ArtifactCategoryId;
   brandSummary?: {
     primary?: string;
     secondary?: string;
@@ -59,7 +61,7 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
     });
   }
 
-  const { messages, platformId, brandSummary, designSnapshot } = body;
+  const { messages, platformId, artifactCategory, brandSummary, designSnapshot } = body;
   const userMessage = getLatestUserMessage(messages);
 
   if (designSnapshot) {
@@ -80,11 +82,29 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
     }
   }
 
-  const backgroundCatalog =
-    designSnapshot?.brand.backgroundPresets.map((preset) => ({
-      id: preset.id,
-      label: preset.label,
-    })) ?? [];
+  const hasLogo = designSnapshot?.brand.hasLogo ?? false;
+  const brandContext = resolvePipelineBrandContext({
+    brief: userMessage,
+    platformId,
+    hasLogo,
+    sessionColors:
+      designSnapshot?.brand.primary &&
+      designSnapshot?.brand.secondary &&
+      designSnapshot?.brand.accent
+        ? {
+            primary: designSnapshot.brand.primary,
+            secondary: designSnapshot.brand.secondary,
+            accent: designSnapshot.brand.accent,
+          }
+        : undefined,
+    backgroundCatalog:
+      designSnapshot?.brand.backgroundPresets.map((preset) => ({
+        id: preset.id,
+        label: preset.label,
+      })) ?? [],
+    seed: userMessage,
+  });
+  const backgroundCatalog = brandContext.backgroundCatalog;
 
   const recentBackgroundPresetIds = designSnapshot?.brand.activeBackgroundPresetId
     ? [designSnapshot.brand.activeBackgroundPresetId]
@@ -105,13 +125,20 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
             userMessage,
             messages,
             platformId,
+            artifactCategory,
             brandSummary,
             backgroundCatalog,
             recentBackgroundPresetIds,
           });
         } catch (err) {
           console.error("[brief-chat] variant pipeline failed, trying offline", err);
-          const offline = runDesignPipelineOffline({ userMessage, platformId });
+          const offline = runDesignPipelineOffline({
+            userMessage,
+            platformId,
+            artifactCategory,
+            backgroundCatalog,
+            hasLogo,
+          });
           if (!offline) throw err;
           variantsResult = {
             intent: offline.intent,
@@ -208,13 +235,20 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
           userMessage,
           messages,
           platformId,
+          artifactCategory,
           brandSummary,
           backgroundCatalog,
           recentBackgroundPresetIds,
         });
       } catch (err) {
         console.error("[brief-chat] pipeline failed, trying offline", err);
-        const offline = runDesignPipelineOffline({ userMessage, platformId });
+        const offline = runDesignPipelineOffline({
+          userMessage,
+          platformId,
+          artifactCategory,
+          backgroundCatalog,
+          hasLogo,
+        });
         if (!offline) throw err;
         pipeline = offline;
       }
@@ -275,6 +309,15 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
                 plan: validated.plan,
                 score: pipeline.score.total,
                 rulesProfileId: pipeline.rulesProfile.id,
+                artifactId: pipeline.artifactId,
+                artifactCategory: pipeline.artifactCategory,
+                canvasSpec: pipeline.canvasSpec,
+                rendererId: pipeline.rendererId,
+                stockPhoto: pipeline.stockPhoto,
+                platformId: pipeline.platformId,
+                platformReason: pipeline.platformReason,
+                bundleId: pipeline.bundleId,
+                assumedBrandColors: hasLogo ? undefined : brandContext.brandColors,
               };
             },
           }),
@@ -292,6 +335,7 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
 export const briefChatBodySchema = z.object({
   messages: z.array(z.custom<UIMessage>()),
   platformId: z.string(),
+  artifactCategory: z.string().optional(),
   brandSummary: z
     .object({
       primary: z.string().optional(),

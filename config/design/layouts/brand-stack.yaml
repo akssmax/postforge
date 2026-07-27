@@ -32,3 +32,7 @@ score:
   feature_release: 0.6
   webinar: 0.48
   hiring: 0.62
+artifactSupports:
+  - linkedin_ad
+  - instagram_post
+  - quote_card

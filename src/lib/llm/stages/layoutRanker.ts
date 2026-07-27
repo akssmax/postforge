@@ -36,6 +36,7 @@ export async function rankLayout(
   userMessage: string,
   rulesProfile?: DesignRulesProfile,
   recipe?: RecipeConfig,
+  artifact?: { id: string; label: string; category?: string },
 ): Promise<{ layoutId: PostLayoutId; rationale: string }> {
   const intent = asIntent(intentOrPlan);
   const plan =
@@ -65,7 +66,10 @@ export async function rankLayout(
       temperature: 0,
       abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),
       system: [
-        "You rank proven social post layouts for marketing communication.",
+        "You rank proven marketing layouts for the requested design artifact.",
+        artifact
+          ? `Target artifact: ${artifact.label} (${artifact.id.replace(/_/g, " ")}, category ${artifact.category ?? "general"}).`
+          : "",
         "Pick exactly one layout ID from the candidate list.",
         "Do not invent layouts or specify geometry.",
         "Never pick horizontal split layouts (split-feature-*, deck-sidebar) for square (~1:1) artboards — those are landscape-only.",

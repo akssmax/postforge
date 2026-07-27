@@ -93,7 +93,13 @@ function trySemanticFeaturedPick(
   excludeLibraryIds: string[],
 ): VisualBlockRecord | null {
   const semantic = input.semantic;
-  if (!semantic?.campaignType && !semantic?.recipeId && !semantic?.patternId) {
+  if (
+    !semantic?.campaignType &&
+    !semantic?.recipeId &&
+    !semantic?.patternId &&
+    !semantic?.artifactId &&
+    !semantic?.bundleId
+  ) {
     return null;
   }
 

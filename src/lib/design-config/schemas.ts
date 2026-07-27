@@ -7,12 +7,14 @@ export const slotNeedSchema = z.enum([
   "body",
   "caption",
   "cta",
+  "contact",
   "product_image",
   "badge",
   "offer_badge",
   "quote",
   "metric",
   "customer_logo",
+  "diagram",
 ]);
 
 export const densitySchema = z.enum(["low", "medium", "high"]);
@@ -92,6 +94,8 @@ export const recipeConfigSchema = z.object({
   bundles: z.array(z.string()).default([]),
   /** Semantic family fallbacks when bundles miss. */
   families: z.array(z.string()).default([]),
+  /** Artifact plugins that may use this recipe. Empty = all artifacts. */
+  artifactSupports: z.array(z.string()).default([]),
 });
 
 export type RecipeConfig = z.infer<typeof recipeConfigSchema>;
@@ -107,6 +111,8 @@ export const layoutMetaConfigSchema = z.object({
   visualWeight: visualWeightSchema,
   densityClass: densityClassSchema,
   supports: z.array(slotNeedSchema).default([]),
+  /** Artifact plugins that may use this layout. Empty = all artifacts. */
+  artifactSupports: z.array(z.string()).default([]),
   score: z.record(z.string(), z.number()).default({}),
 });
 
@@ -241,3 +247,77 @@ export const visualsStrategySchema = z.object({
 });
 
 export type VisualsStrategyConfig = z.infer<typeof visualsStrategySchema>;
+
+export const artifactCategorySchema = z.enum([
+  "marketing",
+  "social",
+  "education",
+  "presentations",
+  "business",
+  "events",
+  "branding",
+  "product",
+  "documentation",
+  "hr_internal",
+  "editorial",
+  "commerce",
+  "print",
+  "personal",
+  "creator",
+]);
+
+export type ArtifactCategoryId = z.infer<typeof artifactCategorySchema>;
+
+export const rendererIdSchema = z.enum([
+  "product-shot",
+  "slide-deck",
+  "diagram",
+  "print-doc",
+]);
+
+export type RendererId = z.infer<typeof rendererIdSchema>;
+
+export const artifactCapabilitiesSchema = z.object({
+  multiPage: z.boolean().default(false),
+  print: z.boolean().default(false),
+  editable: z.boolean().default(true),
+  slides: z.number().int().positive().default(1),
+  aspectRatios: z.array(z.string()).min(1).default(["1:1"]),
+  supportsAnimation: z.boolean().default(false),
+  speakerNotes: z.boolean().default(false),
+  primaryContent: z
+    .enum(["mixed", "diagram", "photo", "text"])
+    .default("mixed"),
+});
+
+export type ArtifactCapabilities = z.infer<typeof artifactCapabilitiesSchema>;
+
+export const artifactConstraintsSchema = z.object({
+  requiredSlots: z.array(z.string()).default([]),
+  optionalSlots: z.array(z.string()).default([]),
+  maxTextBlocks: z.number().int().positive().optional(),
+  maxSections: z.number().int().positive().optional(),
+});
+
+export type ArtifactConstraints = z.infer<typeof artifactConstraintsSchema>;
+
+export const artifactDefinitionSchema = z.object({
+  id: z.string().min(1),
+  category: artifactCategorySchema,
+  label: z.string().min(1),
+  capabilities: artifactCapabilitiesSchema,
+  constraints: artifactConstraintsSchema.default({
+    requiredSlots: [],
+    optionalSlots: [],
+  }),
+  allowedRecipes: z.array(z.string()).default([]),
+  recommendedBundles: z.array(z.string()).default([]),
+  recommendedLayouts: z.array(z.string()).default([]),
+  renderer: rendererIdSchema.default("product-shot"),
+  /** Links to config/design/campaign/*.yaml when applicable. */
+  campaignType: z.string().optional(),
+  unsplashHints: z.string().nullable().optional(),
+  inferenceKeywords: z.array(z.string()).default([]),
+});
+
+export type ArtifactDefinition = z.infer<typeof artifactDefinitionSchema>;

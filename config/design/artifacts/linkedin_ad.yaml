@@ -1,0 +1,32 @@
+id: linkedin_ad
+category: marketing
+label: LinkedIn Ad
+capabilities:
+  multiPage: false
+  print: false
+  slides: 1
+  aspectRatios: ["1:1", "4:5"]
+  primaryContent: mixed
+constraints:
+  requiredSlots: [headline, cta]
+  optionalSlots: [logo, featured, subheading]
+  maxTextBlocks: 4
+allowedRecipes:
+  - offer_hero
+  - announcement_hero_layout
+  - statistic_hero
+  - problem_solution_flow
+  - social_proof_strip
+recommendedBundles: []
+recommendedLayouts:
+  - social-ad
+  - balanced-split
+  - professional-left
+renderer: product-shot
+campaignType: advertisement
+unsplashHints: professional business office team
+inferenceKeywords:
+  - linkedin
+  - b2b
+  - ad
+  - sponsored

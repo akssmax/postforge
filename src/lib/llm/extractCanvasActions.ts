@@ -22,16 +22,15 @@ const CANVAS_TOOL_TYPES = [
   "tool-updateTypography",
   "tool-updateVisibility",
   "tool-updateSpacing",
+  "tool-addShape",
+  "tool-updateShape",
+  "tool-removeShape",
 ] as const;
 
-export function extractCanvasPatchFromMessage(
-  message: UIMessage,
-): CanvasPatchResult | null {
-  if (message.role !== "assistant") return null;
-
+function extractPatchesFromParts(parts: UIMessage["parts"]): CanvasPatchResult[] {
   const patches: CanvasPatchResult[] = [];
 
-  for (const part of message.parts) {
+  for (const part of parts) {
     if (
       CANVAS_TOOL_TYPES.includes(part.type as (typeof CANVAS_TOOL_TYPES)[number]) &&
       "state" in part &&
@@ -47,6 +46,20 @@ export function extractCanvasPatchFromMessage(
     }
   }
 
+  return patches;
+}
+
+/** Individual tool outputs — preserves per-tool targetArtboards. */
+export function extractCanvasPatchesFromMessage(message: UIMessage): CanvasPatchResult[] {
+  if (message.role !== "assistant") return [];
+  return extractPatchesFromParts(message.parts);
+}
+
+export function extractCanvasPatchFromMessage(
+  message: UIMessage,
+): CanvasPatchResult | null {
+  if (message.role !== "assistant") return null;
+  const patches = extractPatchesFromParts(message.parts);
   return patches.length > 0 ? mergeCanvasPatches(patches) : null;
 }
 

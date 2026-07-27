@@ -63,14 +63,11 @@ export function isBriefChatOfflineError(error: Error | undefined): boolean {
   const msg = error.message.toLowerCase();
   return (
     msg.includes("503") ||
-    msg.includes("mistral") ||
-    msg.includes("offline") ||
-    msg.includes("unavailable") ||
+    msg.includes("mistral_api_key is not configured") ||
+    msg.includes("llm unavailable") ||
+    msg.includes("offline generator") ||
     msg.includes("failed to fetch") ||
     msg.includes("network error") ||
-    msg.includes("timed out") ||
-    msg.includes("timeout") ||
-    msg.includes("something went wrong") ||
-    msg.includes("an error occurred")
+    msg.includes("network request failed")
   );
 }

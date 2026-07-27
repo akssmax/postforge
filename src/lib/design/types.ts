@@ -20,6 +20,17 @@ import type {
   TextAlign,
 } from "@/lib/social-tool/presets";
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
+import type { ArtifactCategoryId } from "@/lib/design-config/schemas";
+import type { RendererId } from "@/lib/design-config/schemas";
+import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
+
+export type CanvasSpec = {
+  width: number;
+  height: number;
+  unit: "px";
+  bleedPx?: number;
+  slides?: number;
+};
 
 export type DesignOnboardingPhase = "needsLogo" | "needsBrief" | "ready";
 
@@ -66,6 +77,17 @@ export type DesignDocument = {
   logoInvert: boolean;
   textContrastBoost: boolean;
   onboarding: DesignOnboardingState;
+  /** Design Compiler artifact plugin id. */
+  artifactId?: string;
+  artifactCategory?: ArtifactCategoryId;
+  rendererId?: RendererId;
+  canvasSpec?: CanvasSpec;
+  bundleId?: string;
+  platformReason?: string;
+  /** Decorative shapes with absolute canvas positioning (max 3). */
+  canvasShapes?: CanvasShapeRecord[];
+  /** Last decoration level from campaign / pipeline for shape re-placement. */
+  decorationLevel?: "minimal" | "offer" | "mesh" | "brand";
 };
 
 export type DesignSessionPersisted = {

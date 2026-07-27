@@ -14,7 +14,24 @@ import {
 import { Button } from "@heroui/react";
 import type { BriefChatState } from "@/lib/llm/useBriefChat";
 import type { UIMessage } from "ai";
-import { ArrowUp, Loader2, Sparkles } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {
+  ALargeSmall,
+  AlignVerticalSpaceAround,
+  ArrowUp,
+  CheckCircle2,
+  Eye,
+  Grid3x3,
+  Image,
+  LayoutGrid,
+  Loader2,
+  Palette,
+  RefreshCw,
+  Sparkles,
+  Stamp,
+  Type,
+  Wand2,
+} from "lucide-react";
 import {
   useLayoutEffect,
   useRef,
@@ -23,6 +40,8 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { DesignCategoryPicker } from "@/components/social-tool/DesignCategoryPicker";
+import type { ArtifactCategoryId } from "@/lib/design-config/schemas";
 
 /** ~7 lines at 0.875rem / 1.375 line-height */
 const COMPOSER_MAX_HEIGHT_PX = 168;
@@ -35,30 +54,9 @@ type Props = BriefChatState & {
   mode?: BriefChatPanelMode;
   onSkip?: () => void;
   autoFocus?: boolean;
+  selectedCategory?: ArtifactCategoryId | null;
+  onSelectCategory?: (category: ArtifactCategoryId | null) => void;
 };
-
-const ONBOARDING_SUGGESTIONS = [
-  {
-    label: "Product launch",
-    prompt:
-      "Announce a product launch for B2B buyers — confident, clear benefit headline, short proof-led subheading.",
-  },
-  {
-    label: "Feature highlight",
-    prompt:
-      "Highlight a new product feature that saves teams time — punchy headline, practical subheading, modern SaaS tone.",
-  },
-  {
-    label: "Customer win",
-    prompt:
-      "Share a customer success story with a measurable outcome — credible, benefit-led, enterprise-friendly tone.",
-  },
-  {
-    label: "Event invite",
-    prompt:
-      "Invite people to a webinar or product demo — clear date/value hook, approachable tone, strong CTA feel.",
-  },
-] as const;
 
 const FOLLOW_UP_SUGGESTIONS = [
   {
@@ -87,13 +85,68 @@ function messageText(message: UIMessage): string {
     .join("");
 }
 
-function toolStatusLabel(part: UIMessage["parts"][number]): string | null {
+type ToolStatus = {
+  label: string;
+  Icon: LucideIcon;
+};
+
+function iconForToolType(type: string): LucideIcon | null {
+  switch (type) {
+    case "tool-updateDesign":
+      return Sparkles;
+    case "tool-updateCopy":
+      return Type;
+    case "tool-refreshCopyVariants":
+      return RefreshCw;
+    case "tool-updateBackground":
+      return Palette;
+    case "tool-updatePattern":
+      return Grid3x3;
+    case "tool-updateFeatured":
+      return Image;
+    case "tool-generateVisualBlock":
+    case "tool-modifyVisualBlock":
+      return Wand2;
+    case "tool-selectVisualBlock":
+      return Image;
+    case "tool-updateLayout":
+      return LayoutGrid;
+    case "tool-updateBrand":
+      return Stamp;
+    case "tool-updateTypography":
+      return ALargeSmall;
+    case "tool-updateVisibility":
+      return Eye;
+    case "tool-updateSpacing":
+      return AlignVerticalSpaceAround;
+    default:
+      return null;
+  }
+}
+
+function iconForStatusLabel(label: string): LucideIcon {
+  const lower = label.toLowerCase();
+  if (lower.includes("copy variant")) return RefreshCw;
+  if (lower.includes("copy")) return Type;
+  if (lower.includes("background")) return Palette;
+  if (lower.includes("pattern")) return Grid3x3;
+  if (lower.includes("layout")) return LayoutGrid;
+  if (lower.includes("brand")) return Stamp;
+  if (lower.includes("typography") || lower.includes("font")) return ALargeSmall;
+  if (lower.includes("visibility")) return Eye;
+  if (lower.includes("spacing")) return AlignVerticalSpaceAround;
+  if (lower.includes("featured") || lower.includes("visual")) return Wand2;
+  if (lower.includes("design")) return Sparkles;
+  return CheckCircle2;
+}
+
+function toolStatus(part: UIMessage["parts"][number]): ToolStatus | null {
   if (
     part.type === "tool-updateDesign" &&
     "state" in part &&
     part.state === "output-available"
   ) {
-    return "Design updated";
+    return { label: "Design updated", Icon: Sparkles };
   }
 
   if (
@@ -107,7 +160,9 @@ function toolStatusLabel(part: UIMessage["parts"][number]): string | null {
     "message" in part.output &&
     typeof part.output.message === "string"
   ) {
-    return part.output.message;
+    const label = part.output.message;
+    const Icon = iconForToolType(part.type) ?? iconForStatusLabel(label);
+    return { label, Icon };
   }
 
   return null;
@@ -119,8 +174,9 @@ function synthesizeAssistantSummary(message: UIMessage): string | null {
   if (messageText(message).trim()) return null;
 
   const labels = message.parts
-    .map(toolStatusLabel)
-    .filter((label): label is string => Boolean(label));
+    .map(toolStatus)
+    .filter((status): status is ToolStatus => Boolean(status))
+    .map((status) => status.label);
   if (labels.length === 0) return null;
 
   const unique = [...new Set(labels)];
@@ -170,14 +226,16 @@ function renderMessageParts(
       continue;
     }
 
-    const status = toolStatusLabel(part);
+    const status = toolStatus(part);
     if (status) {
+      const { label, Icon } = status;
       nodes.push(
         <p
           key={`${message.id}-${index}`}
-          className="mt-1 text-[10px] font-medium uppercase tracking-wide text-brand-600"
+          className="brief-chat-tool-status mt-1 text-[10px] font-medium uppercase tracking-wide text-brand-600"
         >
-          {status}
+          <Icon className="size-3 shrink-0 opacity-90" aria-hidden />
+          <span>{label}</span>
         </p>,
       );
     }
@@ -186,16 +244,98 @@ function renderMessageParts(
   return nodes;
 }
 
+function BriefChatEmptyState({
+  isFollowUp,
+  isGenerating,
+  onFillPrompt,
+  onSuggest,
+  selectedCategory,
+  onSelectCategory,
+}: {
+  isFollowUp: boolean;
+  isGenerating: boolean;
+  onFillPrompt?: (prompt: string) => void;
+  onSuggest?: (prompt: string) => void;
+  selectedCategory?: ArtifactCategoryId | null;
+  onSelectCategory?: (category: ArtifactCategoryId | null) => void;
+}) {
+  const [localCategory, setLocalCategory] = useState<ArtifactCategoryId | null>(
+    selectedCategory ?? null,
+  );
+  const activeCategory = selectedCategory ?? localCategory;
+
+  function handleSelectCategory(category: ArtifactCategoryId | null) {
+    setLocalCategory(category);
+    onSelectCategory?.(category);
+  }
+
+  return (
+    <ConversationEmptyState className="brief-chat-empty items-stretch text-left">
+      {isFollowUp || !activeCategory ? (
+        <div className="brief-chat-empty__intro">
+          <div className="brief-chat-empty__icon" aria-hidden>
+            <Sparkles className="size-4" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <h3 className="font-medium text-sm text-text-primary">
+              {isFollowUp ? "Ask to edit" : "What are you making?"}
+            </h3>
+            <p className="text-xs leading-5 text-text-tertiary">
+              {isFollowUp
+                ? "Describe copy, layout, or visual changes — the canvas updates as you chat."
+                : "Choose a category for starter mini-briefs, or describe your own below."}
+            </p>
+          </div>
+        </div>
+      ) : null}
+      {!isFollowUp && onFillPrompt ? (
+        <DesignCategoryPicker
+          compact
+          selectedCategory={activeCategory}
+          onSelectCategory={handleSelectCategory}
+          onSelectPrompt={onFillPrompt}
+          disabled={isGenerating}
+        />
+      ) : null}
+      {isFollowUp && onSuggest ? (
+        <div
+          className="brief-chat-suggestions brief-chat-suggestions--follow-up"
+          role="group"
+          aria-label="Suggested edits"
+        >
+          {FOLLOW_UP_SUGGESTIONS.map((suggestion) => (
+            <button
+              key={suggestion.label}
+              type="button"
+              className="brief-chat-suggestion-chip"
+              disabled={isGenerating}
+              onClick={() => onSuggest(suggestion.prompt)}
+            >
+              {suggestion.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </ConversationEmptyState>
+  );
+}
+
 function BriefChatMessages({
   messages,
   isGenerating,
   mode,
+  onFillPrompt,
   onSuggest,
+  selectedCategory,
+  onSelectCategory,
 }: {
   messages: UIMessage[];
   isGenerating: boolean;
   mode: BriefChatPanelMode;
+  onFillPrompt?: (prompt: string) => void;
   onSuggest?: (prompt: string) => void;
+  selectedCategory?: ArtifactCategoryId | null;
+  onSelectCategory?: (category: ArtifactCategoryId | null) => void;
 }) {
   const lastMessage = messages.at(-1);
   const streamingAssistant =
@@ -210,42 +350,15 @@ function BriefChatMessages({
 
   if (messages.length === 0 && !showThinking) {
     const isFollowUp = mode === "follow-up";
-    const suggestions = isFollowUp ? FOLLOW_UP_SUGGESTIONS : ONBOARDING_SUGGESTIONS;
     return (
-      <ConversationEmptyState className="brief-chat-empty">
-        <div className="text-muted-foreground">
-          <Sparkles className="mx-auto size-5 text-text-tertiary" aria-hidden />
-        </div>
-        <div className="space-y-1">
-          <h3 className="font-medium text-sm text-text-primary">
-            {isFollowUp ? "Ask to edit" : "Start your brief"}
-          </h3>
-          <p className="text-sm text-text-tertiary">
-            {isFollowUp
-              ? "Request copy, layout, or visual changes — the canvas updates as you chat."
-              : "Tell us about the launch, audience, or tone you want."}
-          </p>
-        </div>
-        {onSuggest ? (
-          <div
-            className="brief-chat-suggestions"
-            role="group"
-            aria-label={isFollowUp ? "Suggested edits" : "Suggested briefs"}
-          >
-            {suggestions.map((suggestion) => (
-              <button
-                key={suggestion.label}
-                type="button"
-                className="brief-chat-suggestion-chip"
-                disabled={isGenerating}
-                onClick={() => onSuggest(suggestion.prompt)}
-              >
-                {suggestion.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </ConversationEmptyState>
+      <BriefChatEmptyState
+        isFollowUp={isFollowUp}
+        isGenerating={isGenerating}
+        onFillPrompt={onFillPrompt}
+        onSuggest={onSuggest}
+        selectedCategory={selectedCategory}
+        onSelectCategory={onSelectCategory}
+      />
     );
   }
 
@@ -287,24 +400,39 @@ function BriefChatComposer({
   isGenerating,
   autoFocus,
   onSkip,
+  draftPrompt,
 }: {
   mode: BriefChatPanelMode;
   submitText: (text: string) => boolean;
   isGenerating: boolean;
   autoFocus?: boolean;
   onSkip?: () => void;
+  draftPrompt?: string | null;
 }) {
   const [value, setValue] = useState("");
-  const [multiline, setMultiline] = useState(false);
+  /** Soft-wrap multiline (no newlines) — updated after measure; newlines/length use sync rules. */
+  const [wrapMultiline, setWrapMultiline] = useState(false);
+  const skipHeightAnimationRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const heightRef = useRef(COMPOSER_SINGLE_LINE_PX);
   const isFollowUp = mode === "follow-up";
-  const placeholder = isFollowUp ? "Ask a follow-up…" : "Describe a post…";
+  const placeholder = isFollowUp ? "Ask a follow-up…" : "Describe your design…";
   const submitLabel = isGenerating
     ? "Generating"
     : isFollowUp
       ? "Send follow-up"
       : "Generate";
+
+  const multiline =
+    value.length > 0 &&
+    (value.includes("\n") || value.length > 48 || wrapMultiline);
+
+  useLayoutEffect(() => {
+    if (!draftPrompt?.trim()) return;
+    skipHeightAnimationRef.current = true;
+    setValue(draftPrompt);
+    textareaRef.current?.focus();
+  }, [draftPrompt]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -317,7 +445,7 @@ function BriefChatComposer({
       el.style.height = `${COMPOSER_SINGLE_LINE_PX}px`;
       el.style.overflowY = "hidden";
       heightRef.current = COMPOSER_SINGLE_LINE_PX;
-      setMultiline(false);
+      setWrapMultiline(false);
       return;
     }
 
@@ -330,11 +458,18 @@ function BriefChatComposer({
     const overflow = contentHeight > COMPOSER_MAX_HEIGHT_PX;
     el.style.overflowY = overflow ? "auto" : "hidden";
 
-    const isMulti =
-      value.includes("\n") || contentHeight > COMPOSER_SINGLE_LINE_PX + 4;
-    setMultiline(isMulti);
+    const wrapped =
+      !value.includes("\n") &&
+      value.length <= 48 &&
+      contentHeight > COMPOSER_SINGLE_LINE_PX + 4;
+    setWrapMultiline(wrapped);
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const skipAnimation =
+      skipHeightAnimationRef.current ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    skipHeightAnimationRef.current = false;
+
+    if (skipAnimation) {
       el.style.height = `${next}px`;
       heightRef.current = next;
       return;
@@ -347,12 +482,24 @@ function BriefChatComposer({
     heightRef.current = next;
   }, [value]);
 
+  function handleChange(next: string) {
+    const delta = next.length - value.length;
+    if (delta > 40 || next.includes("\n")) {
+      skipHeightAnimationRef.current = true;
+    }
+    setValue(next);
+  }
+
+  function handlePaste() {
+    skipHeightAnimationRef.current = true;
+  }
+
   function handleSubmit(e?: FormEvent) {
     e?.preventDefault();
     if (submitText(value)) {
       setValue("");
+      setWrapMultiline(false);
       heightRef.current = COMPOSER_SINGLE_LINE_PX;
-      setMultiline(false);
     }
   }
 
@@ -382,7 +529,8 @@ function BriefChatComposer({
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
+          onPaste={handlePaste}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           rows={1}
@@ -416,18 +564,17 @@ export function BriefChatPanel({
   mode = "onboarding",
   onSkip,
   autoFocus,
+  selectedCategory,
+  onSelectCategory,
 }: Props) {
   const isFollowUp = mode === "follow-up";
+  const [draftPrompt, setDraftPrompt] = useState<string | null>(null);
 
   return (
     <section className="social-tool-section brief-chat-section brief-chat-section--sidebar">
       {!isFollowUp ? (
         <div className="brief-chat-section__header">
           <p className="social-tool-section-title">Creative brief</p>
-          <p className="mt-1 text-xs leading-5 text-text-tertiary">
-            Describe your post — the assistant picks a layout, writes copy, and updates
-            the canvas as you chat.
-          </p>
         </div>
       ) : null}
 
@@ -437,6 +584,9 @@ export function BriefChatPanel({
             messages={messages}
             isGenerating={isGenerating}
             mode={mode}
+            selectedCategory={selectedCategory}
+            onSelectCategory={onSelectCategory}
+            onFillPrompt={(prompt) => setDraftPrompt(prompt)}
             onSuggest={(prompt) => {
               submitText(prompt);
             }}
@@ -459,6 +609,7 @@ export function BriefChatPanel({
         isGenerating={isGenerating}
         autoFocus={autoFocus}
         onSkip={onSkip}
+        draftPrompt={draftPrompt}
       />
     </section>
   );

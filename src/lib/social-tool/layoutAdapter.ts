@@ -14,6 +14,67 @@ import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import type { PostCopy, ProductPageId } from "@/lib/social-tool/presets";
 import { normalizeProductPage } from "@/lib/social-tool/presets";
 import type { FeaturedBlockPersisted } from "@/lib/social-tool/featuredBlock";
+import { getSlotConstraint } from "@/lib/social-tool/slotLibrary";
+
+export type EditableTextSlot = {
+  slotId: string;
+  role: TextSlotRole;
+  text: string;
+  label: string;
+};
+
+export function patchTextSlot(
+  textSlots: TextSlotContent[],
+  slotId: string,
+  text: string,
+  role?: TextSlotRole,
+): TextSlotContent[] {
+  const idx = textSlots.findIndex((s) => s.slotId === slotId);
+  if (idx >= 0) {
+    return textSlots.map((s, i) => (i === idx ? { ...s, text } : s));
+  }
+  if (role) {
+    return [...textSlots, { slotId, text, role }];
+  }
+  return textSlots;
+}
+
+export function getEditableTextSlots(
+  layoutRef: LayoutRef | undefined,
+  layoutId: PostLayoutId,
+  textSlots: TextSlotContent[] | undefined,
+  copy: PostCopy,
+  artifactId?: string,
+): EditableTextSlot[] {
+  const layout = resolveLayoutRef(layoutRef ?? catalogLayoutRef(layoutId));
+  const current = textSlots ?? textSlotsFromCopy(copy, layout);
+
+  return layout.slots
+    .filter((slot) => slot.kind === "text")
+    .map((slot) => {
+      const role = slot.textRole ?? "body";
+      const content = current.find((s) => s.slotId === slot.id);
+      return {
+        slotId: slot.id,
+        role,
+        text: content?.text ?? "",
+        label: getSlotConstraint(role, undefined, artifactId).label,
+      };
+    });
+}
+
+export function syncDocumentTextSlots(
+  doc: Pick<DesignDocument, "layoutRef" | "layoutId" | "copy" | "textSlots">,
+  mutator: (slots: TextSlotContent[], layout: DynamicLayout) => TextSlotContent[],
+): Pick<DesignDocument, "textSlots" | "copy"> {
+  const layout = resolveLayoutRef(
+    doc.layoutRef ?? catalogLayoutRef(doc.layoutId as PostLayoutId),
+  );
+  const base = doc.textSlots ?? textSlotsFromCopy(doc.copy, layout);
+  const textSlots = mutator(base, layout);
+  const copy = copyFromTextSlots(textSlots, layout, doc.copy);
+  return { textSlots, copy };
+}
 
 function blockToTextRole(block: PostContentBlock): TextSlotRole {
   if (block === "headline") return "headline";
@@ -25,6 +86,32 @@ function blockToSlotId(block: PostContentBlock, index: number): string {
   if (block === "headline") return "headline";
   if (block === "subheading") return "subheading";
   return `extra-${index}`;
+}
+
+export function legacyEditableSlotsFromCopy(copy: PostCopy): EditableTextSlot[] {
+  const slots: EditableTextSlot[] = [
+    {
+      slotId: "headline",
+      role: "headline",
+      text: copy.heading,
+      label: "Headline",
+    },
+    {
+      slotId: "subheading",
+      role: "subheading",
+      text: copy.subheading,
+      label: "Subheading",
+    },
+  ];
+  copy.extraFields.forEach((field, index) => {
+    slots.push({
+      slotId: field.id,
+      role: "body",
+      text: field.value,
+      label: field.label || `Detail ${index + 1}`,
+    });
+  });
+  return slots;
 }
 
 export function catalogLayoutToDynamic(layout: PostLayout): DynamicLayout {
@@ -51,13 +138,37 @@ export function catalogLayoutToDynamic(layout: PostLayout): DynamicLayout {
     });
   });
 
-  slots.push({
-    id: "featured-primary",
-    kind: "featured",
-    zone: layout.composition === "split" ? "featuredColumn" : "stackMain",
-    order: order++,
-    flexGrow: 1,
-  });
+  if (layout.sectionSlotCount) {
+    for (let i = 0; i < layout.sectionSlotCount; i++) {
+      slots.push({
+        id: `section-${i}`,
+        kind: "text",
+        zone: layout.composition === "split" ? "textColumn" : "stackMain",
+        order: order++,
+        textRole: "body",
+      });
+    }
+  }
+
+  if (layout.includeFeaturedSlot !== false) {
+    slots.push({
+      id: "featured-primary",
+      kind: "featured",
+      zone: layout.composition === "split" ? "featuredColumn" : "stackMain",
+      order: order++,
+      flexGrow: 1,
+    });
+
+    if (layout.secondFeaturedSlot) {
+      slots.push({
+        id: "featured-secondary",
+        kind: "featured",
+        zone: layout.composition === "split" ? "featuredColumn" : "stackMain",
+        order: order++,
+        flexGrow: 1,
+      });
+    }
+  }
 
   layout.footerBlocks.forEach((block) => {
     if (block === "logo" && layout.logoPlacement === "footer") {
@@ -69,15 +180,39 @@ export function catalogLayoutToDynamic(layout: PostLayout): DynamicLayout {
       });
     }
     if (block === "extras" && layout.extrasPlacement === "footer") {
+      const ctaLayout =
+        layout.id === "event-poster" ||
+        layout.id === "invite-card" ||
+        layout.id === "hiring-post" ||
+        layout.id === "social-ad";
       slots.push({
         id: "extras-footer",
         kind: "text",
         zone: "footer",
         order: order++,
-        textRole: "caption",
+        textRole: ctaLayout ? "cta" : "caption",
+      });
+    }
+    if (block === "contact") {
+      slots.push({
+        id: "contact-footer",
+        kind: "text",
+        zone: "footer",
+        order: order++,
+        textRole: "contact",
       });
     }
   });
+
+  if (layout.footerContact) {
+    slots.push({
+      id: "contact-footer",
+      kind: "text",
+      zone: "footer",
+      order: order++,
+      textRole: "contact",
+    });
+  }
 
   return {
     id: layout.id,
@@ -105,6 +240,59 @@ export function resolveLayoutRef(ref: LayoutRef): DynamicLayout {
   return catalogLayoutToDynamic(getPostLayout(ref.id));
 }
 
+export function repairTextSlotsForLayout(
+  textSlots: TextSlotContent[],
+  layout: DynamicLayout,
+): TextSlotContent[] {
+  const defs = layout.slots.filter((slot) => slot.kind === "text");
+  const defById = new Map(defs.map((def) => [def.id, def]));
+  const used = new Set<string>();
+  const repaired: TextSlotContent[] = [];
+
+  const claim = (predicate: (def: SlotDefinition) => boolean): SlotDefinition | undefined => {
+    const match = defs.find((def) => !used.has(def.id) && predicate(def));
+    if (match) used.add(match.id);
+    return match;
+  };
+
+  for (const slot of textSlots) {
+    if (defById.has(slot.slotId) && !used.has(slot.slotId)) {
+      used.add(slot.slotId);
+      repaired.push(slot);
+      continue;
+    }
+
+    const role = slot.role ?? (slot.slotId as TextSlotRole);
+    const match =
+      claim((def) => def.id === slot.slotId) ??
+      claim((def) => (def.textRole ?? "body") === role) ??
+      claim((def) => (def.textRole ?? "body") === (slot.slotId as TextSlotRole)) ??
+      claim((def) => def.id.includes(slot.slotId));
+
+    if (match) {
+      repaired.push({
+        slotId: match.id,
+        text: slot.text,
+        role: match.textRole ?? role,
+      });
+    }
+  }
+
+  for (const def of defs) {
+    if (!used.has(def.id)) {
+      repaired.push({
+        slotId: def.id,
+        text: "",
+        role: def.textRole ?? "body",
+      });
+    }
+  }
+
+  return defs
+    .map((def) => repaired.find((slot) => slot.slotId === def.id))
+    .filter((slot): slot is TextSlotContent => Boolean(slot));
+}
+
 export function textSlotsFromCopy(
   copy: PostCopy,
   layout: DynamicLayout,
@@ -118,12 +306,22 @@ export function textSlotsFromCopy(
       result.push({ slotId: slot.id, text: copy.heading, role });
     } else if (role === "subheading") {
       result.push({ slotId: slot.id, text: copy.subheading, role });
-    } else if (slot.id.startsWith("extra-") || role === "body" || role === "caption") {
-      const extraIndex = copy.extraFields.findIndex((_, i) => slot.id === `extra-${i}`);
+    } else if (
+      slot.id.startsWith("extra-") ||
+      slot.id.startsWith("section-") ||
+      slot.id === "contact-footer" ||
+      role === "body" ||
+      role === "caption" ||
+      role === "contact" ||
+      role === "cta"
+    ) {
+      const extraIndex = copy.extraFields.findIndex(
+        (_, i) => slot.id === `extra-${i}` || slot.id === `section-${i}`,
+      );
+      const byId = copy.extraFields.find((f) => f.id === slot.id);
       const value =
-        extraIndex >= 0
-          ? copy.extraFields[extraIndex]?.value ?? ""
-          : copy.extraFields[0]?.value ?? "";
+        byId?.value ??
+        (extraIndex >= 0 ? copy.extraFields[extraIndex]?.value ?? "" : "");
       result.push({ slotId: slot.id, text: value, role });
     }
   }
@@ -147,12 +345,22 @@ export function copyFromTextSlots(
     else if (slot.role === "subheading") next.subheading = slot.text;
     else {
       const idx = next.extraFields.findIndex((f) => f.id === slot.slotId);
+      const label =
+        slot.role === "caption"
+          ? "Caption"
+          : slot.role === "contact"
+            ? "Contact"
+            : slot.role === "cta"
+              ? "Call to action"
+              : slot.slotId.startsWith("section-")
+                ? `Section ${Number(slot.slotId.split("-")[1] ?? 0) + 1}`
+                : "Detail";
       if (idx >= 0) {
         next.extraFields[idx] = { ...next.extraFields[idx], value: slot.text };
       } else {
         next.extraFields.push({
           id: slot.slotId,
-          label: slot.role === "caption" ? "Caption" : "Detail",
+          label,
           value: slot.text,
         });
       }

@@ -6,22 +6,26 @@ export type CanvasSelectionId =
   | "logo"
   | "featured"
   | "pattern"
+  | "shape"
   | `copy:${string}`
-  | `featured:${string}`;
+  | `featured:${string}`
+  | `shape:${string}`;
 
 export const CANVAS_SELECTION_LABELS: Record<string, string> = {
   copy: "Content",
   logo: "Brand",
   featured: "Featured image",
   pattern: "Pattern",
+  shape: "Shape",
 };
 
 export function canvasSelectionKind(
   id: CanvasSelectionId | null,
-): "copy" | "logo" | "featured" | "pattern" | null {
+): "copy" | "logo" | "featured" | "pattern" | "shape" | null {
   if (!id) return null;
   if (id === "copy" || id.startsWith("copy:")) return "copy";
   if (id === "featured" || id.startsWith("featured:")) return "featured";
+  if (id === "shape" || id.startsWith("shape:")) return "shape";
   if (id === "logo") return "logo";
   if (id === "pattern") return "pattern";
   return null;
@@ -46,6 +50,7 @@ export function isCanvasSelectableTarget(target: EventTarget | null): boolean {
       target.closest(".canvas-stage-chrome") ||
       target.closest(".social-featured-drag-handle") ||
       target.closest(".social-fi-chrome") ||
+      target.closest(".canvas-shape") ||
       target.closest(".spacing-handle") ||
       target.closest(".canvas-property-pills") ||
       target.closest(".canvas-copy-editor") ||
@@ -59,5 +64,14 @@ export function featuredSlotIdFromSelection(
   if (!selection) return null;
   if (selection.startsWith("featured:")) return selection.slice("featured:".length);
   if (selection === "featured") return "featured-primary";
+  return null;
+}
+
+export function shapeIdFromSelection(
+  selection: CanvasSelectionId | null,
+): string | null {
+  if (!selection) return null;
+  if (selection.startsWith("shape:")) return selection.slice("shape:".length);
+  if (selection === "shape") return null;
   return null;
 }

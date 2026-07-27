@@ -22,6 +22,7 @@ import {
   type PostLayoutId,
 } from "@/lib/social-tool/postLayouts";
 import { layoutIdForDocument } from "@/lib/social-tool/layoutRegistry";
+import { resolveCanvasShapes } from "@/lib/social-tool/shapes/placement";
 import { pickNextCopyVariant } from "@/lib/social-tool/shuffleCopy";
 import { pickRandomShuffleSurface } from "@/lib/social-tool/shuffleSurface";
 import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
@@ -102,18 +103,25 @@ export function applyShuffleToSession(
     nextCopyVariantIndex = shuffled.nextIndex;
   }
 
-  const hierarchy = resolveLayoutHierarchyFromIds({
-    platformId: doc.platformId,
-    layoutId: nextLayout.id,
-    copy: nextCopy,
-    spacing: nextSpacing,
-    showLogo: doc.showBrand,
-    showFeaturedImage: doc.showFeaturedImage,
-    featuredMode: source.featured.mode,
-    productPage: source.featured.productPage,
-    hasUploadedFeaturedImage: !!source.featured.image,
-    visualBlockDimensions: composedBlockDimensions(source),
-  });
+  const shouldRecalcTypeScale = prefs.layout || prefs.content;
+  const shouldRecalcFeaturedTransform =
+    prefs.featuredPosition || source.featured.mode === "composed";
+
+  const hierarchy =
+    shouldRecalcTypeScale || shouldRecalcFeaturedTransform
+      ? resolveLayoutHierarchyFromIds({
+          platformId: doc.platformId,
+          layoutId: nextLayout.id,
+          copy: nextCopy,
+          spacing: nextSpacing,
+          showLogo: doc.showBrand,
+          showFeaturedImage: doc.showFeaturedImage,
+          featuredMode: source.featured.mode,
+          productPage: source.featured.productPage,
+          hasUploadedFeaturedImage: !!source.featured.image,
+          visualBlockDimensions: composedBlockDimensions(source),
+        })
+      : null;
 
   const surface = pickRandomShuffleSurface({
     backgrounds,
@@ -153,10 +161,26 @@ export function applyShuffleToSession(
       : {}),
     copy: nextCopy,
     copyVariantIndex: nextCopyVariantIndex,
-    typeScale: hierarchy.typeScale,
-    logoScale: hierarchy.logoScale,
-    ...(prefs.featuredPosition || source.featured.mode === "composed"
+    ...(shouldRecalcTypeScale && hierarchy
+      ? { typeScale: hierarchy.typeScale, logoScale: hierarchy.logoScale }
+      : {}),
+    ...(shouldRecalcFeaturedTransform && hierarchy
       ? { featuredTransform: hierarchy.featuredTransform }
+      : {}),
+    ...(prefs.layout && doc.decorationLevel
+      ? {
+          canvasShapes: resolveCanvasShapes({
+            decorationLevel: doc.decorationLevel,
+            layoutId: nextLayout.id,
+            platformId: doc.platformId,
+            spacing: nextSpacing,
+            brandColors: {
+              primary: source.brand.colors.primary,
+              accent: source.brand.colors.accent,
+            },
+            designId: source.designId,
+          }),
+        }
       : {}),
     ...(prefs.pattern
       ? {

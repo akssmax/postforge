@@ -10,6 +10,9 @@ import type {
   updateSpacingToolSchema,
   updateTypographyToolSchema,
   updateVisibilityToolSchema,
+  addShapeToolSchema,
+  updateShapeToolSchema,
+  removeShapeToolSchema,
 } from "@/lib/llm/schemas/canvasTools";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import type { z } from "zod";
@@ -22,7 +25,18 @@ import {
 import { getPostLayout, getLayoutStatePatch } from "@/lib/social-tool/postLayouts";
 import { getSlotConstraint } from "@/lib/social-tool/slotLibrary";
 import type { TextSlotRole } from "@/lib/social-tool/dynamicLayout";
-import type { PostLayoutSpacing } from "@/lib/social-tool/layoutSpacing";
+import {
+  SPACING_TOKEN_KEYS,
+  type PostLayoutSpacing,
+} from "@/lib/social-tool/layoutSpacing";
+import { instantiateShape } from "@/lib/social-tool/shapes/instantiate";
+import {
+  canAddCanvasShape,
+  mergeCanvasShapeArrays,
+  patchCanvasShape,
+  removeCanvasShape,
+} from "@/lib/social-tool/shapes/storage";
+import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
 import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
 import type { ProductPageId } from "@/lib/social-tool/presets";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
@@ -402,17 +416,82 @@ export function computeUpdateSpacingPatch(
 ): CanvasPatchResult {
   const next: PostLayoutSpacing = { ...snapshot.layoutSpacing };
 
-  for (const key of Object.keys(input) as (keyof typeof input)[]) {
+  for (const key of SPACING_TOKEN_KEYS) {
     const value = input[key];
-    if (value !== undefined && key in next) {
-      next[key as keyof PostLayoutSpacing] = value as PostLayoutSpacing[keyof PostLayoutSpacing];
+    if (value !== undefined) {
+      next[key] = value;
     }
+  }
+  if (input.splitTextColumnShare !== undefined) {
+    next.splitTextColumnShare = input.splitTextColumnShare;
   }
 
   return {
     success: true,
     message: "Spacing updated",
     document: { layoutSpacing: next },
+  };
+}
+
+export function computeAddShapePatch(
+  snapshot: DesignSnapshot,
+  input: z.infer<typeof addShapeToolSchema>,
+): CanvasPatchResult {
+  const shapes = snapshot.canvasShapes ?? [];
+  if (!canAddCanvasShape(shapes)) {
+    return { success: false, error: "Maximum of 3 canvas shapes reached" };
+  }
+  const shape = instantiateShape(input.libraryId, {
+    primary: snapshot.brand.primary ?? "#1E293B",
+    accent: snapshot.brand.accent ?? "#7C9A92",
+  });
+  if (!shape) {
+    return { success: false, error: `Unknown shape library id: ${input.libraryId}` };
+  }
+  return {
+    success: true,
+    message: "Shape added",
+    document: { canvasShapes: [...shapes, shape] },
+  };
+}
+
+export function computeUpdateShapePatch(
+  snapshot: DesignSnapshot,
+  input: z.infer<typeof updateShapeToolSchema>,
+): CanvasPatchResult {
+  const shapes = snapshot.canvasShapes ?? [];
+  if (!shapes.some((shape) => shape.id === input.shapeId)) {
+    return { success: false, error: "Shape not found" };
+  }
+  const existing = shapes.find((shape) => shape.id === input.shapeId)!;
+  const next = patchCanvasShape(shapes, input.shapeId, {
+    ...(input.transform
+      ? { transform: { ...existing.transform, ...input.transform } }
+      : {}),
+    ...(input.fill !== undefined ? { fill: input.fill } : {}),
+    ...(input.stroke !== undefined ? { stroke: input.stroke } : {}),
+    ...(input.opacity !== undefined ? { opacity: input.opacity } : {}),
+    ...(input.zIndex !== undefined ? { zIndex: input.zIndex } : {}),
+  });
+  return {
+    success: true,
+    message: "Shape updated",
+    document: { canvasShapes: next },
+  };
+}
+
+export function computeRemoveShapePatch(
+  snapshot: DesignSnapshot,
+  input: z.infer<typeof removeShapeToolSchema>,
+): CanvasPatchResult {
+  const shapes = snapshot.canvasShapes ?? [];
+  if (!shapes.some((shape) => shape.id === input.shapeId)) {
+    return { success: false, error: "Shape not found" };
+  }
+  return {
+    success: true,
+    message: "Shape removed",
+    document: { canvasShapes: removeCanvasShape(shapes, input.shapeId) },
   };
 }
 
@@ -452,13 +531,22 @@ export function mergeCanvasPatches(patches: CanvasPatchResult[]): CanvasPatchRes
     targetArtboards: mergeArtboardTargets(patches),
   };
 
+  let mergedShapes: import("@/lib/social-tool/shapes/types").CanvasShapeRecord[] | undefined;
+
   for (const patch of patches) {
     if (!patch.success) return patch;
 
+    if (patch.document?.canvasShapes) {
+      mergedShapes = mergedShapes
+        ? mergeCanvasShapeArrays(mergedShapes, patch.document.canvasShapes)
+        : patch.document.canvasShapes;
+    }
+
     if (patch.document) {
+      const { canvasShapes: _shapes, ...restDocument } = patch.document;
       merged.document = {
         ...(merged.document ?? {}),
-        ...omitUndefined(patch.document),
+        ...omitUndefined(restDocument),
       } as CanvasPatchResult["document"];
     }
     if (patch.brand) {
@@ -474,6 +562,13 @@ export function mergeCanvasPatches(patches: CanvasPatchResult[]): CanvasPatchRes
       } as CanvasPatchResult["featured"];
     }
     if (patch.clientAction) merged.clientAction = patch.clientAction;
+  }
+
+  if (mergedShapes) {
+    merged.document = {
+      ...(merged.document ?? {}),
+      canvasShapes: mergedShapes,
+    };
   }
 
   return merged;

@@ -7,11 +7,11 @@ import {
   type CampaignPlan,
 } from "@/lib/llm/schemas/campaignPlan";
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
-import { rulesProfilePrompt } from "@/lib/llm/rules";
+import { resolveDesignRulesForBrief, rulesProfilePrompt } from "@/lib/llm/rules";
 import type { CopyVariant } from "@/lib/social-tool/presets";
 import { COPY_VARIANT_POOL_SIZE } from "@/lib/social-tool/presets";
 import { countWords } from "@/lib/social-tool/slotLibrary";
-import { resolveDesignRulesForBrief } from "@/lib/llm/rules";
+import { isEventArtifact, parseEventPosterBrief } from "@/lib/design-engine/eventBriefParser";
 import { intentFromBrief } from "@/lib/social-tool/engine/intentFromBrief";
 import type { PlatformId } from "@/lib/social-tool/presets";
 
@@ -141,6 +141,37 @@ export function writeCopyVariantsOffline(input: {
   userMessage: string;
   rulesProfile: DesignRulesProfile;
 }): CopyVariant[] {
+  if (
+    input.rulesProfile.requiredSlots.includes("contact") &&
+    input.rulesProfile.requiredSlots.includes("cta")
+  ) {
+    const parsed = parseEventPosterBrief(input.userMessage);
+    const title = parsed?.heading ?? "Design & Coffee Meetup";
+    return [
+      { heading: title, subheading: parsed?.subheading ?? "Designers and developers" },
+      { heading: title, subheading: "Startup enthusiasts welcome" },
+      { heading: title, subheading: "An morning of design, coffee, and community" },
+      { heading: title, subheading: "Connect with local creators" },
+      { heading: title, subheading: "Free to attend — RSVP required" },
+      { heading: title, subheading: "Limited seats — register today" },
+    ].map((variant) => normalizeVariant(variant, input.rulesProfile));
+  }
+
+  if (input.rulesProfile.requiredSlots.includes("contact")) {
+    const parsed = input.userMessage.match(
+      /(?:for|card for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+    );
+    const name = parsed?.[1]?.trim() ?? "Alex Chen";
+    return [
+      { heading: name, subheading: "Senior Product Designer" },
+      { heading: name, subheading: "Product Lead" },
+      { heading: name, subheading: "Founder & CEO" },
+      { heading: name, subheading: "Design Director" },
+      { heading: name, subheading: "VP of Marketing" },
+      { heading: name, subheading: "Consultant" },
+    ].map((variant) => normalizeVariant(variant, input.rulesProfile));
+  }
+
   const topic = extractTopic(input.userMessage);
   return OFFLINE_VARIANT_TEMPLATES.map((template) =>
     normalizeVariant(

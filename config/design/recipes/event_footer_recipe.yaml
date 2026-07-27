@@ -23,3 +23,8 @@ bundles:
 families:
   - process
   - product
+artifactSupports:
+  - birthday_invite
+  - wedding_invite
+  - meetup_poster
+  - rsvp_card

@@ -45,6 +45,14 @@ const EDIT_PHRASES = [
   "cta",
   "minimal",
   "center",
+  "shape",
+  "shapes",
+  "blob",
+  "decoration",
+  "accent",
+  "star",
+  "arrow",
+  "opacity",
 ];
 
 function matchesPhrase(text: string, phrases: string[]): boolean {

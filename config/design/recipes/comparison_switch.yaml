@@ -27,3 +27,7 @@ bundles:
 families:
   - comparison
   - product
+artifactSupports:
+  - linkedin_ad
+  - comparison_chart
+  - infographic

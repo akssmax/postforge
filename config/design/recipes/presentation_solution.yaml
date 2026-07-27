@@ -1,0 +1,21 @@
+id: presentation_solution
+name: Presentation Solution
+pattern: problem_solution
+slots:
+  - headline
+  - subheading
+  - body
+  - metric
+attention: headline
+proof: stat
+density: medium
+readingPattern: F
+artifactSupports:
+  - pitch_deck
+  - webinar_slides
+preferredLayouts:
+  - balanced-split
+  - deck-sidebar
+bundles:
+  - feature-launch
+  - growth-proof

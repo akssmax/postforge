@@ -22,3 +22,7 @@ bundles:
 families:
   - proof
   - diagram
+artifactSupports:
+  - linkedin_ad
+  - quote_card
+  - proposal_cover

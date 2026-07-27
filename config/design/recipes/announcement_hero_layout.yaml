@@ -22,3 +22,7 @@ bundles:
 families:
   - product
   - metric
+artifactSupports:
+  - linkedin_ad
+  - instagram_post
+  - meetup_poster

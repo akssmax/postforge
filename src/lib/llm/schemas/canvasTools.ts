@@ -189,9 +189,61 @@ export const updateSpacingToolSchema = z.object({
   textZonePadBottom: spacingTokenSchema.optional(),
   logoCopyGap: spacingTokenSchema.optional(),
   copyBlockGap: spacingTokenSchema.optional(),
+  splitColumnGap: spacingTokenSchema.optional(),
   featuredSlotGap: spacingTokenSchema.optional(),
   footerPad: spacingTokenSchema.optional(),
   footerBlockGap: spacingTokenSchema.optional(),
+  splitTextColumnShare: z.number().min(0.32).max(0.52).optional(),
+});
+
+const canvasShapeTransformSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  scale: z.number(),
+  rotateZ: z.number(),
+  flipX: z.boolean().optional(),
+  flipY: z.boolean().optional(),
+});
+
+const canvasShapeSchema = z.object({
+  id: z.string(),
+  libraryId: z.string(),
+  category: z.enum([
+    "basic",
+    "lines",
+    "polygons",
+    "stars",
+    "arrows",
+    "flowchart",
+    "organic",
+    "frames",
+  ]),
+  label: z.string(),
+  svgMarkup: z.string(),
+  transform: canvasShapeTransformSchema,
+  fill: z.string().optional(),
+  stroke: z.string().optional(),
+  opacity: z.number().min(0).max(1).optional(),
+  zIndex: z.number().int().min(0).max(10),
+  locked: z.boolean().optional(),
+  createdAt: z.number(),
+});
+
+export const addShapeToolSchema = z.object({
+  libraryId: z.string(),
+});
+
+export const updateShapeToolSchema = z.object({
+  shapeId: z.string(),
+  transform: canvasShapeTransformSchema.partial().optional(),
+  fill: z.string().optional(),
+  stroke: z.string().optional(),
+  opacity: z.number().min(0).max(1).optional(),
+  zIndex: z.number().int().min(0).max(10).optional(),
+});
+
+export const removeShapeToolSchema = z.object({
+  shapeId: z.string(),
 });
 
 export type CanvasToolName =
@@ -207,4 +259,7 @@ export type CanvasToolName =
   | "updateBrand"
   | "updateTypography"
   | "updateVisibility"
-  | "updateSpacing";
+  | "updateSpacing"
+  | "addShape"
+  | "updateShape"
+  | "removeShape";

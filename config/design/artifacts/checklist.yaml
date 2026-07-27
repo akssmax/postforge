@@ -1,0 +1,26 @@
+id: checklist
+category: education
+label: Checklist
+capabilities:
+  multiPage: false
+  slides: 1
+  aspectRatios: ["2:3", "1:1"]
+  primaryContent: text
+constraints:
+  requiredSlots: [headline, body]
+  optionalSlots: [subheading]
+  maxSections: 10
+allowedRecipes:
+  - education_framework
+  - narrative_statement
+recommendedBundles: []
+recommendedLayouts:
+  - section-stack
+  - copy-statement
+  - professional-left
+renderer: product-shot
+inferenceKeywords:
+  - checklist
+  - cheat sheet
+  - tips list
+  - how to

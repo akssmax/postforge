@@ -1,0 +1,21 @@
+id: comparison-columns
+platforms: [all]
+campaigns:
+  - promotion
+  - product_launch
+visualPriority: high
+contentDensity: medium
+readingPattern: Z
+visualWeight: heavy
+densityClass: visualFirst
+supports:
+  - logo
+  - headline
+  - subheading
+  - product_image
+  - metric
+score:
+  promotion: 0.88
+  product_launch: 0.85
+artifactSupports:
+  - comparison_chart

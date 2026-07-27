@@ -1,0 +1,27 @@
+id: hiring_post
+category: social
+label: Hiring Post
+capabilities:
+  multiPage: false
+  slides: 1
+  aspectRatios: ["1:1", "4:5"]
+  primaryContent: mixed
+constraints:
+  requiredSlots: [headline, cta]
+  optionalSlots: [body, logo, featured]
+allowedRecipes:
+  - announcement_hero_layout
+  - announcement_center
+recommendedBundles: []
+recommendedLayouts:
+  - hiring-post
+  - centered-announcement
+  - classic-hero
+renderer: product-shot
+campaignType: hiring
+unsplashHints: diverse team office hiring
+inferenceKeywords:
+  - hiring
+  - we are hiring
+  - job opening
+  - join our team

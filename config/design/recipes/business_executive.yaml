@@ -1,0 +1,19 @@
+id: business_executive
+name: Business Executive
+pattern: narrative
+slots:
+  - headline
+  - body
+  - contact
+attention: headline
+proof: none
+density: low
+readingPattern: F
+artifactSupports:
+  - business_card
+preferredLayouts:
+  - business-card
+  - contact-footer
+  - logo-footer-bar
+families:
+  - product

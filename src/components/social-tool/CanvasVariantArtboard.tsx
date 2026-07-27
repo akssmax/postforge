@@ -30,11 +30,13 @@ import {
 } from "@/lib/brand/contrast";
 import { resolveDocumentLayout, layoutIdForDocument } from "@/lib/social-tool/layoutRegistry";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
+import { resolveDesignCanvasSize } from "@/lib/design-engine/canvasSpec";
 import { getTemplate, getPlatform, type TextAlign } from "@/lib/social-tool/presets";
 import { activeVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
 import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
 import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
 import type { PostLayoutSpacing } from "@/lib/social-tool/layoutSpacing";
+import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
 
 type Props = {
   board: DesignSessionPersisted;
@@ -75,8 +77,8 @@ type Props = {
     t: FeaturedImageTransform,
     slotId?: string,
   ) => void;
-  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing" | "copy") => void;
-  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing" | "copy") => void;
+  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing" | "copy" | "shapes") => void;
+  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing" | "copy" | "shapes") => void;
   editingCopyField?: import("@/lib/social-tool/copyEdit").EditingCopyField | null;
   onCopyFieldEditStart?: (
     field: import("@/lib/social-tool/copyEdit").EditingCopyField,
@@ -99,6 +101,7 @@ type Props = {
   onShuffleFeaturedSlot?: (slotId: string) => void;
   onUploadFeaturedImage?: (file: File, slotId: string) => void;
   generatingVisualBlocks?: boolean;
+  onCanvasShapesChange?: (shapes: CanvasShapeRecord[]) => void;
   canvasRef?: React.Ref<HTMLDivElement>;
   viewportRef?: React.Ref<HTMLDivElement>;
   reveal?: boolean;
@@ -157,6 +160,7 @@ export function CanvasVariantArtboard({
   onShuffleFeaturedSlot,
   onUploadFeaturedImage,
   generatingVisualBlocks = false,
+  onCanvasShapesChange,
   canvasRef,
   viewportRef,
   reveal = true,
@@ -191,7 +195,15 @@ export function CanvasVariantArtboard({
     [backgrounds, board.brand.activeBackgroundPresetId],
   );
 
-  const platform = getPlatform(doc.platformId);
+  const canvasSize = resolveDesignCanvasSize(doc);
+  const platform = useMemo(
+    () => ({
+      ...getPlatform(doc.platformId),
+      width: canvasSize.width,
+      height: canvasSize.height,
+    }),
+    [doc.platformId, canvasSize.width, canvasSize.height],
+  );
   const template = getTemplate(doc.templateId);
   const activeLayout = getPostLayout(layoutIdForDocument(doc));
   const resolvedLayout = useMemo(() => resolveDocumentLayout(doc), [doc]);
@@ -220,13 +232,17 @@ export function CanvasVariantArtboard({
       : null) ?? hydratedFeatured;
 
   const textColor =
-    doc.showBrand && (board.brand.activeBackgroundPresetId || doc.textContrastBoost)
+    doc.showBackground &&
+    doc.showBrand &&
+    (board.brand.activeBackgroundPresetId || doc.textContrastBoost)
       ? doc.textContrastBoost
         ? readableTextOnBackground(bgHex)
         : bgCss.textOnBrand
       : undefined;
   const subTextColor =
-    doc.showBrand && (board.brand.activeBackgroundPresetId || doc.textContrastBoost)
+    doc.showBackground &&
+    doc.showBrand &&
+    (board.brand.activeBackgroundPresetId || doc.textContrastBoost)
       ? doc.textContrastBoost
         ? readableSubTextOnBackground(bgHex)
         : bgCss.subText
@@ -542,6 +558,8 @@ export function CanvasVariantArtboard({
                 dynamicLayout={resolvedLayout}
                 textSlots={doc.textSlots}
                 featuredSlots={doc.featuredSlots}
+                canvasShapes={doc.canvasShapes ?? []}
+                onCanvasShapesChange={isActive ? onCanvasShapesChange : undefined}
                 spacing={doc.layoutSpacing}
                 onSpacingChange={isActive ? onSpacingChange : undefined}
                 showSpacingControls={adjustSpacing && isActive}

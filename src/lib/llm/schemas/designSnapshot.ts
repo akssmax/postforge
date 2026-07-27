@@ -12,6 +12,7 @@ import type {
 import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import type { TextSlotContent } from "@/lib/social-tool/dynamicLayout";
+import { textSlotRoleSchema } from "@/lib/llm/schemas/designPlan";
 import { spacingTokenSchema } from "@/lib/llm/schemas/canvasTools";
 import type { PostLayoutSpacing } from "@/lib/social-tool/layoutSpacing";
 import type { DesignOnboardingPhase } from "@/lib/design/types";
@@ -42,7 +43,7 @@ export const designSnapshotSchema = z.object({
     z.object({
       slotId: z.string(),
       text: z.string(),
-      role: z.enum(["headline", "subheading", "body", "caption"]),
+      role: textSlotRoleSchema,
     }),
   ),
   textSlotIds: z.array(z.string()),
@@ -113,14 +114,62 @@ export const designSnapshotSchema = z.object({
     textZonePadBottom: spacingTokenSchema,
     logoCopyGap: spacingTokenSchema,
     copyBlockGap: spacingTokenSchema,
+    splitColumnGap: spacingTokenSchema,
     featuredSlotGap: spacingTokenSchema,
     footerPad: spacingTokenSchema,
     footerBlockGap: spacingTokenSchema,
+    splitTextColumnShare: z.number().min(0.32).max(0.52).optional(),
   }),
+  canvasShapes: z
+    .array(
+      z.object({
+        id: z.string(),
+        libraryId: z.string(),
+        category: z.enum([
+          "basic",
+          "lines",
+          "polygons",
+          "stars",
+          "arrows",
+          "flowchart",
+          "organic",
+          "frames",
+        ]),
+        label: z.string(),
+        svgMarkup: z.string(),
+        transform: z.object({
+          x: z.number(),
+          y: z.number(),
+          scale: z.number(),
+          rotateZ: z.number(),
+          flipX: z.boolean().optional(),
+          flipY: z.boolean().optional(),
+        }),
+        fill: z.string().optional(),
+        stroke: z.string().optional(),
+        opacity: z.number().min(0).max(1).optional(),
+        zIndex: z.number().int().min(0).max(10),
+        locked: z.boolean().optional(),
+        createdAt: z.number(),
+      }),
+    )
+    .max(3)
+    .optional(),
   allowedLayouts: z.array(z.string()),
   allowedProductPages: z.array(z.string()),
   allowedPatternRefs: z.array(z.string()),
   selection: z.string().nullable().optional(),
+  artifactId: z.string().optional(),
+  artifactCategory: z.string().optional(),
+  rendererId: z.string().optional(),
+  canvasSpec: z
+    .object({
+      width: z.number(),
+      height: z.number(),
+      unit: z.literal("px"),
+      bleedPx: z.number().optional(),
+    })
+    .optional(),
   artboards: z
     .object({
       activeIndex: z.number().int().min(1).max(7),
@@ -162,6 +211,11 @@ export type DesignSnapshotInput = {
     logoAlign: LogoAlign;
   };
   layoutSpacing: PostLayoutSpacing;
+  canvasShapes?: DesignSnapshot["canvasShapes"];
   selection?: CanvasSelectionId | null;
+  artifactId?: string;
+  artifactCategory?: string;
+  rendererId?: string;
+  canvasSpec?: DesignSnapshot["canvasSpec"];
   artboards?: DesignSnapshot["artboards"];
 };

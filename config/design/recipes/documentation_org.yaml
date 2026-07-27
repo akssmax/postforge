@@ -1,0 +1,18 @@
+id: documentation_org
+name: Documentation Org Chart
+pattern: narrative
+slots:
+  - headline
+  - body
+attention: headline
+proof: none
+density: medium
+readingPattern: center
+artifactSupports:
+  - org_chart
+  - flowchart
+preferredLayouts:
+  - deck-sidebar
+  - centered-announcement
+families:
+  - diagram

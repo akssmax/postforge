@@ -1,0 +1,20 @@
+id: diagram-primary
+platforms: [all]
+campaigns:
+  - documentation
+visualPriority: high
+contentDensity: low
+readingPattern: F
+visualWeight: heavy
+densityClass: visualFirst
+supports:
+  - logo
+  - headline
+  - diagram
+  - product_image
+score:
+  documentation: 0.95
+artifactSupports:
+  - flowchart
+  - org_chart
+  - process_flow

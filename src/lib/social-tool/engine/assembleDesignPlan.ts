@@ -10,6 +10,7 @@ import type { RecipeConfig } from "@/lib/design-config/registry";
 import type { CopyVariant } from "@/lib/social-tool/presets";
 import { variantNotesForLayout } from "@/lib/social-tool/engine/layoutVariants";
 import type { VisualPolicy } from "@/lib/social-tool/engine/visualPolicy";
+import type { VisualStrategyResult } from "@/lib/social-tool/engine/visual/resolveVisualStrategy";
 import { catalogLayoutToDynamic } from "@/lib/social-tool/layoutAdapter";
 import type { PostLayout, PostLayoutId } from "@/lib/social-tool/postLayouts";
 import { normalizeProductPage } from "@/lib/social-tool/presets";
@@ -39,7 +40,7 @@ export function assembleDesignPlan(input: {
   layoutId: PostLayoutId;
   rationale: string;
   slotDraft: SlotDraft;
-  visual: VisualPolicy;
+  visual: VisualPolicy | VisualStrategyResult;
   brief: string;
   rulesProfile?: DesignRulesProfile;
   theme?: string;
@@ -55,7 +56,10 @@ export function assembleDesignPlan(input: {
     input.rulesProfile,
     input.recipe,
   );
-  const featuredPolicy = input.rulesProfile?.featuredPolicy ?? "library";
+  const featuredPolicy =
+    "featured" in input.visual && input.visual.featured
+      ? input.visual.featured.featuredPolicy
+      : (input.rulesProfile?.featuredPolicy ?? "library");
   const productPage = inferProductPage(intent, input.brief);
 
   let featuredSlots = input.slotDraft.featuredSlots;

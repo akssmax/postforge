@@ -1,0 +1,29 @@
+id: birthday_invite
+category: events
+label: Birthday Invite
+capabilities:
+  multiPage: false
+  print: true
+  slides: 1
+  aspectRatios: ["5:7", "2:3"]
+  primaryContent: photo
+constraints:
+  requiredSlots: [headline, body, cta]
+  optionalSlots: [photo, contact]
+  maxSections: 5
+allowedRecipes:
+  - invitation_hero
+  - invitation_rsvp
+  - event_footer_recipe
+recommendedBundles: []
+recommendedLayouts:
+  - invite-card
+  - event-footer
+  - centered-announcement
+renderer: product-shot
+campaignType: event
+unsplashHints: birthday party celebration colorful kids
+inferenceKeywords:
+  - birthday
+  - party invite
+  - turning

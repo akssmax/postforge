@@ -4,7 +4,11 @@ export type PlatformId =
   | "instagram-square"
   | "instagram-story"
   | "twitter"
-  | "event-standee";
+  | "event-standee"
+  | "business-card"
+  | "poster-portrait"
+  | "invite-portrait"
+  | "certificate-landscape";
 
 export type PlatformKind = "social" | "print";
 
@@ -211,6 +215,43 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     kind: "print",
     sizeLabel: "36×72 in · 3×6 ft",
     printInches: { width: 36, height: 72 },
+  },
+  {
+    id: "business-card",
+    label: "Business Card",
+    /** Standard US business card 3.5×2 in @ ~308 DPI preview. */
+    width: 1080,
+    height: 617,
+    kind: "print",
+    sizeLabel: "3.5×2 in",
+    printInches: { width: 3.5, height: 2 },
+  },
+  {
+    id: "poster-portrait",
+    label: "Poster Portrait",
+    width: 1080,
+    height: 1350,
+    kind: "print",
+    sizeLabel: "4:5 · 1080×1350",
+    printInches: { width: 4, height: 5 },
+  },
+  {
+    id: "invite-portrait",
+    label: "Invite Portrait",
+    width: 1080,
+    height: 1512,
+    kind: "print",
+    sizeLabel: "5:7 · invite",
+    printInches: { width: 5, height: 7 },
+  },
+  {
+    id: "certificate-landscape",
+    label: "Certificate",
+    width: 1080,
+    height: 834,
+    kind: "print",
+    sizeLabel: "11×8.5 in",
+    printInches: { width: 11, height: 8.5 },
   },
 ];
 

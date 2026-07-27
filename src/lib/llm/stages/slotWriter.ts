@@ -9,8 +9,11 @@ import {
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
 import { rulesProfilePrompt } from "@/lib/llm/rules";
 import type { RecipeConfig } from "@/lib/design-config/registry";
+import type { ArtifactDefinition } from "@/lib/design-config/schemas";
+import { artifactSlotPromptLines } from "@/lib/design-engine/artifactRules";
 import { writeSlotsOffline } from "@/lib/llm/stages/slotWriterOffline";
 import type { DynamicLayout } from "@/lib/social-tool/dynamicLayout";
+import { repairTextSlotsForLayout } from "@/lib/social-tool/layoutAdapter";
 import {
   countWords,
   getSlotConstraint,
@@ -96,8 +99,15 @@ function copyStructureInstructions(rulesProfile: DesignRulesProfile): string[] {
   return lines;
 }
 
-function sanitizeDraft(draft: SlotDraft, rulesProfile: DesignRulesProfile): SlotDraft {
-  const filteredTextSlots = draft.textSlots.filter((slot) => {
+function sanitizeDraft(
+  draft: SlotDraft,
+  rulesProfile: DesignRulesProfile,
+  layout?: DynamicLayout,
+): SlotDraft {
+  const normalizedSlots = layout
+    ? repairTextSlotsForLayout(draft.textSlots, layout)
+    : draft.textSlots;
+  const filteredTextSlots = normalizedSlots.filter((slot) => {
     if (rulesProfile.bannedSlots.includes(slot.role)) return false;
     const constraint = getSlotConstraint(slot.role, rulesProfile);
     if (constraint.maxCharacters === 0) return false;
@@ -209,6 +219,7 @@ export async function writeSlots(input: {
   retryReasons?: string[];
   themeAngle?: string;
   recipe?: RecipeConfig;
+  artifact?: ArtifactDefinition;
 }): Promise<SlotDraft> {
   const intent = asIntent(input.intent);
   const plan = asPlan(input.intent);
@@ -222,7 +233,9 @@ export async function writeSlots(input: {
       temperature: input.retryReasons?.length ? 0.2 : 0.4,
       abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),
       system: [
-        "You write marketing copy for social post slots.",
+        input.artifact?.id === "business_card"
+          ? "You write copy for print business cards and contact cards."
+          : "You write marketing copy for social post slots.",
         "Fill each slot with compelling copy — never mention layout, positioning, or geometry.",
         "Headlines may use [[accent]] markup for one highlighted phrase.",
         `Platform: ${input.platformId}`,
@@ -237,6 +250,9 @@ export async function writeSlots(input: {
           : "",
         input.recipe
           ? `Recipe ${input.recipe.name}: attention on ${input.recipe.attention}; proof=${input.recipe.proof}`
+          : "",
+        input.artifact
+          ? artifactSlotPromptLines(input.artifact, input.userMessage).join("\n")
           : "",
         rulesProfilePrompt(input.rulesProfile),
         ...copyStructureInstructions(input.rulesProfile),
@@ -264,7 +280,7 @@ export async function writeSlots(input: {
         .join("\n"),
     });
 
-    return sanitizeDraft(result.object, input.rulesProfile);
+    return sanitizeDraft(result.object, input.rulesProfile, input.dynamicLayout);
   } catch {
     return sanitizeDraft(
       writeSlotsOffline({
@@ -272,8 +288,10 @@ export async function writeSlots(input: {
         platformId: input.platformId,
         dynamicLayout: input.dynamicLayout,
         rulesProfile: input.rulesProfile,
+        artifact: input.artifact,
       }),
       input.rulesProfile,
+      input.dynamicLayout,
     );
   }
 }
@@ -292,6 +310,7 @@ export async function writeSlotsWithRetries(input: {
   };
   themeAngle?: string;
   recipe?: RecipeConfig;
+  artifact?: ArtifactDefinition;
 }): Promise<{ draft: SlotDraft; retries: number; validationReasons: string[] }> {
   let retryReasons: string[] | undefined;
   let retries = 0;
@@ -316,8 +335,10 @@ export async function writeSlotsWithRetries(input: {
       platformId: input.platformId,
       dynamicLayout: input.dynamicLayout,
       rulesProfile: input.rulesProfile,
+      artifact: input.artifact,
     }),
     input.rulesProfile,
+    input.dynamicLayout,
   );
   return { draft: fallback, retries, validationReasons: retryReasons ?? [] };
 }

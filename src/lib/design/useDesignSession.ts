@@ -62,6 +62,11 @@ import type {
   DesignSessionPersisted,
 } from "@/lib/design/types";
 import {
+  defaultBackgroundPresetIdForColors,
+  pickStarterPalette,
+} from "@/lib/brand/starterPalettes";
+import { artifactWantsLogoPlaceholderById } from "@/lib/design-engine/artifactRules";
+import {
   createFeaturedImageRecord,
   defaultFeaturedBlock,
   deleteFeaturedImageBlob,
@@ -77,7 +82,7 @@ import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
 import { validatedPlanFromBriefResult } from "@/lib/llm/briefResultAdapter";
 import { buildCopyVariantsForBrief } from "@/lib/llm/stages/copyVariantWriter";
-import { applyDesignPlanToSession } from "@/lib/llm/services/applyDesignPlan";
+import { applyDesignPlanToSession, type DesignPlanApplyOptions } from "@/lib/llm/services/applyDesignPlan";
 import { applyCanvasPatchToSession, repairDesignDocument } from "@/lib/llm/services/applyCanvasPatch";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import { useDesignHistory } from "@/lib/design/useDesignHistory";
@@ -98,6 +103,14 @@ import {
   reorderFeaturedSlot,
   withAssignedVisualBlock,
 } from "@/lib/social-tool/featuredSlots";
+import { instantiateShape, type InstantiateShapeOptions } from "@/lib/social-tool/shapes/instantiate";
+import {
+  canAddCanvasShape,
+  patchCanvasShape,
+  removeCanvasShape as removeShapeFromList,
+  upsertCanvasShape,
+} from "@/lib/social-tool/shapes/storage";
+import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
 import {
   activeVisualBlock,
   appendVisualBlocks,
@@ -124,7 +137,9 @@ function visualBlockPickPayload(
   const featuredVisualKind =
     input?.preferredKind ??
     session.document.featuredVisualKind ??
-    inferFeaturedVisualKind(brief);
+    inferFeaturedVisualKind(brief, {
+      artifactCategory: session.document.artifactCategory,
+    });
 
   // Derive semantic pick context from brief (campaign-first block retrieval)
   let semantic: VisualBlockGenerateInput["semantic"];
@@ -144,11 +159,17 @@ function visualBlockPickPayload(
       featuredKind: featuredVisualKind,
       proof: plan.visual.proof,
       platformId: session.document.platformId,
+      artifactId: session.document.artifactId,
+      artifactCategory: session.document.artifactCategory,
+      bundleId: session.document.bundleId,
     };
   } catch {
     semantic = {
       featuredKind: featuredVisualKind,
       platformId: session.document.platformId,
+      artifactId: session.document.artifactId,
+      artifactCategory: session.document.artifactCategory,
+      bundleId: session.document.bundleId,
     };
   }
 
@@ -168,6 +189,16 @@ function visualBlockPickPayload(
     },
     semantic,
   };
+}
+
+function withLogoAwareShowBrand(
+  document: DesignDocument,
+  brand: BrandKitPersisted,
+): DesignDocument {
+  if (kitHasAnyLogo(brand)) return document;
+  if (artifactWantsLogoPlaceholderById(document.artifactId)) return document;
+  if (!document.showBrand) return document;
+  return { ...document, showBrand: false };
 }
 
 export type UseDesignSessionResult = {
@@ -205,9 +236,18 @@ export type UseDesignSessionResult = {
   setFeaturedMode: (mode: FeaturedBlockMode) => void;
   setFeaturedProductPage: (productPage: ProductPageId) => void;
   applyBriefGeneration: (result: BriefGenerationResult) => void;
-  applyDesignPlan: (plan: ValidatedDesignPlan) => void;
+  applyDesignPlan: (plan: ValidatedDesignPlan, options?: DesignPlanApplyOptions) => void;
   applyCanvasPatch: (patch: CanvasPatchResult) => boolean;
   uploadFeaturedImage: (file: File, slotId?: string) => Promise<void>;
+  applyUnsplashPhoto: (
+    photo: {
+      id: string;
+      url: string;
+      photographer: string;
+      attribution: string;
+    },
+    slotId?: string,
+  ) => void;
   removeFeaturedImage: (slotId?: string) => Promise<void>;
   generateVisualBlocks: (input?: {
     theme?: string;
@@ -232,8 +272,13 @@ export type UseDesignSessionResult = {
     slotId: string,
     direction: "left" | "right",
   ) => void;
+  addCanvasShape: (libraryId: string, options?: InstantiateShapeOptions) => string | null;
+  updateCanvasShape: (id: string, patch: Partial<CanvasShapeRecord>) => void;
+  removeCanvasShape: (id: string) => void;
+  setCanvasShapes: (shapes: CanvasShapeRecord[]) => void;
   generatingVisualBlocks: boolean;
   advanceOnboarding: (phase: DesignOnboardingPhase) => void;
+  skipLogo: () => void;
   skipBrief: () => void;
   /** Replace the in-memory session from a board snapshot (multi-artboard shuffle). */
   adoptSession: (next: DesignSessionPersisted) => void;
@@ -372,7 +417,12 @@ export function useDesignSession(
         const srcs = await hydrateAllLogoSrcs(next.brand);
 
         let resolvedFeatured: string | null = null;
-        if (next.featured.image) {
+        const unsplashSlot = next.document.featuredSlots?.find(
+          (slot) => slot.imageSource === "unsplash" && slot.unsplash?.url,
+        );
+        if (unsplashSlot?.unsplash?.url) {
+          resolvedFeatured = unsplashSlot.unsplash.url;
+        } else if (next.featured.image) {
           resolvedFeatured = await resolveFeaturedImageSrc(next.featured.image);
           if (resolvedFeatured?.startsWith("blob:")) {
             featuredBlobUrlRef.current = resolvedFeatured;
@@ -548,6 +598,25 @@ export function useDesignSession(
     },
     [updateSession],
   );
+
+  const skipLogo = useCallback(() => {
+    const palette = pickStarterPalette({ seed: designId });
+    updateSession((prev) => ({
+      ...prev,
+      brand: {
+        ...prev.brand,
+        colors: palette.colors,
+        activeBackgroundPresetId: defaultBackgroundPresetIdForColors(palette.colors),
+      },
+      document: {
+        ...prev.document,
+        onboarding: { phase: "needsBrief", briefSkipped: false },
+        showContent: true,
+        showBrand: false,
+      },
+      updatedAt: Date.now(),
+    }));
+  }, [designId, updateSession]);
 
   const skipBrief = useCallback(() => {
     patchDocument({
@@ -890,16 +959,36 @@ export function useDesignSession(
   );
 
   const applyDesignPlan = useCallback(
-    (plan: ValidatedDesignPlan) => {
-      const needsFeaturedLibrary = plan.featuredSlots.some(
-        (slot) => slot.visible && slot.mode === "composed",
-      );
+    (plan: ValidatedDesignPlan, options?: DesignPlanApplyOptions) => {
+      const needsFeaturedLibrary =
+        !options?.stockPhoto &&
+        plan.featuredSlots.some(
+          (slot) => slot.visible && slot.mode === "composed",
+        );
       const featuredVisualKind = inferFeaturedVisualKind(
         [plan.copy.heading, plan.copy.subheading, plan.rationale].filter(Boolean).join(" "),
+        {
+          artifactCategory:
+            options?.artifactCategory ?? sessionRef.current?.document.artifactCategory,
+        },
       );
 
       updateSession((prev) => {
-        const applied = applyDesignPlanToSession(plan, prev.document);
+        const applied = applyDesignPlanToSession(plan, prev.document, {
+          ...options,
+          currentBackgroundPresetId: prev.brand.activeBackgroundPresetId,
+          designId: options?.designId ?? prev.designId,
+          brandColors: options?.brandColors ?? prev.brand.colors,
+        });
+        const document = withLogoAwareShowBrand(
+          { ...prev.document, ...applied.document, featuredVisualKind },
+          prev.brand,
+        );
+        if (applied.featuredImageSrc) {
+          revokeFeaturedBlob();
+          featuredBlobUrlRef.current = applied.featuredImageSrc;
+          setFeaturedImageSrc(applied.featuredImageSrc);
+        }
         return {
           ...prev,
           brand: applied.brand
@@ -908,14 +997,10 @@ export function useDesignSession(
           featured: {
             ...prev.featured,
             ...applied.featured,
-            image: prev.featured.image,
+            image: applied.featuredImageSrc ? null : prev.featured.image,
             visualBlocks: needsFeaturedLibrary ? [] : prev.featured.visualBlocks,
           },
-          document: {
-            ...prev.document,
-            ...applied.document,
-            featuredVisualKind,
-          },
+          document,
           updatedAt: Date.now(),
         };
       });
@@ -978,13 +1063,69 @@ export function useDesignSession(
         }
       })();
     },
-    [syncComposedFeaturedSlots, updateSession],
+    [revokeFeaturedBlob, syncComposedFeaturedSlots, updateSession],
+  );
+
+  const applyUnsplashPhoto = useCallback(
+    (photo: {
+      id: string;
+      url: string;
+      photographer: string;
+      attribution: string;
+    }, slotId?: string) => {
+      revokeFeaturedBlob();
+      featuredBlobUrlRef.current = photo.url;
+      setFeaturedImageSrc(photo.url);
+      updateSession((prev) => {
+        const targetSlotId =
+          slotId ??
+          prev.document.featuredSlots?.find((s) => s.visible)?.slotId ??
+          "featured-primary";
+        const featuredSlots = (prev.document.featuredSlots ?? []).map((slot) =>
+          slot.slotId === targetSlotId
+            ? {
+                ...slot,
+                mode: "image" as const,
+                visible: true,
+                imageSource: "unsplash" as const,
+                unsplash: photo,
+              }
+            : slot,
+        );
+        return {
+          ...prev,
+          featured: {
+            ...prev.featured,
+            mode: "image",
+            image: null,
+            slots: (prev.featured.slots ?? []).map((slot) =>
+              slot.slotId === targetSlotId
+                ? { ...slot, mode: "image" as const, visible: true }
+                : slot,
+            ),
+          },
+          document: {
+            ...prev.document,
+            showFeaturedImage: true,
+            featuredSlots,
+          },
+          updatedAt: Date.now(),
+        };
+      });
+    },
+    [revokeFeaturedBlob, updateSession],
   );
 
   const applyCanvasPatch = useCallback(
     (patch: CanvasPatchResult) => {
       if (!patch.success) return false;
-      updateSession((prev) => applyCanvasPatchToSession(prev, patch));
+      updateSession((prev) => {
+        const next = applyCanvasPatchToSession(prev, patch);
+        return {
+          ...next,
+          document: withLogoAwareShowBrand(next.document, next.brand),
+        };
+      });
       return true;
     },
     [updateSession],
@@ -1005,35 +1146,38 @@ export function useDesignSession(
           mode: "genui",
           productPage: result.productPage,
         },
-        document: {
-          ...prev.document,
-          copy: result.copy,
-          copyVariants: buildCopyVariantsForBrief(
-            result.sourceBrief,
-            {
-              heading: result.copy.heading,
-              subheading: result.copy.subheading,
-            },
-            platformId,
-          ),
-          copyVariantIndex: 0,
-          layoutId: result.layoutId,
-          logoPlacement: result.logoPlacement,
-          logoAlign: result.logoAlign,
-          textAlign: result.textAlign,
-          showContent: result.showContent,
-          showFeaturedImage: result.showFeaturedImage,
-          showPattern: result.showPattern,
-          showBackground: result.showBackground,
-          pattern: result.pattern,
-          patternOpacity: result.patternOpacity,
-          patternScale: result.patternScale,
-          patternAnimated: result.patternAnimated,
-          typeScale: result.typeScale,
-          logoScale: result.logoScale,
-          featuredTransform: result.featuredTransform,
-          onboarding: { phase: "ready", briefSkipped: false },
-        },
+        document: withLogoAwareShowBrand(
+          {
+            ...prev.document,
+            copy: result.copy,
+            copyVariants: buildCopyVariantsForBrief(
+              result.sourceBrief,
+              {
+                heading: result.copy.heading,
+                subheading: result.copy.subheading,
+              },
+              platformId,
+            ),
+            copyVariantIndex: 0,
+            layoutId: result.layoutId,
+            logoPlacement: result.logoPlacement,
+            logoAlign: result.logoAlign,
+            textAlign: result.textAlign,
+            showContent: result.showContent,
+            showFeaturedImage: result.showFeaturedImage,
+            showPattern: result.showPattern,
+            showBackground: result.showBackground,
+            pattern: result.pattern,
+            patternOpacity: result.patternOpacity,
+            patternScale: result.patternScale,
+            patternAnimated: result.patternAnimated,
+            typeScale: result.typeScale,
+            logoScale: result.logoScale,
+            featuredTransform: result.featuredTransform,
+            onboarding: { phase: "ready", briefSkipped: false },
+          },
+          prev.brand,
+        ),
         updatedAt: Date.now(),
       }));
     },
@@ -1334,6 +1478,78 @@ export function useDesignSession(
     [session, syncComposedFeaturedSlots, updateSession],
   );
 
+  const addCanvasShape = useCallback(
+    (libraryId: string, options?: InstantiateShapeOptions): string | null => {
+      let createdId: string | null = null;
+      updateSession((prev) => {
+        const shapes = prev.document.canvasShapes ?? [];
+        if (!canAddCanvasShape(shapes)) return prev;
+        const shape = instantiateShape(
+          libraryId,
+          {
+            primary: prev.brand.colors.primary,
+            accent: prev.brand.colors.accent,
+          },
+          options,
+        );
+        if (!shape) return prev;
+        createdId = shape.id;
+        return {
+          ...prev,
+          document: {
+            ...prev.document,
+            canvasShapes: [...shapes, shape],
+          },
+        };
+      });
+      return createdId;
+    },
+    [updateSession],
+  );
+
+  const updateCanvasShape = useCallback(
+    (id: string, patch: Partial<CanvasShapeRecord>) => {
+      updateSession((prev) => {
+        const shapes = prev.document.canvasShapes ?? [];
+        if (!shapes.some((shape) => shape.id === id)) return prev;
+        return {
+          ...prev,
+          document: {
+            ...prev.document,
+            canvasShapes: patchCanvasShape(shapes, id, patch),
+          },
+        };
+      });
+    },
+    [updateSession],
+  );
+
+  const removeCanvasShape = useCallback(
+    (id: string) => {
+      updateSession((prev) => ({
+        ...prev,
+        document: {
+          ...prev.document,
+          canvasShapes: removeShapeFromList(prev.document.canvasShapes ?? [], id),
+        },
+      }));
+    },
+    [updateSession],
+  );
+
+  const setCanvasShapes = useCallback(
+    (shapes: CanvasShapeRecord[]) => {
+      updateSession((prev) => ({
+        ...prev,
+        document: {
+          ...prev.document,
+          canvasShapes: shapes,
+        },
+      }));
+    },
+    [updateSession],
+  );
+
   const shuffleFeaturedVisualBlock = useCallback(
     async (copyOverride?: {
       headline?: string;
@@ -1612,6 +1828,7 @@ export function useDesignSession(
       applyDesignPlan,
       applyCanvasPatch,
       uploadFeaturedImage,
+      applyUnsplashPhoto,
       removeFeaturedImage,
       generateVisualBlocks,
       selectVisualBlock,
@@ -1620,8 +1837,13 @@ export function useDesignSession(
       addFeaturedVisualSlot,
       removeFeaturedVisualSlot,
       reorderFeaturedVisualSlots,
+      addCanvasShape,
+      updateCanvasShape,
+      removeCanvasShape,
+      setCanvasShapes,
       generatingVisualBlocks,
       advanceOnboarding,
+      skipLogo,
       skipBrief,
       adoptSession,
       undo,
@@ -1666,6 +1888,7 @@ export function useDesignSession(
       applyDesignPlan,
       applyCanvasPatch,
       uploadFeaturedImage,
+      applyUnsplashPhoto,
       removeFeaturedImage,
       generateVisualBlocks,
       selectVisualBlock,
@@ -1674,8 +1897,13 @@ export function useDesignSession(
       addFeaturedVisualSlot,
       removeFeaturedVisualSlot,
       reorderFeaturedVisualSlots,
+      addCanvasShape,
+      updateCanvasShape,
+      removeCanvasShape,
+      setCanvasShapes,
       generatingVisualBlocks,
       advanceOnboarding,
+      skipLogo,
       skipBrief,
       adoptSession,
       undo,

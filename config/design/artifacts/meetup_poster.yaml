@@ -1,0 +1,32 @@
+id: meetup_poster
+category: events
+label: Meetup Poster
+capabilities:
+  multiPage: false
+  slides: 1
+  aspectRatios: ["4:5", "2:3", "1:1"]
+  primaryContent: photo
+constraints:
+  requiredSlots: [headline, subheading, body, contact, cta]
+  optionalSlots: [logo, photo]
+  maxTextBlocks: 6
+  maxSections: 4
+allowedRecipes:
+  - invitation_hero
+  - announcement_hero_layout
+  - event_footer_recipe
+recommendedBundles: []
+recommendedLayouts:
+  - event-poster
+  - event-footer
+  - contact-footer
+renderer: product-shot
+campaignType: event
+unsplashHints: community meetup coffee workshop gathering
+inferenceKeywords:
+  - meetup
+  - workshop
+  - gathering
+  - conference poster
+  - community event
+  - design challenge

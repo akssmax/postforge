@@ -62,6 +62,9 @@ export type VisualBlockGenerateInput = {
     featuredKind?: "ui" | "illustration" | "3d";
     proof?: string;
     platformId?: string;
+    artifactId?: string;
+    artifactCategory?: string;
+    bundleId?: string;
   };
   /** Override featured slot kind when picking from library. */
   preferredKind?: "ui" | "illustration" | "3d";

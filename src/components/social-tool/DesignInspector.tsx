@@ -5,8 +5,13 @@ import { BrandPanel } from "@/components/social-tool/BrandPanel";
 import { BrandBackgroundPicker } from "@/components/social-tool/BrandBackgroundPicker";
 import { BriefChatPanel } from "@/components/social-tool/BriefChatPanel";
 import { ContentPanel } from "@/components/social-tool/ContentPanel";
+import type { EditableTextSlot } from "@/lib/social-tool/layoutAdapter";
+import { legacyEditableSlotsFromCopy } from "@/lib/social-tool/layoutAdapter";
+import type { ArtifactCategoryId } from "@/lib/design-config/schemas";
 import { DesignEmptyState } from "@/components/social-tool/DesignEmptyState";
 import { FeaturedBlockPanel } from "@/components/social-tool/FeaturedBlockPanel";
+import { ShapesLibraryPicker } from "@/components/social-tool/shapes/ShapesLibraryPicker";
+import { ShapeInspectorPanel } from "@/components/social-tool/shapes/ShapeInspectorPanel";
 import {
   isPatternNone,
   PatternLibraryPicker,
@@ -27,7 +32,8 @@ import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
 import type { BriefChatState } from "@/lib/llm/useBriefChat";
 import type { DesignOnboardingPhase } from "@/lib/design/types";
 import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
-import { canvasSelectionKind } from "@/lib/social-tool/canvasSelection";
+import { canvasSelectionKind, shapeIdFromSelection } from "@/lib/social-tool/canvasSelection";
+import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import {
@@ -88,6 +94,16 @@ type FeaturedPanelProps = {
   error: string | null;
   onUploadImage: (file: File, slotId?: string) => Promise<void>;
   onRemoveImage: (slotId?: string) => Promise<void>;
+  onApplyStockPhoto?: (
+    photo: {
+      id: string;
+      url: string;
+      photographer: string;
+      attribution: string;
+    },
+    slotId?: string,
+  ) => void;
+  stockAttribution?: string | null;
 };
 
 type Props = {
@@ -97,10 +113,17 @@ type Props = {
   showContent: boolean;
   onShowContentChange: (value: boolean) => void;
   copy: PostCopy;
+  editableTextSlots?: EditableTextSlot[];
+  onUpdateTextSlot?: (slotId: string, text: string) => void;
   onUpdateField: <K extends keyof PostCopy>(key: K, value: PostCopy[K]) => void;
-  onAddExtraField: () => void;
-  onRemoveExtraField: (id: string) => void;
-  onUpdateExtraField: (id: string, value: string) => void;
+  onAddExtraField?: () => void;
+  onRemoveExtraField?: (id: string) => void;
+  onUpdateExtraField?: (id: string, value: string) => void;
+  artifactId?: string;
+  artifactCategory?: ArtifactCategoryId;
+  layoutId?: string;
+  platformReason?: string;
+  showFeaturedInspector?: boolean;
   textAlign: TextAlign;
   onTextAlignChange: (value: TextAlign) => void;
   headingFont: SocialFontId;
@@ -143,16 +166,23 @@ type Props = {
   onBriefGenerate: (result: BriefGenerationResult) => void;
   onBriefApplyPlan: (plan: ValidatedDesignPlan) => void;
   onBriefSkip: () => void;
+  onSkipLogo?: () => void;
   briefChat?: BriefChatState;
   /** Ready-phase Chat | Design tab (design sessions with briefChat only). */
   asideTab?: AsideTab;
   onAsideTabChange?: (tab: AsideTab) => void;
   onCollapseAside?: () => void;
+  briefArtifactCategory?: ArtifactCategoryId | null;
+  onBriefArtifactCategoryChange?: (category: ArtifactCategoryId | null) => void;
   brandSummary?: {
     primary?: string;
     secondary?: string;
     accent?: string;
   };
+  canvasShapes?: CanvasShapeRecord[];
+  onAddCanvasShape?: (libraryId: string) => void;
+  onUpdateCanvasShape?: (id: string, patch: Partial<CanvasShapeRecord>) => void;
+  onRemoveCanvasShape?: (id: string) => void;
 };
 
 function PatternSection({
@@ -257,7 +287,86 @@ function PatternSection({
   );
 }
 
+function resolveEditableSlots(props: Props): EditableTextSlot[] {
+  return props.editableTextSlots ?? legacyEditableSlotsFromCopy(props.copy);
+}
+
+function resolveUpdateTextSlot(props: Props): (slotId: string, text: string) => void {
+  if (props.onUpdateTextSlot) return props.onUpdateTextSlot;
+  return (slotId, text) => {
+    if (slotId === "headline") {
+      props.onUpdateField("heading", text);
+      return;
+    }
+    if (slotId === "subheading") {
+      props.onUpdateField("subheading", text);
+      return;
+    }
+    props.onUpdateExtraField?.(slotId, text);
+  };
+}
+
+function SharedContentPanel(props: Props) {
+  return (
+    <ContentPanel
+      showContent={props.showContent}
+      onShowContentChange={props.onShowContentChange}
+      editableSlots={resolveEditableSlots(props)}
+      onUpdateTextSlot={resolveUpdateTextSlot(props)}
+      textAlign={props.textAlign}
+      onTextAlignChange={props.onTextAlignChange}
+      headingFont={props.headingFont}
+      onHeadingFontChange={props.onHeadingFontChange}
+      subFont={props.subFont}
+      onSubFontChange={props.onSubFontChange}
+      typeScale={props.typeScale}
+      onTypeScaleChange={props.onTypeScaleChange}
+      copyVariantIndex={props.copyVariantIndex}
+      copyVariantCount={props.copyVariantCount}
+      onCycleCopyVariant={props.onCycleCopyVariant}
+    />
+  );
+}
+
+function DesignInfoSection({
+  artifactId,
+  artifactCategory,
+  layoutId,
+  platformReason,
+}: {
+  artifactId?: string;
+  artifactCategory?: ArtifactCategoryId;
+  layoutId?: string;
+  platformReason?: string;
+}) {
+  if (!artifactId && !artifactCategory && !layoutId) return null;
+
+  const label = artifactId
+    ? artifactId.replace(/_/g, " ")
+    : artifactCategory?.replace(/_/g, " ");
+
+  return (
+    <section className="social-tool-section space-y-2">
+      <p className="social-tool-section-title">Design type</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {label ? (
+          <span className="design-info-chip inline-flex rounded-full border border-overlay-border bg-overlay-subtle px-2.5 py-1 text-xs font-medium capitalize text-text-secondary">
+            {label}
+          </span>
+        ) : null}
+        {layoutId ? (
+          <span className="text-xs text-text-tertiary">{layoutId.replace(/-/g, " ")}</span>
+        ) : null}
+      </div>
+      {platformReason ? (
+        <p className="text-xs text-text-tertiary">{platformReason}</p>
+      ) : null}
+    </section>
+  );
+}
+
 function BlockPanelsOverview(props: Props) {
+  if (props.showFeaturedInspector === false) return null;
   return (
     <FeaturedBlockPanel
       showFeaturedBlock={props.showFeaturedImage}
@@ -280,6 +389,8 @@ function BlockPanelsOverview(props: Props) {
       error={props.featured.error}
       onUploadImage={props.featured.onUploadImage}
       onRemoveImage={props.featured.onRemoveImage}
+      onApplyStockPhoto={props.featured.onApplyStockPhoto}
+      stockAttribution={props.featured.stockAttribution}
       featuredTransform={props.featuredTransform}
       onFeaturedTransformChange={props.onFeaturedTransformChange}
     />
@@ -378,9 +489,27 @@ function BrandInspectorSection(
 function InspectorOverview(props: Props) {
   return (
     <>
+      <SharedContentPanel {...props} />
+      <BlockPanelsOverview {...props} />
+      {props.onAddCanvasShape ? (
+        <ShapesLibraryPicker
+          shapeCount={props.canvasShapes?.length ?? 0}
+          brandColors={{
+            primary: props.featured.brandColors?.primary,
+            accent: props.featured.brandColors?.accent,
+          }}
+          onAddShape={props.onAddCanvasShape}
+          compact
+        />
+      ) : null}
       <BrandInspectorSection {...props} defaultExpanded={false} />
       <FixedCanvasPanels {...props} />
-      <BlockPanelsOverview {...props} />
+      <DesignInfoSection
+        artifactId={props.artifactId}
+        artifactCategory={props.artifactCategory}
+        layoutId={props.layoutId}
+        platformReason={props.platformReason}
+      />
     </>
   );
 }
@@ -397,27 +526,14 @@ function ReadyDesignPanels(props: Props) {
   if (selectionKind === "copy") {
     return (
       <>
-        <ContentPanel
-          showContent={props.showContent}
-          onShowContentChange={props.onShowContentChange}
-          copy={props.copy}
-          onUpdateField={props.onUpdateField}
-          onAddExtraField={props.onAddExtraField}
-          onRemoveExtraField={props.onRemoveExtraField}
-          onUpdateExtraField={props.onUpdateExtraField}
-          textAlign={props.textAlign}
-          onTextAlignChange={props.onTextAlignChange}
-          headingFont={props.headingFont}
-          onHeadingFontChange={props.onHeadingFontChange}
-          subFont={props.subFont}
-          onSubFontChange={props.onSubFontChange}
-          typeScale={props.typeScale}
-          onTypeScaleChange={props.onTypeScaleChange}
-          copyVariantIndex={props.copyVariantIndex}
-          copyVariantCount={props.copyVariantCount}
-          onCycleCopyVariant={props.onCycleCopyVariant}
-        />
+        <SharedContentPanel {...props} />
         <FixedCanvasPanels {...props} compact />
+        <DesignInfoSection
+          artifactId={props.artifactId}
+          artifactCategory={props.artifactCategory}
+          layoutId={props.layoutId}
+          platformReason={props.platformReason}
+        />
       </>
     );
   }
@@ -455,9 +571,40 @@ function ReadyDesignPanels(props: Props) {
           error={featured.error}
           onUploadImage={featured.onUploadImage}
           onRemoveImage={featured.onRemoveImage}
+          onApplyStockPhoto={featured.onApplyStockPhoto}
+          stockAttribution={featured.stockAttribution}
           featuredTransform={props.featuredTransform}
           onFeaturedTransformChange={props.onFeaturedTransformChange}
         />
+        <FixedCanvasPanels {...props} compact />
+      </>
+    );
+  }
+
+  if (selectionKind === "shape") {
+    const shapeId = shapeIdFromSelection(inspectorSelection);
+    const shape = props.canvasShapes?.find((entry) => entry.id === shapeId);
+    return (
+      <>
+        {shape && props.onUpdateCanvasShape && props.onRemoveCanvasShape ? (
+          <ShapeInspectorPanel
+            shape={shape}
+            brandAccent={featured.brandColors?.accent}
+            onChange={(next) => props.onUpdateCanvasShape!(shape.id, next)}
+            onRemove={() => props.onRemoveCanvasShape!(shape.id)}
+          />
+        ) : null}
+        {props.onAddCanvasShape ? (
+          <ShapesLibraryPicker
+            shapeCount={props.canvasShapes?.length ?? 0}
+            brandColors={{
+              primary: featured.brandColors?.primary,
+              accent: featured.brandColors?.accent,
+            }}
+            onAddShape={props.onAddCanvasShape}
+            compact
+          />
+        ) : null}
         <FixedCanvasPanels {...props} compact />
       </>
     );
@@ -518,7 +665,7 @@ function UnifiedAsideShell(props: Props) {
         ) : null}
       </header>
       {asideTab === "chat" ? (
-        <BriefChatPanel {...props.briefChat} mode="follow-up" autoFocus />
+        <BriefChatPanel {...props.briefChat} mode="follow-up" autoFocus selectedCategory={props.briefArtifactCategory} onSelectCategory={props.onBriefArtifactCategoryChange} />
       ) : (
         <div className="social-tool-aside-design min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <ReadyDesignPanels {...props} />
@@ -535,6 +682,7 @@ export function DesignInspector(props: Props) {
     return (
       <DesignEmptyState
         onUpload={brand.uploadLogo}
+        onDescribe={props.onSkipLogo}
         uploading={brand.uploading}
         error={brand.error}
       />
@@ -552,6 +700,8 @@ export function DesignInspector(props: Props) {
           mode="onboarding"
           onSkip={props.onBriefSkip}
           autoFocus
+          selectedCategory={props.briefArtifactCategory}
+          onSelectCategory={props.onBriefArtifactCategoryChange}
         />
         {/* Background, pattern, and visual slot controls appear after the brief generates. */}
       </div>

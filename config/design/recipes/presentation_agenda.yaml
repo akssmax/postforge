@@ -1,0 +1,18 @@
+id: presentation_agenda
+name: Presentation Agenda
+pattern: narrative
+slots:
+  - headline
+  - body
+attention: headline
+proof: none
+density: medium
+readingPattern: F
+artifactSupports:
+  - pitch_deck
+  - webinar_slides
+preferredLayouts:
+  - deck-sidebar
+  - copy-statement
+bundles:
+  - process-explain

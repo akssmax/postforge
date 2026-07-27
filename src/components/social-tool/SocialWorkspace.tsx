@@ -280,9 +280,24 @@ function ToolSocialWorkspace() {
       setTextAlign(patch.textAlign);
     }
     setCopy(nextCopy);
-    applyHierarchyScales(nextLayout.id, nextCopy, {
-      preserveFeaturedTransform: !prefs.featuredPosition,
-    });
+    if (prefs.layout || prefs.content) {
+      applyHierarchyScales(nextLayout.id, nextCopy, {
+        preserveFeaturedTransform: !prefs.featuredPosition,
+      });
+    } else if (prefs.featuredPosition) {
+      const hierarchy = resolveLayoutHierarchyFromIds({
+        platformId,
+        layoutId: nextLayout.id,
+        copy: nextCopy,
+        spacing: layoutSpacing,
+        showLogo: showBrand,
+        showFeaturedImage,
+        featuredMode: featured.mode,
+        productPage: featured.productPage,
+        hasUploadedFeaturedImage: !!featured.image,
+      });
+      setFeaturedTransform(hierarchy.featuredTransform);
+    }
 
     const surface = pickRandomShuffleSurface({
       backgrounds: brand.backgroundPresets,
@@ -352,13 +367,17 @@ function ToolSocialWorkspace() {
     : "inherit";
   const patternLogoSvgMarkup = getMonogramOnlyMarkup(brand.kit);
   const textColor =
-    showBrand && (brand.kit.activeBackgroundPresetId || textContrastBoost)
+    showBackground &&
+    showBrand &&
+    (brand.kit.activeBackgroundPresetId || textContrastBoost)
       ? textContrastBoost
         ? readableTextOnBackground(bgHex)
         : brand.activeBackground.css.textOnBrand
       : undefined;
   const subTextColor =
-    showBrand && (brand.kit.activeBackgroundPresetId || textContrastBoost)
+    showBackground &&
+    showBrand &&
+    (brand.kit.activeBackgroundPresetId || textContrastBoost)
       ? textContrastBoost
         ? readableSubTextOnBackground(bgHex)
         : brand.activeBackground.css.subText

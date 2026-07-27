@@ -19,7 +19,8 @@ import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 import type { BackgroundPreset } from "@/lib/brand/types";
 import type { DesignBlockId } from "@/lib/brand/contrast";
-import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
+import { CanvasShapeLayer } from "@/components/social-tool/shapes/CanvasShapeLayer";
+import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
 import type {
   DynamicLayout,
   FeaturedSlotContent,
@@ -27,6 +28,7 @@ import type {
   TextSlotRole,
 } from "@/lib/social-tool/dynamicLayout";
 import { dynamicLayoutAsPostLayout } from "@/lib/social-tool/layoutRegistry";
+import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
 import { textSlotsForLayout } from "@/lib/social-tool/dynamicLayout";
 import {
   FEATURED_PRIMARY_SLOT_ID,
@@ -41,6 +43,7 @@ import {
   layoutUsesSplit,
   resolveFeaturedLayoutZones,
   resolveFooterBlocks,
+  layoutHasFooterStrip,
   resolveSplitLayoutZones,
   type FeaturedFrameRadius,
   type PostContentBlock,
@@ -53,15 +56,20 @@ import {
   type EditingCopyField,
 } from "@/lib/social-tool/copyEdit";
 import { imageFileFromDataTransfer } from "@/lib/social-tool/featuredImageDrop";
-import { SpacingHandle } from "@/components/social-tool/SpacingHandle";
+import {
+  SplitTextColumnShareHandle,
+  SpacingHandle,
+} from "@/components/social-tool/SpacingHandle";
 import { canvasSelectionKind } from "@/lib/social-tool/canvasSelection";
 import {
   DEFAULT_POST_LAYOUT_SPACING,
   canvasScaleFactor,
+  resolveSplitTextColumnShare,
   spacingToCssVars,
   spacingTokenToPx,
   type PostLayoutSpacing,
   type SpacingToken,
+  type SpacingTokenKey,
 } from "@/lib/social-tool/layoutSpacing";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import {
@@ -131,8 +139,8 @@ type Props = {
     slotId?: string,
   ) => void;
   /** Coalesce pointer-drag edits into one undo step */
-  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing" | "copy") => void;
-  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing" | "copy") => void;
+  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing" | "copy" | "shapes") => void;
+  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing" | "copy" | "shapes") => void;
   /** Live canvas text edit (double-click) */
   editingCopyField?: import("@/lib/social-tool/copyEdit").EditingCopyField | null;
   onCopyFieldEditStart?: (
@@ -195,6 +203,8 @@ type Props = {
   dynamicLayout?: DynamicLayout;
   textSlots?: TextSlotContent[];
   featuredSlots?: FeaturedSlotContent[];
+  canvasShapes?: CanvasShapeRecord[];
+  onCanvasShapesChange?: (shapes: CanvasShapeRecord[]) => void;
 };
 
 function scale(base: number, width: number, height: number) {
@@ -332,6 +342,8 @@ export function ProductShotPost({
   onRemoveFeaturedSlot,
   onShuffleFeaturedSlot,
   onUploadFeaturedImage,
+  canvasShapes = [],
+  onCanvasShapesChange,
 }: Props) {
   const layout = dynamicLayout
     ? dynamicLayoutAsPostLayout(dynamicLayout)
@@ -387,9 +399,18 @@ export function ProductShotPost({
       : undefined,
   };
 
-  function setSpacingToken(key: keyof PostLayoutSpacing, token: SpacingToken) {
+  function setSpacingToken(key: SpacingTokenKey, token: SpacingToken) {
     onSpacingChange?.({ ...spacing, [key]: token });
   }
+
+  function setSplitTextColumnShare(share: number) {
+    onSpacingChange?.({ ...spacing, splitTextColumnShare: share });
+  }
+
+  const splitTextColumnShare = resolveSplitTextColumnShare(
+    spacing,
+    layout.textColumnRatio ?? 0.38,
+  );
 
   const showFooterLogo = showLogo && logoPlacement === "footer";
   const showFooterExtras =
@@ -402,7 +423,16 @@ export function ProductShotPost({
   const footerBlocks = resolveFooterBlocks(layout, showFooterLogo).filter(
     (block) => block !== "extras" || showFooterExtrasStrip,
   );
-  const hasFooterStrip = showFooterLogo || showFooterExtrasStrip;
+  const contactSlotText =
+    textSlots?.find(
+      (slot) => slot.role === "contact" || slot.slotId === "contact-footer",
+    )?.text ?? copy.extraFields.find((field) => field.value.trim())?.value ?? "";
+  const showContactFooter =
+    layout.footerContact &&
+    (emptyStatePreview || !isEmptyCopyField(contactSlotText));
+  const hasFooterStrip =
+    layoutHasFooterStrip(layout) &&
+    (showFooterLogo || showFooterExtrasStrip || showContactFooter);
 
   let footerH = 0;
   if (hasFooterStrip) {
@@ -414,6 +444,10 @@ export function ProductShotPost({
         : filledExtraFields.length;
       footerH += scale(lineCount * 24 + 8, width, height);
       if (showFooterLogo) footerH += footerBlockGapPx;
+    }
+    if (showContactFooter) {
+      footerH += scale(28, width, height);
+      if (showFooterLogo || showFooterExtrasStrip) footerH += footerBlockGapPx;
     }
     footerH += footerPadPx;
   }
@@ -868,7 +902,7 @@ export function ProductShotPost({
     key: string,
     heightPx: number,
     token: SpacingToken,
-    spacingKey: keyof PostLayoutSpacing,
+    spacingKey: SpacingTokenKey,
     ariaLabel: string,
   ) {
     if (heightPx <= 0 && !showSpacingHandles) return null;
@@ -893,17 +927,50 @@ export function ProductShotPost({
     );
   }
 
+  function renderSplitColumnGapZone(gapPx: number, rowHeight: number) {
+    if (gapPx <= 0 && !showSpacingHandles) return null;
+    return (
+      <div
+        className="spacing-zone spacing-zone--column-gap"
+        style={{
+          width: Math.max(gapPx, showSpacingHandles ? 10 : 0),
+          height: rowHeight,
+        }}
+      >
+        {showSpacingHandles ? (
+          <SpacingHandle
+            kind="gap"
+            variant="between-column"
+            token={spacing.splitColumnGap}
+            onTokenChange={(t) => setSpacingToken("splitColumnGap", t)}
+            previewScale={previewScale}
+            ariaLabel="Gap between copy and visual columns"
+            {...spacingHistoryCoalesce}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
   function renderCopyStack() {
     const entries = layout.mainBlocks
       .map((block) => ({ block, node: renderMainBlock(block) }))
       .filter((entry) => entry.node != null);
 
-    const dynamicBodySlots =
-      textSlots?.filter(
-        (slot) =>
-          (slot.role === "body" || slot.role === "caption") &&
-          !entries.some((entry) => entry.block === "headline" && slot.role === "headline"),
-      ) ?? [];
+    const layoutHasMainExtras =
+      layout.mainBlocks.includes("extras") && layout.extrasPlacement === "main";
+    const layoutHasFooterExtras =
+      layout.extrasPlacement === "footer" && layout.footerBlocks.includes("extras");
+    const dynamicBodySlots = layoutHasMainExtras
+      ? []
+      : (textSlots?.filter(
+          (slot) =>
+            (slot.role === "body" || slot.role === "caption") &&
+            !entries.some(
+              (entry) => entry.block === "headline" && slot.role === "headline",
+            ) &&
+            !(layoutHasFooterExtras && slot.role === "caption"),
+        ) ?? []);
 
     const bodyNodes = dynamicBodySlots
       .map((slot) => {
@@ -957,8 +1024,26 @@ export function ProductShotPost({
     return allEntries;
   }
 
-  function renderFooterBlock(block: "logo" | "extras") {
+  function renderFooterBlock(block: "logo" | "extras" | "contact") {
     if (block === "logo" && showFooterLogo) return logoEl;
+    if (block === "contact") {
+      const contactSlot = textSlots?.find(
+        (slot) => slot.role === "contact" || slot.slotId === "contact-footer",
+      );
+      const text = contactSlot
+        ? textForRole(contactSlot.role, contactSlot.slotId)
+        : "";
+      if (isEmptyCopyField(text)) {
+        return renderEmptyTextSlot("contact-footer", "extra", extraSlotStyle, {
+          className: "social-post-extra--footer",
+        });
+      }
+      return (
+        <p key="contact-footer" className="social-post-extra social-post-extra--footer" style={subStyle}>
+          {text}
+        </p>
+      );
+    }
     if (block === "extras" && showFooterExtrasStrip) {
       const extras = renderExtras("footer");
       if (!extras) return null;
@@ -969,6 +1054,37 @@ export function ProductShotPost({
       );
     }
     return null;
+  }
+
+  function renderFooterTextSlots() {
+    const footerRoles = new Set(["cta", "contact", "caption", "name", "title"]);
+    const slots =
+      textSlots?.filter((slot) => footerRoles.has(slot.role)) ??
+      [];
+    if (slots.length === 0) return null;
+
+    return slots.map((slot) => {
+      const text = textForRole(slot.role, slot.slotId);
+      if (isEmptyCopyField(text)) {
+        return renderEmptyTextSlot(slot.slotId, "extra", extraSlotStyle, {
+          className: "social-post-extra--footer",
+        });
+      }
+      const isCta = slot.role === "cta";
+      return (
+        <p
+          key={slot.slotId}
+          className={
+            isCta
+              ? "social-post-extra social-post-extra--footer font-semibold text-[var(--sp-accent,var(--brand-accent))]"
+              : "social-post-extra social-post-extra--footer"
+          }
+          style={isCta ? undefined : subStyle}
+        >
+          {text}
+        </p>
+      );
+    });
   }
 
   const surfaceStyle = {
@@ -1075,6 +1191,17 @@ export function ProductShotPost({
             onTokenChange={(t) => setSpacingToken("textZonePadBottom", t)}
             previewScale={previewScale}
             ariaLabel="Text zone bottom padding"
+            {...spacingHistoryCoalesce}
+          />
+        ) : null}
+
+        {split && showSpacingHandles ? (
+          <SplitTextColumnShareHandle
+            share={splitTextColumnShare}
+            onShareChange={setSplitTextColumnShare}
+            edge={textSide === "left" ? "right" : "left"}
+            previewScale={previewScale}
+            ariaLabel="Copy column width"
             {...spacingHistoryCoalesce}
           />
         ) : null}
@@ -1512,6 +1639,27 @@ export function ProductShotPost({
         />
       ) : null}
 
+      <CanvasShapeLayer
+        shapes={canvasShapes}
+        canvasWidth={width}
+        canvasHeight={height}
+        previewScale={previewScale}
+        interactive={interactive}
+        exporting={exporting}
+        canvasSelection={canvasSelection}
+        onCanvasSelect={onCanvasSelect}
+        onShapesChange={onCanvasShapesChange}
+        onHistoryCoalesceBegin={
+          onHistoryCoalesceBegin
+            ? () => onHistoryCoalesceBegin("shapes")
+            : undefined
+        }
+        onHistoryCoalesceEnd={
+          onHistoryCoalesceEnd ? () => onHistoryCoalesceEnd("shapes") : undefined
+        }
+        tier="back"
+      />
+
       <div
         className={`social-post-product-layout${layoutStackClass}${layoutCompositionClass}${showSpacingHandles ? " has-spacing-handles" : ""}`}
       >
@@ -1562,10 +1710,9 @@ export function ProductShotPost({
 
         {isSplit && splitZones && showFeaturedImage ? (
           <div
-            className="social-post-split-row"
+            className={`social-post-split-row${showSpacingHandles ? " has-spacing-handles" : ""}`}
             style={{
               height: splitZones.rowHeight,
-              gap: splitZones.columnGap,
             }}
           >
             {textSide === "left" ? (
@@ -1575,6 +1722,10 @@ export function ProductShotPost({
                   bandHeight: splitZones.rowHeight,
                   split: true,
                 })}
+                {renderSplitColumnGapZone(
+                  splitZones.columnGap,
+                  splitZones.rowHeight,
+                )}
                 {renderAllFeaturedViewports(
                   splitZones.rowHeight,
                   splitZones.featuredColumn,
@@ -1585,6 +1736,10 @@ export function ProductShotPost({
                 {renderAllFeaturedViewports(
                   splitZones.rowHeight,
                   splitZones.featuredColumn,
+                )}
+                {renderSplitColumnGapZone(
+                  splitZones.columnGap,
+                  splitZones.rowHeight,
                 )}
                 {renderTextBand({
                   bandWidth: splitZones.textColumn,
@@ -1653,9 +1808,31 @@ export function ProductShotPost({
               );
               return items;
             })}
+            {renderFooterTextSlots()}
           </div>
         ) : null}
       </div>
+
+      <CanvasShapeLayer
+        shapes={canvasShapes}
+        canvasWidth={width}
+        canvasHeight={height}
+        previewScale={previewScale}
+        interactive={interactive}
+        exporting={exporting}
+        canvasSelection={canvasSelection}
+        onCanvasSelect={onCanvasSelect}
+        onShapesChange={onCanvasShapesChange}
+        onHistoryCoalesceBegin={
+          onHistoryCoalesceBegin
+            ? () => onHistoryCoalesceBegin("shapes")
+            : undefined
+        }
+        onHistoryCoalesceEnd={
+          onHistoryCoalesceEnd ? () => onHistoryCoalesceEnd("shapes") : undefined
+        }
+        tier="front"
+      />
     </div>
   );
 }

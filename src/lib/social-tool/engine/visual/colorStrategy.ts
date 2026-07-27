@@ -9,22 +9,34 @@ export type ColorStrategyResult = {
   reason: string;
 };
 
+function hashSeed(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
 function scorePreset(
   id: string,
   label: string | undefined,
   mood: string,
   recent: Set<string>,
+  seed?: string,
 ): number {
   let score = 0;
   const hay = `${id} ${label ?? ""}`.toLowerCase();
-  if (mood === "warm" && /(warm|orange|coral|amber|sunset)/.test(hay)) score += 6;
-  if (mood === "cool" && /(cool|blue|teal|cyan|sky)/.test(hay)) score += 6;
-  if (mood === "enterprise" && /(navy|slate|enterprise|professional|blue)/.test(hay)) {
+  if (mood === "warm" && /(warm|orange|coral|amber|sunset|copper|ember)/.test(hay)) score += 6;
+  if (mood === "cool" && /(cool|blue|teal|cyan|ocean|forest|frost|mist)/.test(hay)) score += 6;
+  if (mood === "enterprise" && /(navy|slate|enterprise|professional|blue|midnight|indigo)/.test(hay)) {
     score += 6;
   }
-  if (mood === "bold" && /(bold|vivid|vibrant|neon)/.test(hay)) score += 6;
-  if (mood === "neutral" && /(neutral|gray|grey|soft|cream)/.test(hay)) score += 4;
+  if (mood === "bold" && /(bold|vivid|vibrant|neon|berry|electric|royal|pulse)/.test(hay)) score += 6;
+  if (mood === "neutral" && /(neutral|gray|grey|soft|cream|editorial|wash|lavender)/.test(hay)) {
+    score += 4;
+  }
   if (recent.has(id)) score -= 8;
+  if (seed) score += (hashSeed(`${seed}:${id}`) % 5) - 2;
   return score;
 }
 
@@ -33,6 +45,7 @@ export function resolveColorStrategy(input: {
   rulesProfile: DesignRulesProfile;
   catalog?: { id: string; label?: string }[];
   recentPresetIds?: string[];
+  brief?: string;
 }): ColorStrategyResult {
   const table = getVisualsStrategy().color;
   const colorMood =
@@ -46,18 +59,22 @@ export function resolveColorStrategy(input: {
   if (catalog.length && input.rulesProfile.backgroundPolicy === "catalog_pick") {
     const ranked = [...catalog].sort(
       (a, b) =>
-        scorePreset(b.id, b.label, colorMood, recent) -
-        scorePreset(a.id, a.label, colorMood, recent),
+        scorePreset(b.id, b.label, colorMood, recent, input.brief ?? input.plan.primaryMessage) -
+        scorePreset(a.id, a.label, colorMood, recent, input.brief ?? input.plan.primaryMessage),
     );
     backgroundPresetId = ranked[0]?.id;
   } else if (catalog.length) {
     backgroundPresetId = catalog[0]?.id;
   }
 
+  // Keep background visible even when the catalog is empty (offline / no snapshot) —
+  // the canvas falls back to --gradient-hero via social-post--dark.
+  const showBackground = Boolean(backgroundPresetId) || catalog.length === 0;
+
   return {
     colorMood,
     backgroundPresetId,
-    showBackground: Boolean(backgroundPresetId),
-    reason: `Color mood ${colorMood}${backgroundPresetId ? ` → ${backgroundPresetId}` : ""}`,
+    showBackground,
+    reason: `Color mood ${colorMood}${backgroundPresetId ? ` → ${backgroundPresetId}` : " → default gradient"}`,
   };
 }

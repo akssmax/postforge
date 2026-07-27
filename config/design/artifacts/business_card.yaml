@@ -1,0 +1,27 @@
+id: business_card
+category: business
+label: Business Card
+capabilities:
+  multiPage: false
+  print: true
+  slides: 1
+  aspectRatios: ["3.5:2"]
+  primaryContent: text
+constraints:
+  requiredSlots: [headline, contact]
+  optionalSlots: [logo, body]
+  maxTextBlocks: 4
+  maxSections: 4
+allowedRecipes:
+  - business_executive
+  - business_minimal
+recommendedBundles: []
+recommendedLayouts:
+  - business-card
+  - contact-footer
+  - logo-footer-bar
+renderer: print-doc
+unsplashHints: null
+inferenceKeywords:
+  - business card
+  - contact card

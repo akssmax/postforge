@@ -26,11 +26,13 @@ export function resolveVisualStrategy(input: {
   recipe?: RecipeConfig;
   backgroundCatalog?: { id: string; label?: string }[];
   recentBackgroundPresetIds?: string[];
+  artifact?: import("@/lib/design-config/schemas").ArtifactDefinition;
 }): VisualStrategyResult {
   const featured = resolveFeaturedStrategy({
     plan: input.plan,
     rulesProfile: input.rulesProfile,
     recipe: input.recipe,
+    artifact: input.artifact,
   });
   const pattern = resolvePatternStrategy({
     plan: input.plan,

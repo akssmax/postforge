@@ -345,6 +345,73 @@ function stackedCopyFits(
   return minTextZone <= maxTextZone;
 }
 
+function estimateSplitCopyStackHeight(
+  input: HierarchyInput,
+  typeScale: number,
+  logoScale: number,
+  textColumnWidth: number,
+): number {
+  const { width, height, layout, spacing, showLogo, copy, platformId } = input;
+  const isTallPrint = height / width >= 1.8;
+  const layoutPad = spacingTokenToPx(spacing.layoutPad, width, height);
+  const bandHeight = estimateTextBandMinHeight({
+    width,
+    height,
+    layout,
+    showTopLogo: showLogo && layout.logoPlacement === "top",
+    spacing,
+    isTallPrint,
+    logoScale,
+    typeScale,
+    copy,
+    platformId,
+    copyLineWidth: Math.max(1, textColumnWidth),
+  });
+  return Math.max(0, bandHeight - layoutPad);
+}
+
+function fitSplitTypeScaleToColumn(
+  input: HierarchyInput,
+  logoScale: number,
+  textColumnWidth: number,
+  rowHeight: number,
+  typeScale: number,
+): number {
+  if (rowHeight <= 0 || textColumnWidth <= 0) return typeScale;
+
+  const targetFill =
+    input.layout.textVerticalAlign === "center" ? 0.58 : 0.72;
+  let next = typeScale;
+  let contentH = estimateSplitCopyStackHeight(
+    input,
+    next,
+    logoScale,
+    textColumnWidth,
+  );
+
+  for (let i = 0; i < 24 && contentH < rowHeight * targetFill && next < TYPE_SCALE_MAX; i += 1) {
+    next = roundScale(next * 1.05);
+    contentH = estimateSplitCopyStackHeight(
+      input,
+      next,
+      logoScale,
+      textColumnWidth,
+    );
+  }
+
+  for (let i = 0; i < 24 && contentH > rowHeight * 0.94 && next > TYPE_SCALE_MIN; i += 1) {
+    next = roundScale(next * 0.94);
+    contentH = estimateSplitCopyStackHeight(
+      input,
+      next,
+      logoScale,
+      textColumnWidth,
+    );
+  }
+
+  return next;
+}
+
 function clampTypeScaleToFit(input: HierarchyInput, typeScale: number, logoScale: number): number {
   let next = typeScale;
   while (next > TYPE_SCALE_MIN && !stackedCopyFits(input, next, logoScale)) {
@@ -358,6 +425,36 @@ export function resolveLayoutHierarchy(input: HierarchyInput): HierarchyResult {
   const slotsAtOne = resolveSlotDimensions(input, 1, logoScale);
   let typeScale = computeTypeScale(input, slotsAtOne.textWidth, logoScale);
   typeScale = clampTypeScaleToFit(input, typeScale, logoScale);
+
+  if (layoutUsesSplit(input.layout) && input.showFeaturedImage) {
+    const split = resolveSplitLayoutZones({
+      width: input.width,
+      height: input.height,
+      footerH: estimateFooterHeight({
+        width: input.width,
+        height: input.height,
+        layout: input.layout,
+        showLogo: input.showLogo,
+        copy: input.copy,
+        spacing: input.spacing,
+        logoScale,
+      }),
+      layout: input.layout,
+      showFeaturedImage: input.showFeaturedImage,
+      isTallPrint: input.height / input.width >= 1.8,
+      showTopLogo: input.showLogo && input.layout.logoPlacement === "top",
+      spacing: input.spacing,
+      logoScale,
+    });
+    typeScale = fitSplitTypeScaleToColumn(
+      input,
+      logoScale,
+      split.textColumn,
+      split.rowHeight,
+      typeScale,
+    );
+  }
+
   const slots = resolveSlotDimensions(input, typeScale, logoScale);
   const featuredTransform = computeFeaturedTransform(
     input,

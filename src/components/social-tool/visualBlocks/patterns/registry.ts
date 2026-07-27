@@ -24,6 +24,11 @@ import {
   CompetitorRowPattern,
   CrmListPattern,
   CtaBannerPattern,
+  CtaButtonOutlinePattern,
+  CtaButtonPrimaryPattern,
+  CtaPillPairPattern,
+  BadgePillPattern,
+  ContactRowPattern,
   DiscountStripPattern,
   DualPricingPattern,
   FormCardPattern,
@@ -88,6 +93,11 @@ export const UI_PATTERN_COMPONENTS: Record<string, ComponentType<UiPatternProps>
   "inbox-preview": InboxPreviewPattern,
   "cta-banner": CtaBannerPattern,
   "value-prop-card": ValuePropCardPattern,
+  "cta-button-primary": CtaButtonPrimaryPattern,
+  "cta-button-outline": CtaButtonOutlinePattern,
+  "cta-pill-pair": CtaPillPairPattern,
+  "badge-pill": BadgePillPattern,
+  "contact-row": ContactRowPattern,
 };
 
 export function getUiPatternComponent(

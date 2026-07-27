@@ -1,0 +1,25 @@
+id: process_flow
+category: documentation
+label: Process Flow
+capabilities:
+  multiPage: false
+  slides: 1
+  aspectRatios: ["16:9", "1:1"]
+  primaryContent: diagram
+constraints:
+  requiredSlots: [headline]
+  optionalSlots: [diagram, body]
+allowedRecipes:
+  - documentation_flow
+  - education_framework
+recommendedBundles: []
+recommendedLayouts:
+  - diagram-primary
+  - deck-sidebar
+  - section-stack
+renderer: diagram
+inferenceKeywords:
+  - process
+  - sop
+  - procedure
+  - steps

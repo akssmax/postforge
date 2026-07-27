@@ -25,3 +25,7 @@ bundles:
 families:
   - metric
   - proof
+artifactSupports:
+  - linkedin_ad
+  - instagram_post
+  - infographic

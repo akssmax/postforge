@@ -28,6 +28,7 @@ function loadFile(rel) {
   return yaml.load(fs.readFileSync(file, "utf8"));
 }
 
+const artifacts = loadDir("artifacts");
 const campaigns = loadDir("campaign");
 const patterns = loadDir("patterns");
 const recipes = loadDir("recipes");
@@ -46,6 +47,7 @@ const visuals = loadFile("visuals/strategy.yaml") ?? {
 };
 
 const payload = {
+  artifacts,
   campaigns,
   patterns,
   recipes,
@@ -67,5 +69,5 @@ export const designConfigData = ${JSON.stringify(payload, null, 2)} as const;
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, source, "utf8");
 console.log(
-  `Wrote ${OUT} (${campaigns.length} campaigns, ${patterns.length} patterns, ${recipes.length} recipes, ${layouts.length} layouts, ${systems.length} systems, ${overlays.length} overlays, ${blockFamilies.length} families, ${blockBundles.length} bundles, ${stylePacks.length} stylePacks)`,
+  `Wrote ${OUT} (${artifacts.length} artifacts, ${campaigns.length} campaigns, ${patterns.length} patterns, ${recipes.length} recipes, ${layouts.length} layouts, ${systems.length} systems, ${overlays.length} overlays, ${blockFamilies.length} families, ${blockBundles.length} bundles, ${stylePacks.length} stylePacks)`,
 );

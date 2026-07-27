@@ -1,0 +1,16 @@
+id: business_certificate
+name: Business Certificate
+pattern: announcement_hero
+slots:
+  - headline
+  - body
+  - subheading
+attention: headline
+proof: none
+density: low
+readingPattern: center
+artifactSupports:
+  - certificate
+preferredLayouts:
+  - centered-announcement
+  - copy-statement

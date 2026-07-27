@@ -2,8 +2,10 @@ import seedReviews from "@/data/layout-reviews.json";
 import {
   DEFAULT_POST_LAYOUT_SPACING,
   SPACING_TOKENS,
+  SPACING_TOKEN_KEYS,
   type PostLayoutSpacing,
   type SpacingToken,
+  type SpacingTokenKey,
 } from "@/lib/social-tool/layoutSpacing";
 import {
   getPostLayout,
@@ -41,9 +43,7 @@ export const LAYOUT_PLAYGROUND_PLATFORMS: PlatformId[] = [
 
 const STORAGE_KEY = "postforge:layout-reviews";
 
-const SPACING_KEYS = Object.keys(
-  DEFAULT_POST_LAYOUT_SPACING,
-) as (keyof PostLayoutSpacing)[];
+const SPACING_KEYS = SPACING_TOKEN_KEYS;
 
 function isSpacingToken(value: unknown): value is SpacingToken {
   return typeof value === "number" && SPACING_TOKENS.includes(value as SpacingToken);
@@ -59,6 +59,14 @@ function sanitizeSpacing(value: unknown): PostLayoutSpacing | undefined {
       spacing[key] = raw[key];
       valid = true;
     }
+  }
+  if (
+    typeof raw.splitTextColumnShare === "number" &&
+    raw.splitTextColumnShare >= 0.32 &&
+    raw.splitTextColumnShare <= 0.52
+  ) {
+    spacing.splitTextColumnShare = raw.splitTextColumnShare;
+    valid = true;
   }
   return valid ? spacing : undefined;
 }
@@ -408,11 +416,12 @@ export function formatLayoutReviewsForExport(record: LayoutReviewRecord): string
   return `${JSON.stringify(record, null, 2)}\n`;
 }
 
-export const LAYOUT_SPACING_LABELS: Record<keyof PostLayoutSpacing, string> = {
+export const LAYOUT_SPACING_LABELS: Record<SpacingTokenKey, string> = {
   layoutPad: "Layout padding",
   textZonePadBottom: "Text zone bottom",
   logoCopyGap: "Logo → copy",
   copyBlockGap: "Copy blocks",
+  splitColumnGap: "Split column gap",
   featuredSlotGap: "Visual slots",
   footerPad: "Footer padding",
   footerBlockGap: "Footer gap",

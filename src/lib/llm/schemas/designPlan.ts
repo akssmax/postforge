@@ -15,6 +15,10 @@ export const textSlotRoleSchema = z.enum([
   "subheading",
   "body",
   "caption",
+  "title",
+  "name",
+  "cta",
+  "contact",
 ]);
 
 export const slotDefinitionSchema = z.object({

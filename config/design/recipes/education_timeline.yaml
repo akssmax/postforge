@@ -1,0 +1,27 @@
+id: education_timeline
+name: Education Timeline
+pattern: narrative
+slots:
+  - headline
+  - body
+  - metric
+attention: headline
+proof: stat
+density: medium
+readingPattern: F
+campaigns:
+  - thought_leadership
+  - announcement
+artifactSupports:
+  - infographic
+  - timeline
+  - framework
+  - roadmap
+preferredLayouts:
+  - copy-statement
+  - deck-sidebar
+bundles:
+  - process-explain
+families:
+  - diagram
+  - process

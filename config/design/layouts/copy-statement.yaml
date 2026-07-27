@@ -29,3 +29,9 @@ score:
   feature_release: 0.5
   webinar: 0.55
   hiring: 0.62
+artifactSupports:
+  - infographic
+  - timeline
+  - checklist
+  - quote_card
+  - certificate

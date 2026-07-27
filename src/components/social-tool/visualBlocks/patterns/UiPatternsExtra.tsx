@@ -994,3 +994,102 @@ export function ValuePropCardPattern(props: UiPatternProps) {
     </PatternShell>
   );
 }
+
+export function CtaButtonPrimaryPattern(props: UiPatternProps) {
+  const { content, primary, accent } = props;
+  const d = resolveDensity(props);
+  return (
+    <PatternShell primary={primary} accent={accent}>
+      <div className={cn("mx-auto flex w-full max-w-xs justify-center", d.pad)}>
+        <Button
+          variant="primary"
+          size={d.btn}
+          className="w-full bg-[var(--vb-accent)] font-semibold text-white shadow-sm"
+        >
+          {content.cta ?? "Get started"}
+        </Button>
+      </div>
+    </PatternShell>
+  );
+}
+
+export function CtaButtonOutlinePattern(props: UiPatternProps) {
+  const { content, primary, accent } = props;
+  const d = resolveDensity(props);
+  return (
+    <PatternShell primary={primary} accent={accent}>
+      <div className={cn("mx-auto flex w-full max-w-xs justify-center", d.pad)}>
+        <Button
+          variant="secondary"
+          size={d.btn}
+          className="w-full border-2 border-[var(--vb-accent)] font-semibold text-[var(--vb-accent)]"
+        >
+          {content.cta ?? "Learn more"}
+        </Button>
+      </div>
+    </PatternShell>
+  );
+}
+
+export function CtaPillPairPattern(props: UiPatternProps) {
+  const { content, primary, accent } = props;
+  const d = resolveDensity(props);
+  return (
+    <PatternShell primary={primary} accent={accent}>
+      <div className={cn("mx-auto flex w-full max-w-md flex-wrap justify-center gap-2", d.pad)}>
+        <Button variant="primary" size={d.btn} className="bg-[var(--vb-accent)] text-white">
+          {content.cta ?? "RSVP"}
+        </Button>
+        <Button variant="secondary" size={d.btn}>
+          {content.ctaSecondary ?? "Details"}
+        </Button>
+      </div>
+    </PatternShell>
+  );
+}
+
+export function BadgePillPattern(props: UiPatternProps) {
+  const { content, primary, accent } = props;
+  const d = resolveDensity(props);
+  return (
+    <PatternShell primary={primary} accent={accent}>
+      <div className={cn("mx-auto flex justify-center", d.pad)}>
+        <span
+          className={cn(
+            "rounded-full px-4 py-1.5 font-semibold tracking-tight",
+            vbAccentSoft,
+            d.body,
+            "text-[var(--vb-accent)] ring-1 ring-[color-mix(in_oklab,var(--vb-accent)_30%,transparent)]",
+          )}
+        >
+          {content.badge ?? content.label ?? "Limited offer"}
+        </span>
+      </div>
+    </PatternShell>
+  );
+}
+
+export function ContactRowPattern(props: UiPatternProps) {
+  const { content, primary, accent } = props;
+  const d = resolveDensity(props);
+  return (
+    <PatternShell primary={primary} accent={accent}>
+      <div
+        className={cn(
+          "mx-auto flex w-full max-w-md flex-col gap-1 text-center text-neutral-700",
+          d.pad,
+          d.body,
+        )}
+      >
+        {content.email ? <p>{content.email}</p> : null}
+        {content.phone ? <p>{content.phone}</p> : null}
+        {content.website ? (
+          <p className="font-medium text-[var(--vb-accent)]">{content.website}</p>
+        ) : null}
+        {!content.email && !content.phone && !content.website ? (
+          <p>{content.contact ?? "hello@company.com · (555) 010-0200"}</p>
+        ) : null}
+      </div>
+    </PatternShell>
+  );
+}

@@ -1,0 +1,22 @@
+id: roadmap
+category: presentations
+label: Roadmap
+capabilities:
+  multiPage: true
+  slides: 10
+  aspectRatios: ["16:9"]
+  primaryContent: diagram
+allowedRecipes:
+  - presentation_roadmap
+  - education_timeline
+  - presentation_title
+recommendedBundles: []
+recommendedLayouts:
+  - deck-sidebar
+  - section-stack
+  - diagram-primary
+renderer: slide-deck
+inferenceKeywords:
+  - roadmap
+  - quarterly plan
+  - milestones

@@ -1,0 +1,27 @@
+id: framework
+category: education
+label: Framework
+capabilities:
+  multiPage: false
+  slides: 1
+  aspectRatios: ["1:1", "16:9"]
+  primaryContent: diagram
+constraints:
+  requiredSlots: [headline]
+  optionalSlots: [body, diagram, metric]
+  maxSections: 6
+allowedRecipes:
+  - education_framework
+  - education_timeline
+recommendedBundles: []
+recommendedLayouts:
+  - section-stack
+  - diagram-primary
+  - copy-statement
+renderer: diagram
+inferenceKeywords:
+  - framework
+  - model
+  - steps
+  - pillars
+  - methodology

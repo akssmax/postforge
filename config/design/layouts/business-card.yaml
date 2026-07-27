@@ -1,0 +1,21 @@
+id: business-card
+platforms: [all]
+campaigns:
+  - announcement
+  - thought_leadership
+visualPriority: low
+contentDensity: low
+readingPattern: F
+visualWeight: light
+densityClass: copyHeavy
+supports:
+  - logo
+  - headline
+  - subheading
+  - body
+  - contact
+score:
+  announcement: 0.95
+  thought_leadership: 0.7
+artifactSupports:
+  - business_card

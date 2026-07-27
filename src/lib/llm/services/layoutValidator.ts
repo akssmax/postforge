@@ -1,6 +1,9 @@
 import type { DesignPlan } from "@/lib/llm/schemas/designPlan";
 import { designPlanSchema } from "@/lib/llm/schemas/designPlan";
 import type { DesignRulesProfile } from "@/lib/llm/rules/types";
+import type { ArtifactDefinition } from "@/lib/design-config/schemas";
+import { artifactWantsLogoPlaceholder } from "@/lib/design-engine/artifactRules";
+import type { TextSlotRole } from "@/lib/social-tool/dynamicLayout";
 import type { DynamicLayout, LayoutRef } from "@/lib/social-tool/dynamicLayout";
 import { resolveLayoutRef } from "@/lib/social-tool/layoutAdapter";
 import {
@@ -11,7 +14,7 @@ import {
 import { resolveLayoutHierarchy } from "@/lib/social-tool/layoutHierarchy";
 import { DEFAULT_POST_LAYOUT_SPACING } from "@/lib/social-tool/layoutSpacing";
 import { getPlatform, type PlatformId } from "@/lib/social-tool/presets";
-import { copyFromTextSlots } from "@/lib/social-tool/layoutAdapter";
+import { copyFromTextSlots, repairTextSlotsForLayout } from "@/lib/social-tool/layoutAdapter";
 import { getLayoutStatePatch } from "@/lib/social-tool/postLayouts";
 import { resolvePatternRef } from "@/lib/social-tool/engine/visualPolicy";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
@@ -71,6 +74,68 @@ function pickPattern(
   }, rulesProfile);
 }
 
+function slotSatisfiesRequired(
+  required: string,
+  plan: ValidatedDesignPlan,
+): boolean {
+  const role = required as TextSlotRole;
+  const textSlot = plan.textSlots.find(
+    (slot) => slot.role === role || slot.slotId.includes(required),
+  );
+  if (textSlot?.text.trim()) return true;
+
+  if (required === "product_image" || required === "diagram") {
+    return plan.featuredSlots.some((slot) => slot.visible);
+  }
+  return false;
+}
+
+export function repairPlanForArtifactConstraints(
+  plan: ValidatedDesignPlan,
+  artifact: ArtifactDefinition,
+): ValidatedDesignPlan {
+  const constraints = artifact.constraints;
+  if (!constraints) return plan;
+
+  let textSlots = [...plan.textSlots];
+  const maxBlocks = constraints.maxTextBlocks;
+  if (maxBlocks != null) {
+    const filled = textSlots.filter((slot) => slot.text.trim());
+    if (filled.length > maxBlocks) {
+      const keep = new Set(filled.slice(0, maxBlocks).map((slot) => slot.slotId));
+      textSlots = textSlots.map((slot) =>
+        keep.has(slot.slotId) ? slot : { ...slot, text: "" },
+      );
+    }
+  }
+
+  const nextPlan = {
+    ...plan,
+    textSlots,
+    copy: copyFromTextSlots(textSlots, plan.layout, plan.copy),
+  };
+
+  for (const required of constraints.requiredSlots ?? []) {
+    if (!slotSatisfiesRequired(required, nextPlan)) {
+      continue;
+    }
+  }
+
+  const hideFeatured =
+    artifact.renderer === "print-doc" ||
+    artifact.capabilities.primaryContent === "text";
+  const showLogoPlaceholder = artifactWantsLogoPlaceholder(artifact);
+
+  return {
+    ...nextPlan,
+    showFeaturedImage: hideFeatured ? false : nextPlan.showFeaturedImage,
+    featuredSlots: hideFeatured
+      ? nextPlan.featuredSlots.map((slot) => ({ ...slot, visible: false }))
+      : nextPlan.featuredSlots,
+    showBrand: showLogoPlaceholder ? true : nextPlan.showBrand,
+  };
+}
+
 export function validateDesignPlan(
   raw: unknown,
   platformId: PlatformId,
@@ -88,8 +153,10 @@ export function validateDesignPlan(
       ? normalizeGeneratedLayout(registerGeneratedLayout(layoutRef.layout))
       : resolveLayoutRef(layoutRef);
 
+  const repairedTextSlots = repairTextSlotsForLayout(input.textSlots, layout);
+
   const textSlotIds = new Set(layout.slots.filter((s) => s.kind === "text").map((s) => s.id));
-  for (const slot of input.textSlots) {
+  for (const slot of repairedTextSlots) {
     if (!textSlotIds.has(slot.slotId)) {
       return { ok: false, error: `Unknown text slot: ${slot.slotId}` };
     }
@@ -105,7 +172,7 @@ export function validateDesignPlan(
   }
 
   const postLayout = dynamicLayoutAsPostLayout(layout);
-  const copy = copyFromTextSlots(input.textSlots, layout);
+  const copy = copyFromTextSlots(repairedTextSlots, layout);
   const platform = getPlatform(platformId);
   const showFeatured =
     input.showFeaturedImage && input.featuredSlots.some((s) => s.visible);
@@ -150,6 +217,7 @@ export function validateDesignPlan(
     ok: true,
     plan: {
       ...input,
+      textSlots: repairedTextSlots,
       layoutRef,
       featuredSlots,
       copy,

@@ -28,6 +28,9 @@ import {
   updateSpacingToolSchema,
   updateTypographyToolSchema,
   updateVisibilityToolSchema,
+  addShapeToolSchema,
+  updateShapeToolSchema,
+  removeShapeToolSchema,
   withArtboardTargetSchema,
 } from "@/lib/llm/schemas/canvasTools";
 import { composeVisualBlocks, modifyVisualBlock as modifyVisualBlockComposer } from "@/lib/llm/stages/genuiComposer";
@@ -42,6 +45,7 @@ import {
 import { buildVisualPickIntentFromText } from "@/lib/social-tool/visualBlocks/library/scoring";
 import { inferFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import { findVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
+import { shapeLibrarySummaryForPrompt } from "@/lib/social-tool/shapes/catalog";
 import {
   computeGeneratedVisualBlocksPatch,
   computeModifiedVisualBlockPatch,
@@ -56,6 +60,9 @@ import {
   computeUpdateSpacingPatch,
   computeUpdateTypographyPatch,
   computeUpdateVisibilityPatch,
+  computeAddShapePatch,
+  computeUpdateShapePatch,
+  computeRemoveShapePatch,
 } from "@/lib/llm/services/computeCanvasPatch";
 
 function buildSnapshotPrompt(snapshot: DesignSnapshot): string {
@@ -94,6 +101,16 @@ function buildSnapshotPrompt(snapshot: DesignSnapshot): string {
     `- Visual blocks: ${snapshot.featured.visualBlocks.map((b) => `${b.id}:${b.label}`).join(", ") || "none"}`,
     `- Active visual block: ${snapshot.featured.activeBlockId ?? "none"}`,
     `- Uploaded image available: ${snapshot.featured.hasUploadedImage}`,
+    `- Canvas shapes (${snapshot.canvasShapes?.length ?? 0}/3): ${
+      snapshot.canvasShapes?.length
+        ? snapshot.canvasShapes
+            .map(
+              (shape) =>
+                `${shape.id}[${shape.libraryId},z=${shape.zIndex},opacity=${shape.opacity ?? "default"}]`,
+            )
+            .join("; ")
+        : "none"
+    }`,
     `- Visibility: content=${snapshot.visibility.showContent}, brand=${snapshot.visibility.showBrand}, featured=${snapshot.visibility.showFeaturedImage}, pattern=${snapshot.visibility.showPattern}`,
     `- Allowed layouts: ${snapshot.allowedLayouts.join(", ")}`,
     `- Allowed patterns: ${snapshot.allowedPatternRefs.join(", ")}`,
@@ -308,6 +325,25 @@ function buildCanvasTools(
       execute: async (input) =>
         attachArtboardTarget(computeUpdateSpacingPatch(snapshot, input), input),
     }),
+    addShape: tool({
+      description:
+        "Add a decorative shape from the shape library (max 3 on canvas). Use library ids like shape-organic-blob-soft-01.",
+      inputSchema: withArtboardTargetSchema(addShapeToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeAddShapePatch(snapshot, input), input),
+    }),
+    updateShape: tool({
+      description: "Update transform, opacity, fill, or z-index of a canvas shape by shapeId.",
+      inputSchema: withArtboardTargetSchema(updateShapeToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeUpdateShapePatch(snapshot, input), input),
+    }),
+    removeShape: tool({
+      description: "Remove a decorative canvas shape by shapeId.",
+      inputSchema: withArtboardTargetSchema(removeShapeToolSchema),
+      execute: async (input) =>
+        attachArtboardTarget(computeRemoveShapePatch(snapshot, input), input),
+    }),
   };
 }
 
@@ -386,6 +422,11 @@ export async function handleCanvasAgentRequest(input: {
       "Default to active. Use 'all' when the user says every board/all variants/shared background/brand.",
       "For copy changes across all artboards, call refreshCopyVariants with targetArtboards='all' — the app assigns a different variant to each board.",
       "Use specific indices when they name artboard numbers (e.g. board 2 and 4 → [2,4]).",
+      "Decorative canvas shapes (max 3): use addShape, updateShape, removeShape.",
+      "Shape ids come from the snapshot canvas shapes line; library ids from the catalog below.",
+      "Use zIndex 0–5 for shapes behind content, 6–10 for accents in front.",
+      "Common shape library ids:",
+      shapeLibrarySummaryForPrompt(),
       "After you call tools, always send a short (1-2 sentence) user-facing reply confirming what changed.",
       "Never finish with tool calls alone — end with conversational text the user can read in chat.",
       rulesProfilePrompt(rulesProfile),

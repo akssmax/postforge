@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   Download,
   LayoutGrid,
+  Menu,
   Palette,
   Presentation,
   Shuffle,
@@ -14,6 +15,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { Popover, Tooltip } from "@heroui/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Logo } from "@/components/Logo";
 import { ThemeControls } from "@/components/ThemeControls";
@@ -66,6 +68,14 @@ const LandingToolShowcase = dynamic(
 );
 
 const ease = [0.22, 1, 0.36, 1] as const;
+
+const NAV_LINKS = [
+  { href: "#playground", label: "Shuffle" },
+  { href: "#gallery", label: "Designs" },
+  { href: "#tool-demo", label: "Tool" },
+  { href: "#features", label: "Features" },
+  { href: "/tool", label: "Open tool" },
+] as const;
 
 const FEATURES: ReadonlyArray<{
   title: string;
@@ -136,14 +146,50 @@ export function LandingPage() {
         <div className="pf-nav-inner">
           <Logo href="/" height={28} animation="leap" className="text-current" />
           <nav className="pf-nav-links" aria-label="Primary">
-            <Link href="#playground">Shuffle</Link>
-            <Link href="#gallery">Designs</Link>
-            <Link href="#tool-demo">Tool</Link>
-            <Link href="#features">Features</Link>
-            <Link href="/tool">Open tool</Link>
+            {NAV_LINKS.map((link) => (
+              <Link key={link.href} href={link.href}>
+                {link.label}
+              </Link>
+            ))}
           </nav>
           <div className="pf-nav-actions">
-            <ThemeControls compact />
+            <ThemeControls compact className="pf-nav-theme" />
+            <Popover>
+              <Tooltip delay={500}>
+                <Tooltip.Trigger>
+                  <Popover.Trigger>
+                    <button
+                      type="button"
+                      className="pf-nav-menu-btn"
+                      aria-label="Open menu"
+                    >
+                      <Menu className="size-4" aria-hidden />
+                    </button>
+                  </Popover.Trigger>
+                </Tooltip.Trigger>
+                <Tooltip.Content placement="bottom" offset={8}>
+                  Menu
+                </Tooltip.Content>
+              </Tooltip>
+              <Popover.Content
+                placement="bottom end"
+                className="pf-nav-mobile-popover"
+              >
+                <Popover.Dialog className="pf-nav-mobile-panel">
+                  <nav className="pf-nav-mobile-links" aria-label="Mobile">
+                    {NAV_LINKS.map((link) => (
+                      <Link key={link.href} href={link.href}>
+                        {link.label}
+                      </Link>
+                    ))}
+                  </nav>
+                  <div className="pf-nav-mobile-theme">
+                    <p className="pf-nav-mobile-theme-label">Theme</p>
+                    <ThemeControls />
+                  </div>
+                </Popover.Dialog>
+              </Popover.Content>
+            </Popover>
             <Link href="/tool" className="pf-btn pf-btn-accent pf-btn-sm">
               Launch
               <ArrowUpRight className="size-4" />

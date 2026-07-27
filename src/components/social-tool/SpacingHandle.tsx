@@ -6,6 +6,7 @@ import {
   dragPxToTokenSteps,
   spacingTokenLabel,
   stepSpacingToken,
+  stepSplitTextColumnShare,
   type SpacingToken,
 } from "@/lib/social-tool/layoutSpacing";
 
@@ -169,6 +170,112 @@ export function SpacingHandle({
       <span className="spacing-handle-bar" aria-hidden />
       <span className={`spacing-handle-label${active ? " is-visible" : ""}`}>
         {kind === "padding" ? "p" : "gap"}-{spacingTokenLabel(token)}
+      </span>
+    </div>
+  );
+}
+
+type SplitTextColumnShareHandleProps = {
+  share: number;
+  onShareChange: (share: number) => void;
+  previewScale?: number;
+  edge: "left" | "right";
+  ariaLabel?: string;
+  onHistoryCoalesceBegin?: () => void;
+  onHistoryCoalesceEnd?: () => void;
+};
+
+export function SplitTextColumnShareHandle({
+  share,
+  onShareChange,
+  previewScale = 1,
+  edge,
+  ariaLabel = "Copy column width",
+  onHistoryCoalesceBegin,
+  onHistoryCoalesceEnd,
+}: SplitTextColumnShareHandleProps) {
+  const [active, setActive] = useState(false);
+  const dragRef = useRef<{
+    startX: number;
+    origin: number;
+  } | null>(null);
+
+  const onPointerDown = (ev: React.PointerEvent) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    setActive(true);
+    onHistoryCoalesceBegin?.();
+    dragRef.current = {
+      startX: ev.clientX,
+      origin: share,
+    };
+    (ev.target as HTMLElement).setPointerCapture(ev.pointerId);
+  };
+
+  const onPointerMove = (ev: React.PointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const scale = previewScale > 0 ? previewScale : 1;
+    const pxPerStep = 14 * scale;
+    const deltaX = ev.clientX - drag.startX;
+    const signed = edge === "right" ? deltaX : -deltaX;
+    const steps = dragPxToTokenSteps(signed, pxPerStep);
+    if (steps === 0) return;
+    let next = drag.origin;
+    for (let i = 0; i < Math.abs(steps); i += 1) {
+      next = stepSplitTextColumnShare(next, steps > 0 ? 1 : -1);
+    }
+    if (next !== share) {
+      dragRef.current = {
+        startX: ev.clientX,
+        origin: next,
+      };
+      onShareChange(next);
+    }
+  };
+
+  const endDrag = (ev: React.PointerEvent) => {
+    dragRef.current = null;
+    setActive(false);
+    onHistoryCoalesceEnd?.();
+    try {
+      (ev.target as HTMLElement).releasePointerCapture(ev.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const label = `${Math.round(share * 100)}%`;
+
+  return (
+    <div
+      className={`spacing-handle spacing-handle--split-text-share spacing-handle--split-text-share-${edge}${active ? " is-active" : ""}`}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      role="slider"
+      aria-label={ariaLabel}
+      aria-orientation="horizontal"
+      aria-valuemin={32}
+      aria-valuemax={52}
+      aria-valuenow={Math.round(share * 100)}
+      aria-valuetext={label}
+      tabIndex={0}
+      onKeyDown={(ev) => {
+        if (ev.key === "ArrowLeft") {
+          ev.preventDefault();
+          onShareChange(stepSplitTextColumnShare(share, edge === "right" ? -1 : 1));
+        }
+        if (ev.key === "ArrowRight") {
+          ev.preventDefault();
+          onShareChange(stepSplitTextColumnShare(share, edge === "right" ? 1 : -1));
+        }
+      }}
+    >
+      <span className="spacing-handle-bar" aria-hidden />
+      <span className={`spacing-handle-label${active ? " is-visible" : ""}`}>
+        w-{label}
       </span>
     </div>
   );
