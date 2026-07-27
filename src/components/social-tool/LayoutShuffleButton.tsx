@@ -89,7 +89,9 @@ export function LayoutShuffleButton({
   }
 
   function handleShuffle() {
-    onShuffle(preferences);
+    const prefs = loadShufflePreferences(preferenceScopeId);
+    setPreferences(prefs);
+    onShuffle(prefs);
     flashToast();
     setMenuOpen(false);
   }
@@ -131,7 +133,15 @@ export function LayoutShuffleButton({
           </Tooltip.Content>
         </Tooltip>
 
-        <Popover isOpen={menuOpen} onOpenChange={setMenuOpen}>
+        <Popover
+          isOpen={menuOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              setPreferences(loadShufflePreferences(preferenceScopeId));
+            }
+            setMenuOpen(open);
+          }}
+        >
           <Popover.Trigger>
             <Button
               variant="secondary"

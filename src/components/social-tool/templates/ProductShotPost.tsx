@@ -47,6 +47,12 @@ import {
   type PostLayoutId,
 } from "@/lib/social-tool/postLayouts";
 import { CanvasPropertyPills } from "@/components/social-tool/CanvasPropertyPills";
+import { CanvasCopyEditor } from "@/components/social-tool/CanvasCopyEditor";
+import {
+  editingCopyFieldsEqual,
+  type EditingCopyField,
+} from "@/lib/social-tool/copyEdit";
+import { imageFileFromDataTransfer } from "@/lib/social-tool/featuredImageDrop";
 import { SpacingHandle } from "@/components/social-tool/SpacingHandle";
 import { canvasSelectionKind } from "@/lib/social-tool/canvasSelection";
 import {
@@ -125,8 +131,19 @@ type Props = {
     slotId?: string,
   ) => void;
   /** Coalesce pointer-drag edits into one undo step */
-  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing") => void;
-  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing") => void;
+  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing" | "copy") => void;
+  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing" | "copy") => void;
+  /** Live canvas text edit (double-click) */
+  editingCopyField?: import("@/lib/social-tool/copyEdit").EditingCopyField | null;
+  onCopyFieldEditStart?: (
+    field: import("@/lib/social-tool/copyEdit").EditingCopyField,
+  ) => void;
+  onCopyFieldChange?: (
+    field: import("@/lib/social-tool/copyEdit").EditingCopyField,
+    value: string,
+  ) => void;
+  onCopyFieldCommit?: () => void;
+  onCopyFieldCancel?: () => void;
   /** Preview CSS scale — used to convert screen drag deltas to canvas space */
   previewScale?: number;
   /** Show drag handles / hover chrome (off during export) */
@@ -174,6 +191,7 @@ type Props = {
   onReorderFeaturedSlot?: (slotId: string, direction: "left" | "right") => void;
   onRemoveFeaturedSlot?: (slotId: string) => void;
   onShuffleFeaturedSlot?: (slotId: string) => void;
+  onUploadFeaturedImage?: (file: File, slotId: string) => void;
   dynamicLayout?: DynamicLayout;
   textSlots?: TextSlotContent[];
   featuredSlots?: FeaturedSlotContent[];
@@ -268,6 +286,11 @@ export function ProductShotPost({
   onHistoryCoalesceEnd,
   previewScale = 1,
   interactive = false,
+  editingCopyField = null,
+  onCopyFieldEditStart,
+  onCopyFieldChange,
+  onCopyFieldCommit,
+  onCopyFieldCancel,
   patternOpacity = 0.28,
   patternScale = 1,
   patternAnimated = false,
@@ -308,6 +331,7 @@ export function ProductShotPost({
   onReorderFeaturedSlot,
   onRemoveFeaturedSlot,
   onShuffleFeaturedSlot,
+  onUploadFeaturedImage,
 }: Props) {
   const layout = dynamicLayout
     ? dynamicLayoutAsPostLayout(dynamicLayout)
@@ -324,6 +348,11 @@ export function ProductShotPost({
   );
   const logoCopyGapPx = spacingTokenToPx(spacing.logoCopyGap, width, height);
   const copyBlockGapPx = spacingTokenToPx(spacing.copyBlockGap, width, height);
+  const featuredSlotGapPx = spacingTokenToPx(
+    spacing.featuredSlotGap,
+    width,
+    height,
+  );
   const footerPadPx = spacingTokenToPx(spacing.footerPad, width, height);
   const footerBlockGapPx = spacingTokenToPx(
     spacing.footerBlockGap,
@@ -339,11 +368,13 @@ export function ProductShotPost({
   const hasPropertyPills =
     interactive &&
     showPropertyPills &&
+    !editingCopyField &&
     ((selectionKind === "copy" &&
       (!!onTypeScaleChange || !!onTextAlignChange)) ||
       (selectionKind === "logo" && !!onLogoScaleChange) ||
       (selectionKind === "featured" &&
-        (!!onShuffleFeaturedSlot ||
+        (!!onFeaturedTransformChange ||
+          !!onShuffleFeaturedSlot ||
           !!onReorderFeaturedSlot ||
           !!onRemoveFeaturedSlot ||
           !!onAddFeaturedSlot)));
@@ -440,6 +471,39 @@ export function ProductShotPost({
   const [hoveredSlotId, setHoveredSlotId] = useState<string | null>(null);
   const [draggingSlotId, setDraggingSlotId] = useState<string | null>(null);
   const [featuredZoneHovered, setFeaturedZoneHovered] = useState(false);
+  const [copyEditAnchor, setCopyEditAnchor] = useState<HTMLElement | null>(null);
+  const [dropTargetSlotId, setDropTargetSlotId] = useState<string | null>(null);
+  const postRootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!editingCopyField || !postRootRef.current) {
+      setCopyEditAnchor(null);
+      return;
+    }
+    const key =
+      editingCopyField.kind === "extra"
+        ? `extra:${editingCopyField.id}`
+        : editingCopyField.kind;
+    const el = postRootRef.current.querySelector(
+      `[data-copy-field="${key}"]`,
+    ) as HTMLElement | null;
+    setCopyEditAnchor(el);
+  }, [editingCopyField, copy.heading, copy.subheading, copy.extraFields]);
+
+  function startCopyFieldEdit(
+    field: EditingCopyField,
+    ev: React.MouseEvent,
+  ) {
+    if (!interactive || exporting || !onCopyFieldEditStart) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    onCanvasSelect?.("copy");
+    onCopyFieldEditStart(field);
+  }
+
+  function isEditingField(field: EditingCopyField) {
+    return editingCopyFieldsEqual(editingCopyField, field);
+  }
 
   const dragRef = useRef<{
     startX: number;
@@ -699,12 +763,17 @@ export function ProductShotPost({
         : copy.extraFields.filter((field) => field.value.trim());
 
     const nodes = fields
-      .map((field) =>
-        field.value.trim() ? (
+      .map((field) => {
+        const editing = isEditingField({ kind: "extra", id: field.id });
+        return field.value.trim() || editing ? (
           <p
             key={field.id}
-            className={`social-post-extra${zone === "footer" ? " social-post-extra--footer" : ""}`}
+            className={`social-post-extra${zone === "footer" ? " social-post-extra--footer" : ""}${editing ? " is-copy-editing" : ""}`}
+            data-copy-field={`extra:${field.id}`}
             style={{ maxWidth: isTallPrint ? "22em" : "28em" }}
+            onDoubleClick={(ev) =>
+              startCopyFieldEdit({ kind: "extra", id: field.id }, ev)
+            }
           >
             {field.value}
           </p>
@@ -712,8 +781,8 @@ export function ProductShotPost({
           renderEmptyTextSlot(field.id, "extra", extraSlotStyle, {
             className: zone === "footer" ? "social-post-extra--footer" : undefined,
           })
-        ),
-      )
+        );
+      })
       .filter(Boolean);
 
     if (nodes.length > 0) return nodes;
@@ -729,13 +798,16 @@ export function ProductShotPost({
 
   function renderMainBlock(block: PostContentBlock) {
     switch (block) {
-      case "headline":
-        return hasHeading ? (
+      case "headline": {
+        const editing = isEditingField({ kind: "heading" });
+        return hasHeading || editing ? (
           <h1
             key="headline"
-            className="social-post-headline"
+            className={`social-post-headline${editing ? " is-copy-editing" : ""}`}
             data-design-block="headline"
+            data-copy-field="heading"
             style={headlineStyle}
+            onDoubleClick={(ev) => startCopyFieldEdit({ kind: "heading" }, ev)}
           >
             {headingParts.map((part, i) => {
               if (part.type === "br") return <br key={`br-${i}`} />;
@@ -754,13 +826,19 @@ export function ProductShotPost({
             designBlock: "headline",
           })
         );
-      case "subheading":
-        return hasSubheading ? (
+      }
+      case "subheading": {
+        const editing = isEditingField({ kind: "subheading" });
+        return hasSubheading || editing ? (
           <p
             key="subheading"
-            className="social-post-sub"
+            className={`social-post-sub${editing ? " is-copy-editing" : ""}`}
             data-design-block="subheading"
+            data-copy-field="subheading"
             style={subStyle}
+            onDoubleClick={(ev) =>
+              startCopyFieldEdit({ kind: "subheading" }, ev)
+            }
           >
             {copy.subheading}
           </p>
@@ -769,6 +847,7 @@ export function ProductShotPost({
             designBlock: "subheading",
           })
         );
+      }
       case "extras":
         if (layout.extrasPlacement !== "main") return null;
         {
@@ -1047,12 +1126,63 @@ export function ProductShotPost({
       onGenerateVisualBlocks &&
       !exporting &&
       (isPlaceholderFeatured || (isComposedFeatured && composedSlotEmpty));
+    const showDragHandle =
+      canDrag &&
+      slotShowFrame &&
+      !showEmptyPicker &&
+      (slotSelected ||
+        hoveredSlotId === slot.slotId ||
+        draggingSlotId === slot.slotId);
 
     return (
       <div
-        className={`social-post-product-viewport${viewportEditable ? " is-editable" : ""}${isGenuiFeatured ? " social-post-product-viewport--genui" : ""} ${selectableClassForFeatured(slot.slotId)}${viewportWidth != null ? " social-post-product-viewport--split" : ""}${slotSelected && hasPropertyPills ? " has-property-pills" : ""}`}
+        className={`social-post-product-viewport${viewportEditable ? " is-editable" : ""}${isGenuiFeatured ? " social-post-product-viewport--genui" : ""} ${selectableClassForFeatured(slot.slotId)}${viewportWidth != null ? " social-post-product-viewport--split" : ""}${slotSelected && hasPropertyPills ? " has-property-pills" : ""}${draggingSlotId === slot.slotId ? " is-dragging-featured" : ""}${dropTargetSlotId === slot.slotId ? " is-drop-target" : ""}`}
         data-canvas-select={selectId}
         onPointerDown={(ev) => handleCanvasSelect(selectId, ev)}
+        onPointerEnter={() => {
+          if (canDrag && slotShowFrame && !showEmptyPicker) {
+            setHoveredSlotId(slot.slotId);
+          }
+        }}
+        onPointerLeave={() => {
+          if (draggingSlotId !== slot.slotId) {
+            setHoveredSlotId((current) =>
+              current === slot.slotId ? null : current,
+            );
+          }
+        }}
+        onDragOver={(ev) => {
+          if (!interactive || exporting || !onUploadFeaturedImage) return;
+          if (![...ev.dataTransfer.types].includes("Files")) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          ev.dataTransfer.dropEffect = "copy";
+          setDropTargetSlotId(slot.slotId);
+        }}
+        onDragLeave={(ev) => {
+          if (ev.currentTarget.contains(ev.relatedTarget as Node)) return;
+          setDropTargetSlotId((current) =>
+            current === slot.slotId ? null : current,
+          );
+        }}
+        onDrop={(ev) => {
+          if (!interactive || exporting || !onUploadFeaturedImage) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          setDropTargetSlotId(null);
+          const file = imageFileFromDataTransfer(ev.dataTransfer);
+          if (file) onUploadFeaturedImage(file, slot.slotId);
+        }}
+        onPaste={(ev) => {
+          if (!interactive || exporting || !onUploadFeaturedImage) return;
+          if (!slotSelected) return;
+          const file = imageFileFromDataTransfer(ev.clipboardData);
+          if (!file) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          onUploadFeaturedImage(file, slot.slotId);
+        }}
+        tabIndex={slotSelected ? 0 : undefined}
         style={
           {
             height: viewportHeight,
@@ -1077,6 +1207,16 @@ export function ProductShotPost({
             selection={selectId}
             enabled
             typeScale={typeScale}
+            featuredScale={slotTransform.scale}
+            onFeaturedScaleChange={
+              onFeaturedTransformChange
+                ? (scale) =>
+                    onFeaturedTransformChange(
+                      { ...slotTransform, scale },
+                      slot.slotId,
+                    )
+                : undefined
+            }
             featuredSlotIndex={slotMeta?.index ?? 0}
             featuredSlotCount={slotMeta?.total ?? 1}
             featuredSlotHasVisual={Boolean(slotBlock || slotComposedMarkup)}
@@ -1122,16 +1262,6 @@ export function ProductShotPost({
               style={featuredFrameRadius}
               data-design-block={slot.slotId === "featured-primary" ? "featured" : undefined}
               data-canvas-select={slot.slotId === "featured-primary" ? "featured" : undefined}
-              onPointerEnter={() => {
-                if (canDrag) setHoveredSlotId(slot.slotId);
-              }}
-              onPointerLeave={() => {
-                if (draggingSlotId !== slot.slotId) {
-                  setHoveredSlotId((current) =>
-                    current === slot.slotId ? null : current,
-                  );
-                }
-              }}
             >
               <div
                 className={`social-post-product-inner social-post-product-inner--composed${draggingSlotId === slot.slotId ? " is-dragging" : ""}`}
@@ -1150,14 +1280,6 @@ export function ProductShotPost({
                   <FeaturedImageContent imageSrc={null} svgMarkup={slotComposedMarkup} />
                 )}
               </div>
-              {renderFeaturedDragHandle(
-                slotSelected ||
-                  hoveredSlotId === slot.slotId ||
-                  draggingSlotId === slot.slotId,
-                slot,
-                viewportHeight,
-                viewportWidth,
-              )}
             </div>
           ) : isGenuiFeatured ? (
             <div
@@ -1165,26 +1287,8 @@ export function ProductShotPost({
               style={featuredFrameRadius}
               data-design-block={slot.slotId === "featured-primary" ? "featured" : undefined}
               data-canvas-select={slot.slotId === "featured-primary" ? "featured" : undefined}
-              onPointerEnter={() => {
-                if (canDrag) setHoveredSlotId(slot.slotId);
-              }}
-              onPointerLeave={() => {
-                if (draggingSlotId !== slot.slotId) {
-                  setHoveredSlotId((current) =>
-                    current === slot.slotId ? null : current,
-                  );
-                }
-              }}
             >
               <ProductPreview page={slotProductPage} frameWidth={slotNativeWidth} />
-              {renderFeaturedDragHandle(
-                slotSelected ||
-                  hoveredSlotId === slot.slotId ||
-                  draggingSlotId === slot.slotId,
-                slot,
-                viewportHeight,
-                viewportWidth,
-              )}
             </div>
           ) : (
             <div
@@ -1192,16 +1296,6 @@ export function ProductShotPost({
               style={featuredFrameRadius}
               data-design-block={slot.slotId === "featured-primary" ? "featured" : undefined}
               data-canvas-select={slot.slotId === "featured-primary" ? "featured" : undefined}
-              onPointerEnter={() => {
-                if (canDrag) setHoveredSlotId(slot.slotId);
-              }}
-              onPointerLeave={() => {
-                if (draggingSlotId !== slot.slotId) {
-                  setHoveredSlotId((current) =>
-                    current === slot.slotId ? null : current,
-                  );
-                }
-              }}
             >
               <div className="social-post-product-inner social-post-product-inner--image">
                 <FeaturedImageContent
@@ -1209,15 +1303,6 @@ export function ProductShotPost({
                   svgMarkup={featuredSvgMarkup ?? null}
                 />
               </div>
-
-              {renderFeaturedDragHandle(
-                slotSelected ||
-                  hoveredSlotId === slot.slotId ||
-                  draggingSlotId === slot.slotId,
-                slot,
-                viewportHeight,
-                viewportWidth,
-              )}
             </div>
           )
         ) : (
@@ -1227,6 +1312,12 @@ export function ProductShotPost({
           >
             <CanvasSlot variant="image" className="social-post-image-slot" />
           </div>
+        )}
+        {renderFeaturedDragHandle(
+          showDragHandle,
+          slot,
+          viewportHeight,
+          viewportWidth,
         )}
       </div>
     );
@@ -1245,7 +1336,7 @@ export function ProductShotPost({
           {
             height: viewportHeight,
             "--featured-add-slot-size": `${size}px`,
-            "--featured-add-slot-gap": `${Math.max(6, Math.round(8 * canvasScale))}px`,
+            "--featured-add-slot-gap": `${Math.max(6, featuredSlotGapPx)}px`,
           } as React.CSSProperties
         }
         aria-hidden={!visible}
@@ -1287,7 +1378,10 @@ export function ProductShotPost({
       canvasSelectionKind(canvasSelection) === "featured";
     const showAddControl =
       canAdd && (featuredZoneHovered || featuredSelected);
-    const gap = Math.max(6, Math.round(8 * canvasScale));
+    const gap = Math.max(
+      showSpacingHandles ? 6 : 0,
+      featuredSlotGapPx,
+    );
 
     if (slots.length <= 1 && !canAdd) {
       return renderFeaturedViewport(viewportHeight, viewportWidth, slots[0], {
@@ -1298,7 +1392,7 @@ export function ProductShotPost({
 
     const gaps = gap * Math.max(0, slots.length - 1);
     const availableWidth =
-      viewportWidth != null && !canAdd
+      viewportWidth != null
         ? Math.max(0, viewportWidth - gaps)
         : undefined;
     const eachWidth =
@@ -1306,10 +1400,10 @@ export function ProductShotPost({
 
     return (
       <div
-        className="social-post-featured-slots relative flex w-full flex-row items-stretch"
+        className={`social-post-featured-slots relative flex w-full flex-row items-stretch${showSpacingHandles ? " has-spacing-handles" : ""}`}
         style={{
           height: viewportHeight,
-          gap: canAdd ? 0 : gap,
+          gap: 0,
           ...(viewportWidth != null ? { width: viewportWidth } : {}),
         }}
         onPointerEnter={() => {
@@ -1318,25 +1412,44 @@ export function ProductShotPost({
         onPointerLeave={() => setFeaturedZoneHovered(false)}
       >
         {slots.map((slot, index) => (
-          <div
-            key={slot.slotId}
-            className="social-post-featured-slot-cell min-w-0"
-            style={
-              eachWidth != null
-                ? { width: eachWidth, flex: "0 0 auto" }
-                : {
-                    flex: "1 1 0",
-                    minWidth: 0,
-                    marginRight:
-                      canAdd && index < slots.length - 1 ? gap : undefined,
-                  }
-            }
-          >
-            {renderFeaturedViewport(viewportHeight, undefined, slot, {
-              index,
-              total: slots.length,
-            })}
-          </div>
+          <Fragment key={slot.slotId}>
+            {index > 0 ? (
+              <div
+                className="spacing-zone spacing-zone--slot-gap"
+                style={{
+                  width: gap,
+                  height: viewportHeight,
+                }}
+              >
+                {showSpacingHandles ? (
+                  <SpacingHandle
+                    kind="gap"
+                    variant="between-column"
+                    token={spacing.featuredSlotGap}
+                    onTokenChange={(t) =>
+                      setSpacingToken("featuredSlotGap", t)
+                    }
+                    previewScale={previewScale}
+                    ariaLabel="Space between visual slots"
+                    {...spacingHistoryCoalesce}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+            <div
+              className="social-post-featured-slot-cell min-w-0"
+              style={
+                eachWidth != null
+                  ? { width: eachWidth, flex: "0 0 auto" }
+                  : { flex: "1 1 0", minWidth: 0 }
+              }
+            >
+              {renderFeaturedViewport(viewportHeight, undefined, slot, {
+                index,
+                total: slots.length,
+              })}
+            </div>
+          </Fragment>
         ))}
         {canAdd
           ? renderAddFeaturedSlotControl(viewportHeight, showAddControl)
@@ -1347,6 +1460,7 @@ export function ProductShotPost({
 
   return (
     <div
+      ref={postRootRef}
       className={`social-post ${
         emptyStatePreview
           ? "social-post--preview-empty"
@@ -1356,12 +1470,34 @@ export function ProductShotPost({
       } social-post--product${hasPropertyPills ? " has-property-pills" : ""}`}
       style={surfaceStyle}
       onPointerDown={() => {
-        if (interactive) {
+        if (interactive && !editingCopyField) {
           if (designMode) onSelectBlock?.(null);
           onCanvasSelect?.(null);
         }
       }}
     >
+      {copyEditAnchor &&
+      editingCopyField &&
+      onCopyFieldChange &&
+      onCopyFieldCommit &&
+      onCopyFieldCancel ? (
+        <CanvasCopyEditor
+          anchor={copyEditAnchor}
+          value={
+            editingCopyField.kind === "heading"
+              ? copy.heading
+              : editingCopyField.kind === "subheading"
+                ? copy.subheading
+                : (copy.extraFields.find((f) => f.id === editingCopyField.id)
+                    ?.value ?? "")
+          }
+          multiline={editingCopyField.kind !== "heading"}
+          accentRich={editingCopyField.kind === "heading"}
+          onChange={(next) => onCopyFieldChange(editingCopyField, next)}
+          onCommit={onCopyFieldCommit}
+          onCancel={onCopyFieldCancel}
+        />
+      ) : null}
       {showPattern ? (
         <PostPattern
           pattern={pattern}

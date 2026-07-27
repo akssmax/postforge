@@ -389,3 +389,63 @@ export function parseAccentMarkup(text: string): Array<
   });
   return parts;
 }
+
+/** Visible text with [[accent]] brackets removed. */
+export function stripAccentMarkup(text: string): string {
+  return text.replace(/\[\[(.+?)\]\]/g, "$1");
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** HTML for a contentEditable overlay that preserves accent spans visually. */
+export function accentMarkupToEditorHtml(text: string): string {
+  return parseAccentMarkup(text)
+    .map((part) => {
+      if (part.type === "br") return "<br>";
+      if (part.type === "accent") {
+        return `<span data-accent="1">${escapeHtml(part.value)}</span>`;
+      }
+      return escapeHtml(part.value);
+    })
+    .join("");
+}
+
+/** Serialize a contentEditable root back to [[accent]] markup. */
+export function editorHtmlToAccentMarkup(root: HTMLElement): string {
+  const TEXT = 3;
+  const ELEMENT = 1;
+  const walk = (node: Node): string => {
+    if (node.nodeType === TEXT) {
+      return node.textContent ?? "";
+    }
+    if (node.nodeType !== ELEMENT) return "";
+    const el = node as HTMLElement;
+    const tag = el.tagName;
+    if (tag === "BR") return "\n";
+    if (el.dataset.accent === "1") {
+      const text = el.textContent ?? "";
+      return text ? `[[${text}]]` : "";
+    }
+    let out = "";
+    for (const child of Array.from(el.childNodes)) {
+      out += walk(child);
+    }
+    // Block-ish breaks when browsers insert divs on Enter
+    if ((tag === "DIV" || tag === "P") && out && !out.endsWith("\n")) {
+      return `${out}\n`;
+    }
+    return out;
+  };
+
+  let result = "";
+  for (const child of Array.from(root.childNodes)) {
+    result += walk(child);
+  }
+  return result.replace(/\n$/, "");
+}

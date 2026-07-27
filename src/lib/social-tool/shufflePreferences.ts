@@ -22,7 +22,7 @@ function storageKey(scopeId?: string | null): string {
 }
 
 function parsePreferences(raw: string | null): ShufflePreferences {
-  if (!raw) return DEFAULT_SHUFFLE_PREFERENCES;
+  if (!raw) return { ...DEFAULT_SHUFFLE_PREFERENCES };
   try {
     const parsed = JSON.parse(raw) as Partial<ShufflePreferences>;
     return {
@@ -34,16 +34,19 @@ function parsePreferences(raw: string | null): ShufflePreferences {
         parsed.featuredPosition ?? DEFAULT_SHUFFLE_PREFERENCES.featuredPosition,
     };
   } catch {
-    return DEFAULT_SHUFFLE_PREFERENCES;
+    return { ...DEFAULT_SHUFFLE_PREFERENCES };
   }
 }
 
 /** Load prefs for an artboard (`scopeId`) or the legacy global key. */
 export function loadShufflePreferences(scopeId?: string | null): ShufflePreferences {
-  if (typeof window === "undefined") return DEFAULT_SHUFFLE_PREFERENCES;
-  const scoped = scopeId ? localStorage.getItem(storageKey(scopeId)) : null;
-  if (scoped) return parsePreferences(scoped);
-  // First visit on a board: fall back to global defaults (not another board's toggles)
+  if (typeof window === "undefined") return { ...DEFAULT_SHUFFLE_PREFERENCES };
+  if (scopeId) {
+    const scoped = localStorage.getItem(storageKey(scopeId));
+    // New artboards start with everything on so shuffle explores fully.
+    if (!scoped) return { ...DEFAULT_SHUFFLE_PREFERENCES };
+    return parsePreferences(scoped);
+  }
   return parsePreferences(localStorage.getItem(GLOBAL_STORAGE_KEY));
 }
 
@@ -53,6 +56,11 @@ export function saveShufflePreferences(
 ): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(storageKey(scopeId), JSON.stringify(prefs));
+}
+
+/** Persist all-on shuffle toggles for a new design / variant artboard. */
+export function seedShufflePreferencesAllOn(scopeId: string): void {
+  saveShufflePreferences(withShuffleAll(true), scopeId);
 }
 
 export function isShuffleAllEnabled(prefs: ShufflePreferences): boolean {

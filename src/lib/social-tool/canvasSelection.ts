@@ -47,7 +47,9 @@ export function isCanvasSelectableTarget(target: EventTarget | null): boolean {
       target.closest(".social-featured-drag-handle") ||
       target.closest(".social-fi-chrome") ||
       target.closest(".spacing-handle") ||
-      target.closest(".canvas-property-pills"),
+      target.closest(".canvas-property-pills") ||
+      target.closest(".canvas-copy-editor") ||
+      target.closest("[data-copy-field]"),
   );
 }
 

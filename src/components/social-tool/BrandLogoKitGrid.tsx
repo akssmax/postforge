@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
-import { Button } from "@heroui/react";
+import { Button, Tooltip } from "@heroui/react";
 import {
   BRAND_LOGO_VARIANT_META,
   BRAND_LOGO_VARIANTS,
@@ -75,14 +75,24 @@ function LogoVariantCard({
           {record ? "Replace" : "Upload"}
         </Button>
         {record ? (
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label={`Remove ${meta.label} logo`}
-            onPress={() => void removeLogoVariant(variant)}
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
+          <Tooltip delay={500}>
+            <Tooltip.Trigger>
+              <Button
+                variant="outline"
+                size="sm"
+                isIconOnly
+                aria-label={`Remove ${meta.label} logo`}
+                onPress={() => void removeLogoVariant(variant)}
+              >
+                <Trash2 className="size-3.5" aria-hidden />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content placement="bottom" offset={8}>
+              <p className="layout-shuffle-tooltip-title">
+                Remove {meta.label} logo
+              </p>
+            </Tooltip.Content>
+          </Tooltip>
         ) : null}
       </div>
     </div>

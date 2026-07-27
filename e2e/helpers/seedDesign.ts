@@ -59,6 +59,7 @@ export async function seedReadyDesign(page: Page, options: SeedOptions) {
             textZonePadBottom: 5,
             logoCopyGap: 10,
             copyBlockGap: 4,
+            featuredSlotGap: 2,
             footerPad: 8,
             footerBlockGap: 2,
           },

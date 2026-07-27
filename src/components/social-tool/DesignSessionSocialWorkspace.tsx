@@ -12,13 +12,15 @@ import { ExportMenu } from "@/components/social-tool/ExportMenu";
 import { ExportProgressOverlay } from "@/components/social-tool/ExportProgressOverlay";
 import { CanvasPlatformPicker } from "@/components/social-tool/CanvasPlatformPicker";
 import { ContrastIssuesToggle } from "@/components/social-tool/ContrastIssuesToggle";
-import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
+import {
+  DEFAULT_FEATURED_TRANSFORM,
+  type FeaturedImageTransform,
+} from "@/components/social-tool/templates/ProductShotPost";
 import {
   getPlatform,
   type PlatformId,
   type PostCopy,
-} from "@/lib/social-tool/presets";
-import type { ExportFormat } from "@/lib/social-tool/exportPost";
+} from "@/lib/social-tool/presets";import type { ExportFormat } from "@/lib/social-tool/exportPost";
 import {
   buildCampaignSlug,
   exportArtboards,
@@ -56,8 +58,10 @@ import { loadDesignSession } from "@/lib/design/designSession";
 import {
   featuredSlotIdFromSelection,
   isCanvasSelectableTarget,
+  canvasSelectionKind,
   type CanvasSelectionId,
 } from "@/lib/social-tool/canvasSelection";
+import { imageFileFromDataTransfer } from "@/lib/social-tool/featuredImageDrop";
 import {
   FEATURED_PRIMARY_SLOT_ID,
   ensureFeaturedSlots,
@@ -107,7 +111,9 @@ import {
 } from "@/lib/llm/services/spreadCopyPatch";
 import { recordHistorySnapshot } from "@/lib/design/useDesignHistory";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
+import { pickCopyVariantByDelta } from "@/lib/social-tool/shuffleCopy";
 import { VariantPicker } from "@/components/social-tool/VariantPicker";
+import { EditorShortcutsPopover } from "@/components/social-tool/EditorShortcutsPopover";
 
 type Props = {
   designId: string;
@@ -148,6 +154,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   );
   const [asideTab, setAsideTab] = useState<AsideTab>("chat");
   const [asideCollapsed, setAsideCollapsed] = useState(false);
+  const [editingCopyField, setEditingCopyField] = useState<
+    import("@/lib/social-tool/copyEdit").EditingCopyField | null
+  >(null);
+  const copyEditBaselineRef = useRef<string>("");
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const reduceMotion = useReducedMotion();
   const asideTransition = reduceMotion ? { duration: 0 } : asidePanelSpring;
 
@@ -197,37 +208,165 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         tag === "INPUT" ||
         tag === "TEXTAREA" ||
         tag === "SELECT" ||
-        !!target.closest("[contenteditable='true']")
+        !!target.closest("[contenteditable='true']") ||
+        !!target.closest(".canvas-copy-editor")
       );
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (shortcutsOpen) {
+          setShortcutsOpen(false);
+          return;
+        }
         clearInspectorSelection();
         return;
       }
 
       if (isEditableTarget(e.target)) return;
-      const mod = e.metaKey || e.ctrlKey;
-      if (!mod) return;
 
-      if (e.code === "KeyZ" && !e.shiftKey && !e.altKey) {
-        e.preventDefault();
-        undoRef.current();
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod) {
+        if (e.code === "KeyZ" && !e.shiftKey && !e.altKey) {
+          e.preventDefault();
+          undoRef.current();
+          return;
+        }
+        if (
+          (e.code === "KeyZ" && e.shiftKey && !e.altKey) ||
+          (e.code === "KeyY" && !e.shiftKey && !e.altKey)
+        ) {
+          e.preventDefault();
+          redoRef.current();
+        }
         return;
       }
+
+      if (e.altKey) return;
+
+      if (e.key === "?" || (e.shiftKey && e.key === "/")) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
+
+      if (!isReady || exporting) return;
+
+      const selectionKind = canvasSelectionKind(canvasSelection);
+
       if (
-        (e.code === "KeyZ" && e.shiftKey && !e.altKey) ||
-        (e.code === "KeyY" && !e.shiftKey && !e.altKey)
+        (e.key === "[" || e.key === "]") &&
+        selectionKind === "copy" &&
+        !editingCopyField &&
+        (doc.copyVariants?.length ?? 0) > 1
       ) {
         e.preventDefault();
-        redoRef.current();
+        cycleCopyVariant(e.key === "]" ? 1 : -1);
+        return;
+      }
+
+      if (e.key === "Enter" && selectionKind === "copy" && !editingCopyField) {
+        e.preventDefault();
+        handleCopyFieldEditStart({ kind: "heading" });
+        return;
+      }
+
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectionKind === "featured"
+      ) {
+        e.preventDefault();
+        const slotId =
+          featuredSlotIdFromSelection(canvasSelection) ??
+          FEATURED_PRIMARY_SLOT_ID;
+        session.removeFeaturedVisualSlot(slotId);
+        if (slotId !== FEATURED_PRIMARY_SLOT_ID) {
+          handleCanvasSelect("featured");
+        }
+        return;
+      }
+
+      if (
+        selectionKind === "featured" &&
+        (e.key === "ArrowLeft" ||
+          e.key === "ArrowRight" ||
+          e.key === "ArrowUp" ||
+          e.key === "ArrowDown")
+      ) {
+        e.preventDefault();
+        const slotId =
+          featuredSlotIdFromSelection(canvasSelection) ??
+          FEATURED_PRIMARY_SLOT_ID;
+        const slots = ensureFeaturedSlots(doc.featuredSlots, {
+          mode: session.featured.mode,
+          visible: doc.showFeaturedImage,
+          activeBlockId: session.featured.activeBlockId,
+          transform: doc.featuredTransform,
+        });
+        const slot = findFeaturedSlot(slots, slotId);
+        const base =
+          slot?.transform ?? doc.featuredTransform ?? DEFAULT_FEATURED_TRANSFORM;
+        const step = e.shiftKey ? 5 : 2;
+        const next: FeaturedImageTransform = {
+          ...base,
+          x:
+            e.key === "ArrowLeft"
+              ? Math.max(-100, base.x - step)
+              : e.key === "ArrowRight"
+                ? Math.min(100, base.x + step)
+                : base.x,
+          y:
+            e.key === "ArrowUp"
+              ? Math.max(-100, base.y - step)
+              : e.key === "ArrowDown"
+                ? Math.min(100, base.y + step)
+                : base.y,
+        };
+        handleFeaturedTransformChange(next, slotId);
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+    // Handlers close over latest doc/session; keep deps aligned with shortcut inputs.
+  }, [
+    isReady,
+    exporting,
+    canvasSelection,
+    editingCopyField,
+    shortcutsOpen,
+    doc.copy,
+    doc.copyVariants,
+    doc.copyVariantIndex,
+    doc.layoutId,
+    doc.featuredSlots,
+    doc.featuredTransform,
+    doc.showFeaturedImage,
+    session,
+  ]);
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (!isReady || exporting) return;
+      if (canvasSelectionKind(canvasSelection) !== "featured") return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target instanceof HTMLElement &&
+        (target.closest("input, textarea, [contenteditable='true']") ||
+          target.closest(".canvas-copy-editor"))
+      ) {
+        return;
+      }
+      const file = imageFileFromDataTransfer(e.clipboardData);
+      if (!file) return;
+      e.preventDefault();
+      const slotId =
+        featuredSlotIdFromSelection(canvasSelection) ?? FEATURED_PRIMARY_SLOT_ID;
+      void session.uploadFeaturedImage(file, slotId);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [isReady, exporting, canvasSelection, session]);
 
   useEffect(() => {
     if (exporting || !session.ready) return;
@@ -237,6 +376,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
     const shouldCapture = isReady || !!session.kit.logo;
     if (!shouldCapture) return;
+    if (editingCopyField) return;
 
     if (thumbnailTimerRef.current) clearTimeout(thumbnailTimerRef.current);
     thumbnailTimerRef.current = setTimeout(() => {
@@ -259,12 +399,17 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     doc.showBackground,
     exporting,
     isReady,
+    editingCopyField,
     session.kit.logo,
     session.ready,
     session.session?.updatedAt,
   ]);
 
   function clearInspectorSelection() {
+    if (editingCopyField) {
+      session.endHistoryCoalesce("copy");
+      setEditingCopyField(null);
+    }
     setCanvasSelection(null);
     setSelectedBlock(null);
     setContrastPanelOpen(false);
@@ -425,10 +570,24 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     });
   }
 
-  /* Re-enable with artboard delete UI.
   async function handleDeleteBoard(boardId: string) {
     if (variantGroup.boards.length <= 1) return;
     if (boardId === originDesignId) return;
+
+    const board =
+      variantGroup.boards.find((b) => b.designId === boardId) ??
+      (session.session?.designId === boardId ? session.session : null);
+    const heading = board?.document.copy.heading?.trim() ?? "";
+    const hasVisual =
+      !!board &&
+      (board.featured.mode !== "placeholder" ||
+        !!board.featured.image ||
+        (board.featured.visualBlocks?.length ?? 0) > 0);
+    if (heading || hasVisual) {
+      if (!window.confirm("Delete this artboard? This cannot be undone.")) {
+        return;
+      }
+    }
 
     if (session.session) {
       variantGroup.syncBoard(session.session);
@@ -445,7 +604,18 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       requestAnimationFrame(() => handleActivateBoard(nextActiveId));
     }
   }
-  */
+
+  function handleDuplicateBoard(boardId: string) {
+    if (!variantGroup.canGenerateMore) return;
+    if (session.session?.designId === boardId) {
+      variantGroup.syncBoard(session.session);
+    }
+    const nextId = variantGroup.duplicateBoard(boardId);
+    if (!nextId) return;
+    setAdjustSpacing(false);
+    clearInspectorSelection();
+    requestAnimationFrame(() => handleActivateBoard(nextId));
+  }
 
   // Keys 1–7 select artboards 1–7 (matches switcher pills)
   useEffect(() => {
@@ -768,6 +938,72 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   function updateField<K extends keyof PostCopy>(key: K, value: PostCopy[K]) {
     patchDocument({ copy: { ...doc.copy, [key]: value } });
+  }
+
+  function cycleCopyVariant(delta: 1 | -1) {
+    const layout = getPostLayout(doc.layoutId);
+    const next = pickCopyVariantByDelta(
+      doc.copy,
+      layout,
+      doc.copyVariants,
+      doc.copyVariantIndex,
+      delta,
+    );
+    patchDocument({
+      copy: next.copy,
+      copyVariantIndex: next.nextIndex,
+      copyVariants: doc.copyVariants?.length ? doc.copyVariants : next.pool,
+    });
+  }
+
+  function readCopyFieldValue(
+    field: import("@/lib/social-tool/copyEdit").EditingCopyField,
+  ): string {
+    if (field.kind === "heading") return doc.copy.heading;
+    if (field.kind === "subheading") return doc.copy.subheading;
+    return doc.copy.extraFields.find((f) => f.id === field.id)?.value ?? "";
+  }
+
+  function handleCopyFieldEditStart(
+    field: import("@/lib/social-tool/copyEdit").EditingCopyField,
+  ) {
+    copyEditBaselineRef.current = readCopyFieldValue(field);
+    session.beginHistoryCoalesce("copy");
+    setAsideCollapsed(false);
+    setAsideTab("design");
+    setEditingCopyField(field);
+  }
+
+  function handleCopyFieldChange(
+    field: import("@/lib/social-tool/copyEdit").EditingCopyField,
+    value: string,
+  ) {
+    if (field.kind === "heading") {
+      updateField("heading", value);
+      return;
+    }
+    if (field.kind === "subheading") {
+      updateField("subheading", value);
+      return;
+    }
+    updateExtraField(field.id, value);
+  }
+
+  function handleCopyFieldCommit() {
+    session.endHistoryCoalesce("copy");
+    setEditingCopyField(null);
+  }
+
+  function handleCopyFieldCancel() {
+    const field = editingCopyField;
+    const baseline = copyEditBaselineRef.current;
+    if (field) {
+      if (field.kind === "heading") updateField("heading", baseline);
+      else if (field.kind === "subheading") updateField("subheading", baseline);
+      else updateExtraField(field.id, baseline);
+    }
+    session.endHistoryCoalesce("copy");
+    setEditingCopyField(null);
   }
 
   function addExtraField() {
@@ -1098,6 +1334,17 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             onSubFontChange={(v) => patchDocument({ subFont: v })}
             typeScale={doc.typeScale}
             onTypeScaleChange={(v) => patchDocument({ typeScale: v })}
+            copyVariantIndex={doc.copyVariantIndex ?? 0}
+            copyVariantCount={
+              doc.copyVariants && doc.copyVariants.length > 0
+                ? doc.copyVariants.length
+                : 0
+            }
+            onCycleCopyVariant={
+              doc.copyVariants && doc.copyVariants.length > 1
+                ? cycleCopyVariant
+                : undefined
+            }
             showBrand={doc.showBrand}
             onShowBrandChange={(v) => patchDocument({ showBrand: v })}
             logoScale={doc.logoScale}
@@ -1252,6 +1499,12 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               session.redo();
             }}
             historyLimitToast={session.historyLimitToast}
+            trailing={
+              <EditorShortcutsPopover
+                isOpen={shortcutsOpen}
+                onOpenChange={setShortcutsOpen}
+              />
+            }
           />
           <CanvasArtboardSwitcher
             boards={artboardSwitcherItems}
@@ -1326,6 +1579,20 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       onRenameArtboard={(name) => {
                         variantGroup.setBoardName(board.designId, name);
                       }}
+                      canDuplicateArtboard={
+                        isReady && variantGroup.canGenerateMore
+                      }
+                      onDuplicateArtboard={() =>
+                        handleDuplicateBoard(board.designId)
+                      }
+                      canDeleteArtboard={
+                        isReady &&
+                        !isOrigin &&
+                        variantGroup.boards.length > 1
+                      }
+                      onDeleteArtboard={() => {
+                        void handleDeleteBoard(board.designId);
+                      }}
                       onShuffle={(prefs) => {
                         void shuffleBoard(board.designId, prefs);
                       }}
@@ -1361,6 +1628,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       onFeaturedTransformChange={handleFeaturedTransformChange}
                       onHistoryCoalesceBegin={session.beginHistoryCoalesce}
                       onHistoryCoalesceEnd={session.endHistoryCoalesce}
+                      editingCopyField={editingCopyField}
+                      onCopyFieldEditStart={handleCopyFieldEditStart}
+                      onCopyFieldChange={handleCopyFieldChange}
+                      onCopyFieldCommit={handleCopyFieldCommit}
+                      onCopyFieldCancel={handleCopyFieldCancel}
                       onSpacingChange={(v) =>
                         patchDocument({ layoutSpacing: v })
                       }
@@ -1398,6 +1670,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       }}
                       onShuffleFeaturedSlot={(slotId) =>
                         void session.shuffleFeaturedVisualBlock({ slotId })
+                      }
+                      onUploadFeaturedImage={(file, slotId) =>
+                        void session.uploadFeaturedImage(file, slotId)
                       }
                       generatingVisualBlocks={session.generatingVisualBlocks}
                       canvasRef={isActive ? canvasRef : undefined}

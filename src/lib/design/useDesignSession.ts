@@ -49,11 +49,13 @@ import type {
 } from "@/lib/brand/types";
 import {
   createBlankSession,
+  designSessionStorageKey,
   loadDesignSession,
   saveDesignSession,
   scopedBlobKey,
 } from "@/lib/design/designSession";
 import { designRepository, isMeaningfulSession } from "@/lib/design/repository";
+import { seedShufflePreferencesAllOn } from "@/lib/social-tool/shufflePreferences";
 import type {
   DesignDocument,
   DesignOnboardingPhase,
@@ -341,6 +343,9 @@ export function useDesignSession(
     async function init() {
       try {
         const seed = getSeedSessionRef.current?.();
+        const hadStoredSession =
+          typeof window !== "undefined" &&
+          !!localStorage.getItem(designSessionStorageKey(designId));
         const loaded =
           seed?.designId === designId
             ? seed
@@ -350,6 +355,10 @@ export function useDesignSession(
           designId,
           document: repairDesignDocument(loaded.document),
         };
+        // First visit to a new design: enable every shuffle toggle by default.
+        if (!hadStoredSession && seed?.designId !== designId) {
+          seedShufflePreferencesAllOn(designId);
+        }
         // Keep storage aligned with the hydrated snapshot
         saveDesignSession(next);
 

@@ -16,7 +16,8 @@ type HandleVariant =
   | "edge-top"
   | "edge-left"
   | "edge-right"
-  | "between";
+  | "between"
+  | "between-column";
 
 type Props = {
   kind: HandleKind;
@@ -35,7 +36,11 @@ type Props = {
 };
 
 function isHorizontalVariant(variant: HandleVariant): boolean {
-  return variant === "edge-left" || variant === "edge-right";
+  return (
+    variant === "edge-left" ||
+    variant === "edge-right" ||
+    variant === "between-column"
+  );
 }
 
 export function SpacingHandle({
@@ -80,8 +85,9 @@ export function SpacingHandle({
     if (horizontal) {
       const deltaX = ev.clientX - drag.startX;
       // Left: drag inward (right) increases pad; right: drag inward (left) increases pad
+      // Column gap: drag right increases
       const signed =
-        variant === "edge-left" ? deltaX : -deltaX;
+        variant === "edge-right" ? -deltaX : deltaX;
       steps = dragPxToTokenSteps(signed, pxPerStep);
     } else {
       const deltaY = ev.clientY - drag.startY;
@@ -133,13 +139,19 @@ export function SpacingHandle({
           if (ev.key === "ArrowLeft") {
             ev.preventDefault();
             onTokenChange(
-              stepSpacingToken(token, variant === "edge-left" ? -1 : 1),
+              stepSpacingToken(
+                token,
+                variant === "edge-right" ? 1 : -1,
+              ),
             );
           }
           if (ev.key === "ArrowRight") {
             ev.preventDefault();
             onTokenChange(
-              stepSpacingToken(token, variant === "edge-left" ? 1 : -1),
+              stepSpacingToken(
+                token,
+                variant === "edge-right" ? -1 : 1,
+              ),
             );
           }
           return;

@@ -113,6 +113,7 @@ export const designSnapshotSchema = z.object({
     textZonePadBottom: spacingTokenSchema,
     logoCopyGap: spacingTokenSchema,
     copyBlockGap: spacingTokenSchema,
+    featuredSlotGap: spacingTokenSchema,
     footerPad: spacingTokenSchema,
     footerBlockGap: spacingTokenSchema,
   }),

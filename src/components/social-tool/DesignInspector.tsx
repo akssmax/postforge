@@ -109,6 +109,9 @@ type Props = {
   onSubFontChange: (value: SocialFontId) => void;
   typeScale: number;
   onTypeScaleChange: (value: number) => void;
+  copyVariantIndex?: number;
+  copyVariantCount?: number;
+  onCycleCopyVariant?: (delta: 1 | -1) => void;
   showBrand: boolean;
   onShowBrandChange: (value: boolean) => void;
   logoScale: number;
@@ -410,6 +413,9 @@ function ReadyDesignPanels(props: Props) {
           onSubFontChange={props.onSubFontChange}
           typeScale={props.typeScale}
           onTypeScaleChange={props.onTypeScaleChange}
+          copyVariantIndex={props.copyVariantIndex}
+          copyVariantCount={props.copyVariantCount}
+          onCycleCopyVariant={props.onCycleCopyVariant}
         />
         <FixedCanvasPanels {...props} compact />
       </>

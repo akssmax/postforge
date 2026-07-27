@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { DesignSessionPersisted } from "@/lib/design/types";
+import { createDesignId } from "@/lib/design/ids";
 import {
+  cloneDesignSession,
   createEmptyVariantGroup,
   loadBoardSessions,
   loadVariantGroup,
@@ -18,6 +20,7 @@ import {
   nextVariantBatchSize,
   type GenerateVariantsPhase,
 } from "@/lib/social-tool/generateDesignVariants";
+import { seedShufflePreferencesAllOn } from "@/lib/social-tool/shufflePreferences";
 
 export type UseDesignVariantGroupResult = {
   group: DesignVariantGroup;
@@ -33,6 +36,8 @@ export type UseDesignVariantGroupResult = {
   setBoardName: (designId: string, name: string) => void;
   /** Delete a non-origin variant board. Returns the next active board id. */
   removeBoard: (designId: string) => Promise<string | null>;
+  /** Clone a board and append it next to the source. Returns the new board id. */
+  duplicateBoard: (sourceDesignId: string) => string | null;
   syncBoard: (session: DesignSessionPersisted) => void;
   generateVariants: (originSession: DesignSessionPersisted) => Promise<void>;
   patchBoardDocument: (
@@ -95,6 +100,57 @@ export function useDesignVariantGroup(
       return nextActiveId;
     },
     [originDesignId],
+  );
+
+  const duplicateBoard = useCallback(
+    (sourceDesignId: string): string | null => {
+      if (boards.length >= MAX_VARIANT_BOARDS) return null;
+
+      const source =
+        boards.find((board) => board.designId === sourceDesignId) ?? null;
+      if (!source) return null;
+
+      const clone = cloneDesignSession(source, createDesignId());
+      persistBoardSession(clone);
+      seedShufflePreferencesAllOn(clone.designId);
+
+      setGroup((prev) => {
+        const insertAt = Math.max(0, prev.boardIds.indexOf(sourceDesignId) + 1);
+        const boardIds = [...prev.boardIds];
+        if (!boardIds.includes(sourceDesignId)) {
+          boardIds.push(clone.designId);
+        } else {
+          boardIds.splice(insertAt, 0, clone.designId);
+        }
+        const next: DesignVariantGroup = {
+          ...(prev.groupId ? prev : createEmptyVariantGroup(originDesignId)),
+          originDesignId,
+          boardIds,
+          activeDesignId: clone.designId,
+          boardNames: prev.boardNames,
+          updatedAt: Date.now(),
+        };
+        saveVariantGroup(next);
+        return next;
+      });
+
+      setBoards((prev) => {
+        const insertAt = Math.max(
+          0,
+          prev.findIndex((board) => board.designId === sourceDesignId) + 1,
+        );
+        const next = [...prev];
+        if (insertAt <= 0 || insertAt > next.length) {
+          next.push(clone);
+        } else {
+          next.splice(insertAt, 0, clone);
+        }
+        return next;
+      });
+      setPhase("ready");
+      return clone.designId;
+    },
+    [boards, originDesignId],
   );
 
   const syncBoard = useCallback((session: DesignSessionPersisted) => {
@@ -251,6 +307,7 @@ export function useDesignVariantGroup(
     setActiveDesignId,
     setBoardName,
     removeBoard,
+    duplicateBoard,
     syncBoard,
     generateVariants,
     patchBoardDocument,

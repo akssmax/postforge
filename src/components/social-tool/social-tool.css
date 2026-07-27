@@ -185,6 +185,54 @@
   padding: var(--sp-pad);
 }
 
+.social-post-headline.is-copy-editing,
+.social-post-sub.is-copy-editing,
+.social-post-extra.is-copy-editing {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.canvas-copy-editor {
+  position: fixed;
+  z-index: 80;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.canvas-copy-editor__input {
+  display: block;
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  outline: 1.5px solid color-mix(in oklab, var(--brand-500) 70%, white);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand-500) 16%, transparent);
+  resize: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  caret-color: var(--brand-500);
+}
+
+.canvas-copy-editor__input--rich {
+  white-space: pre-wrap;
+  text-wrap: balance;
+  cursor: text;
+}
+
+.canvas-copy-editor__input--rich:empty::before {
+  content: "";
+}
+
+.canvas-copy-editor__input--rich [data-accent="1"] {
+  color: var(--canvas-copy-accent, var(--brand-500));
+}
+
 .social-post-headline {
   margin: 0;
   font-family: var(--sp-heading-font, var(--sp-display-font));
@@ -1572,6 +1620,20 @@
   min-height: 6px;
 }
 
+.spacing-handle--between-column {
+  position: absolute;
+  inset: 0;
+  min-width: 6px;
+  cursor: ew-resize;
+}
+
+.spacing-zone--slot-gap {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: stretch;
+  min-width: 4px;
+}
+
 /* Top / bottom layout pad — fill the padding strips (easy grab target) */
 .spacing-handle--layout-pad-top {
   position: absolute;
@@ -1629,6 +1691,15 @@
   min-height: 3px;
   max-height: 3px;
   background: color-mix(in oklab, #c47a1a 88%, #0f1816);
+}
+
+.spacing-handle--gap.spacing-handle--between-column .spacing-handle-bar {
+  width: 3px;
+  min-width: 3px;
+  max-width: 3px;
+  height: min(140px, 38%);
+  min-height: 24px;
+  max-height: none;
 }
 
 /* Padding edge handles — horizontal bar on the strip */
@@ -1753,6 +1824,13 @@
   perspective-origin: 50% 0%;
 }
 
+.social-post-product-viewport.is-drop-target {
+  outline: calc(2px / var(--canvas-preview-scale, 1)) dashed
+    color-mix(in oklab, var(--brand-500) 75%, white);
+  outline-offset: calc(-4px / var(--canvas-preview-scale, 1));
+  background: color-mix(in oklab, var(--brand-500) 12%, transparent);
+}
+
 .social-post-product-viewport.is-editable {
   pointer-events: auto;
 }
@@ -1836,7 +1914,7 @@
   will-change: transform;
 }
 
-.social-post-product-inner--genui.is-dragging .social-featured-drag-handle {
+.social-post-product-inner--genui.is-dragging {
   cursor: grabbing;
 }
 
@@ -1879,17 +1957,19 @@
 
 .social-featured-drag-handle {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 10;
+  /* Slot chrome — not inside the transformed frame, so scale/pan don't displace it. */
+  top: calc(10px / var(--canvas-preview-scale, 1));
+  left: calc(10px / var(--canvas-preview-scale, 1));
+  z-index: 30;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: calc(28px / var(--canvas-preview-scale, 1));
+  height: calc(28px / var(--canvas-preview-scale, 1));
   padding: 0;
-  border-radius: 8px;
-  border: 1px solid color-mix(in oklab, var(--brand-500) 40%, transparent);
+  border-radius: calc(8px / var(--canvas-preview-scale, 1));
+  border: calc(1px / var(--canvas-preview-scale, 1)) solid
+    color-mix(in oklab, var(--brand-500) 40%, transparent);
   background: color-mix(in oklab, var(--surface-primary, #fff) 92%, transparent);
   color: color-mix(in oklab, var(--brand-500) 88%, var(--gray-950));
   box-shadow:
@@ -1900,11 +1980,17 @@
   pointer-events: auto;
 }
 
+.social-featured-drag-handle svg {
+  width: calc(14px / var(--canvas-preview-scale, 1));
+  height: calc(14px / var(--canvas-preview-scale, 1));
+}
+
 .social-featured-drag-handle.is-dragging,
 .social-featured-drag-handle:active {
   cursor: grabbing;
 }
 
+.social-post-product-viewport.is-dragging-featured .social-featured-drag-handle,
 .social-post-product-frame.is-dragging .social-featured-drag-handle {
   cursor: grabbing;
 }
@@ -1952,12 +2038,142 @@ html:has(.social-tool) body {
   flex-shrink: 0;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 0.75rem 0.5rem 1rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid color-mix(in oklab, var(--leap-line) 70%, transparent);
   background: var(--surface-primary);
 }
 
+.social-tool-segment {
+  display: flex;
+  width: auto;
+  max-width: 100%;
+  gap: 0;
+  flex-direction: column;
+}
+
+.social-tool-segment .tabs__list-container {
+  background: transparent;
+  border-radius: 0.5rem;
+  width: auto;
+  max-width: 100%;
+}
+
+.social-tool-segment--icons .tabs__list-container {
+  background: var(--overlay-subtle);
+  border: 1px solid var(--overlay-border);
+  border-radius: 0.5rem;
+}
+
+.social-tool-segment--text .tabs__list-container {
+  width: 100%;
+  background: var(--overlay-subtle);
+  border: 1px solid var(--overlay-border);
+}
+
+.social-tool-segment .tabs__list-container__scroll-prev,
+.social-tool-segment .tabs__list-container__scroll-next {
+  display: none !important;
+}
+
+.social-tool-segment .tabs__list-container__scroller {
+  overflow: visible !important;
+}
+
+.social-tool-segment .tabs__list {
+  display: inline-flex;
+  width: auto;
+  min-width: 0;
+  padding: 0.125rem;
+  gap: 0;
+}
+
+.social-tool-segment--text .tabs__list {
+  width: 100%;
+  min-width: 100%;
+}
+
+.social-tool-segment--icons .tabs__list {
+  padding: 0.15rem;
+  gap: 0.05rem;
+}
+
+.social-tool-segment .tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 2rem;
+  height: 2rem;
+  padding-inline: 0.45rem;
+  border-radius: 0.375rem;
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+.social-tool-segment__hit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.social-tool-segment--text .tabs__tab {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  padding-inline: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: 9999px;
+}
+
+.social-tool-segment--md .tabs__tab {
+  height: 2.25rem;
+}
+
+.social-tool-segment .tabs__tab[data-selected="true"] {
+  color: var(--brand-950);
+}
+
+.social-tool-segment--icons .tabs__tab[data-selected="true"] {
+  color: var(--text-primary);
+}
+
+.social-tool-segment .tabs__tab:not([data-selected="true"]):hover,
+.social-tool-segment .tabs__tab[data-hovered="true"]:not([data-selected="true"]) {
+  color: var(--text-primary);
+  opacity: 1;
+  background: transparent;
+}
+
+.social-tool-segment .tabs__indicator {
+  border-radius: 9999px;
+  background: var(--brand-500);
+  box-shadow: none;
+}
+
+.social-tool-segment--icons .tabs__indicator {
+  border-radius: 0.375rem;
+  background: var(--surface-primary);
+  border: 1px solid var(--overlay-border);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--gray-950) 8%, transparent);
+}
+
+.social-tool-segment .tabs__panel {
+  display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+.social-tool-segment--text {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .social-tool-aside-tabs__segment {
+  flex: 1 1 auto;
   width: auto;
   min-width: 0;
 }
@@ -1965,23 +2181,6 @@ html:has(.social-tool) body {
 .social-tool-aside-collapse-btn {
   background: var(--overlay-subtle) !important;
   border: 1px solid var(--overlay-border) !important;
-}
-
-.social-tool-segment--text {
-  background: var(--overlay-subtle);
-  border: 1px solid var(--overlay-border);
-  border-radius: 0.5rem;
-  padding: 0.125rem;
-}
-
-.social-tool-segment--text [data-slot="toggle-button"],
-.social-tool-segment--text button {
-  flex: 1;
-  justify-content: center;
-  min-height: 2rem;
-  padding-inline: 0.75rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
 }
 
 .social-tool-aside-design {
@@ -2320,20 +2519,6 @@ html:has(.social-tool) body {
   border: 0;
 }
 
-.social-tool-segment [data-selected="true"],
-.social-tool-segment [aria-checked="true"],
-.social-tool-segment [aria-pressed="true"] {
-  background-color: var(--brand-500);
-  color: var(--brand-950);
-}
-
-.social-tool-segment [data-selected="true"]:hover,
-.social-tool-segment [aria-checked="true"]:hover,
-.social-tool-segment [aria-pressed="true"]:hover {
-  background-color: color-mix(in oklab, var(--brand-500) 88%, var(--brand-950));
-  color: var(--brand-950);
-}
-
 .design-tool-header {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -2559,38 +2744,63 @@ html:has(.social-tool) body {
 }
 
 .social-post-featured-add-slot {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  z-index: 6;
   display: flex;
   align-items: stretch;
   justify-content: stretch;
-  align-self: stretch;
-  flex: 0 0 auto;
-  width: 0;
-  margin-left: 0;
+  box-sizing: border-box;
+  /* Padding keeps the hover hit-area continuous so pointerleave doesn't fire in the gap. */
+  width: calc(
+    var(--featured-add-slot-size, 56px) + var(--featured-add-slot-gap, 8px)
+  );
+  padding-left: var(--featured-add-slot-gap, 8px);
   opacity: 0;
-  overflow: hidden;
+  transform: translateX(-6px);
   pointer-events: none;
   transition:
-    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    margin-left 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 160ms ease;
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .social-post-featured-add-slot.is-visible {
-  width: var(--featured-add-slot-size, 56px);
-  margin-left: var(--featured-add-slot-gap, 8px);
   opacity: 1;
+  transform: translateX(0);
   pointer-events: auto;
+}
+
+/* Hang outside the featured row without clipping — only while shown (export omits this control). */
+.social-post:has(.social-post-featured-add-slot.is-visible),
+.canvas-preview-viewport:has(.social-post-featured-add-slot.is-visible) {
+  overflow: visible;
+}
+
+.social-post-featured-slots {
+  overflow: visible;
 }
 
 .social-post-featured-slot-cell {
   display: flex;
   min-width: 0;
   align-self: stretch;
-  transition: flex-basis 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .social-post-featured-slot-cell > .social-post-product-viewport {
   width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .social-post-featured-add-slot {
+    transition: opacity 120ms ease;
+    transform: none;
+  }
+
+  .social-post-featured-add-slot.is-visible {
+    transform: none;
+  }
 }
 
 .social-post-featured-add-slot__btn {
@@ -3498,11 +3708,67 @@ html:has(.social-tool) body {
   gap: 0.35rem;
 }
 
-.featured-image-upload-actions {
+.copy-variant-cycle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.copy-variant-cycle__label {
+  min-width: 2.5rem;
+  text-align: center;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.editor-shortcuts-popover {
+  min-width: 16rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.editor-shortcuts-popover__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.editor-shortcuts-popover__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.35rem;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.editor-shortcuts-popover__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.editor-shortcuts-popover__keys {
+  flex-shrink: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.editor-shortcuts-popover__action {
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+}
+
+.featured-image-upload-actions.is-drop-active {
+  border-color: color-mix(in oklab, var(--brand-500) 55%, transparent);
+  background: color-mix(in oklab, var(--brand-500) 10%, transparent);
 }
 
 .brand-color-grid {

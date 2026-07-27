@@ -6,8 +6,8 @@ import {
   ListBox,
   Select,
   Slider,
-  ToggleButton,
-  ToggleButtonGroup,
+  Tabs,
+  Tooltip,
 } from "@heroui/react";
 import type { LucideIcon } from "lucide-react";
 import { Lock } from "lucide-react";
@@ -26,7 +26,7 @@ type SegmentProps = {
   size?: "sm" | "md";
 };
 
-/** Figma-style icon segmented control (HeroUI ToggleButtonGroup). */
+/** Compact icon segmented control (HeroUI Tabs). */
 export function InspectorSegment({
   "aria-label": ariaLabel,
   value,
@@ -35,33 +35,44 @@ export function InspectorSegment({
   size = "sm",
 }: SegmentProps) {
   return (
-    <ToggleButtonGroup
-      aria-label={ariaLabel}
-      selectionMode="single"
-      disallowEmptySelection
-      size={size}
-      className="social-tool-segment"
-      selectedKeys={new Set([value])}
-      onSelectionChange={(keys) => {
-        const next = [...keys][0];
-        if (next != null) onChange(String(next));
+    <Tabs
+      selectedKey={value}
+      onSelectionChange={(key: Key) => {
+        if (key != null) onChange(String(key));
       }}
+      className={`social-tool-segment social-tool-segment--icons${
+        size === "md" ? " social-tool-segment--md" : ""
+      }`}
+      aria-label={ariaLabel}
     >
-      {options.map((opt, index) => {
-        const Icon = opt.icon;
-        return (
-          <ToggleButton
-            key={opt.id}
-            id={opt.id}
-            isIconOnly
-            aria-label={opt.label}
-          >
-            {index > 0 ? <ToggleButtonGroup.Separator /> : null}
-            <Icon className="size-3.5" />
-          </ToggleButton>
-        );
-      })}
-    </ToggleButtonGroup>
+      <Tabs.ListContainer>
+        <Tabs.List aria-label={ariaLabel}>
+          {options.map((opt) => {
+            const Icon = opt.icon;
+            return (
+              <Tabs.Tab key={opt.id} id={opt.id} aria-label={opt.label}>
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <span className="social-tool-segment__hit">
+                      <Icon className="size-3.5" aria-hidden />
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    <p className="layout-shuffle-tooltip-title">{opt.label}</p>
+                  </Tooltip.Content>
+                </Tooltip>
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            );
+          })}
+        </Tabs.List>
+      </Tabs.ListContainer>
+      {options.map((opt) => (
+        <Tabs.Panel key={opt.id} id={opt.id} className="sr-only">
+          {opt.label}
+        </Tabs.Panel>
+      ))}
+    </Tabs>
   );
 }
 
@@ -89,27 +100,37 @@ export function InspectorTextSegment({
   className,
 }: TextSegmentProps) {
   return (
-    <ToggleButtonGroup
-      aria-label={ariaLabel}
-      selectionMode="single"
-      disallowEmptySelection
-      size={size}
-      className={["social-tool-segment", "social-tool-segment--text", className]
+    <Tabs
+      selectedKey={value}
+      onSelectionChange={(key: Key) => {
+        if (key != null) onChange(String(key));
+      }}
+      className={[
+        "social-tool-segment",
+        "social-tool-segment--text",
+        size === "md" ? "social-tool-segment--md" : null,
+        className,
+      ]
         .filter(Boolean)
         .join(" ")}
-      selectedKeys={new Set([value])}
-      onSelectionChange={(keys) => {
-        const next = [...keys][0];
-        if (next != null) onChange(String(next));
-      }}
+      aria-label={ariaLabel}
     >
-      {options.map((opt, index) => (
-        <ToggleButton key={opt.id} id={opt.id}>
-          {index > 0 ? <ToggleButtonGroup.Separator /> : null}
+      <Tabs.ListContainer>
+        <Tabs.List aria-label={ariaLabel}>
+          {options.map((opt) => (
+            <Tabs.Tab key={opt.id} id={opt.id}>
+              {opt.label}
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+      </Tabs.ListContainer>
+      {options.map((opt) => (
+        <Tabs.Panel key={opt.id} id={opt.id} className="sr-only">
           {opt.label}
-        </ToggleButton>
+        </Tabs.Panel>
       ))}
-    </ToggleButtonGroup>
+    </Tabs>
   );
 }
 

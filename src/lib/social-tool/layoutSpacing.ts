@@ -31,6 +31,8 @@ export type PostLayoutSpacing = {
   logoCopyGap: SpacingToken;
   /** Gap between headline, subheading, and extras */
   copyBlockGap: SpacingToken;
+  /** Gap between multiple featured visual slots */
+  featuredSlotGap: SpacingToken;
   /** Footer strip vertical padding */
   footerPad: SpacingToken;
   /** Gap between footer logo and footer extras */
@@ -42,6 +44,7 @@ export const DEFAULT_POST_LAYOUT_SPACING: PostLayoutSpacing = {
   textZonePadBottom: 5,
   logoCopyGap: 10,
   copyBlockGap: 4,
+  featuredSlotGap: 2,
   footerPad: 8,
   footerBlockGap: 2,
 };
@@ -116,6 +119,7 @@ export function spacingToCssVars(
     "--sp-text-zone-pb": `${spacingTokenToPx(spacing.textZonePadBottom, canvasWidth, canvasHeight)}px`,
     "--sp-logo-copy-gap": `${spacingTokenToPx(spacing.logoCopyGap, canvasWidth, canvasHeight)}px`,
     "--sp-copy-block-gap": `${spacingTokenToPx(spacing.copyBlockGap, canvasWidth, canvasHeight)}px`,
+    "--sp-featured-slot-gap": `${spacingTokenToPx(spacing.featuredSlotGap, canvasWidth, canvasHeight)}px`,
     "--sp-footer-pad": `${spacingTokenToPx(spacing.footerPad, canvasWidth, canvasHeight)}px`,
     "--sp-footer-block-gap": `${spacingTokenToPx(spacing.footerBlockGap, canvasWidth, canvasHeight)}px`,
   };

@@ -13,7 +13,6 @@ import {
 import { Button, Label, Slider, Tooltip } from "@heroui/react";
 import {
   InspectorSegment,
-  InspectorSlider,
 } from "@/components/social-tool/InspectorControls";
 import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
 import {
@@ -31,6 +30,10 @@ const LOGO_SCALE_MIN = 0.5;
 const LOGO_SCALE_MAX = 3;
 const LOGO_SCALE_STEP = 0.05;
 
+const FEATURED_SCALE_MIN = 0.12;
+const FEATURED_SCALE_MAX = 4;
+const FEATURED_SCALE_STEP = 0.01;
+
 const ALIGN_OPTIONS = [
   { id: "left", label: "Left", icon: AlignLeft },
   { id: "center", label: "Center", icon: AlignCenter },
@@ -45,6 +48,53 @@ function PillSeparator() {
   return <span className="canvas-property-pill-separator" aria-hidden />;
 }
 
+function InlineScaleSection({
+  value,
+  onChange,
+  min,
+  max,
+  step,
+  ariaLabel,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  step: number;
+  ariaLabel: string;
+}) {
+  const safeScale = Number.isFinite(value) ? value : min;
+
+  return (
+    <div className="canvas-property-pill-section canvas-property-pill-section--scale">
+      <span className="canvas-property-pill-label">Scale</span>
+      <Slider
+        aria-label={ariaLabel}
+        className="canvas-property-pill-scale-slider"
+        minValue={min}
+        maxValue={max}
+        step={step}
+        value={safeScale}
+        onChange={(next) => {
+          const n = Array.isArray(next) ? next[0] : next;
+          if (typeof n === "number" && !Number.isNaN(n)) {
+            onChange(n);
+          }
+        }}
+      >
+        <Label className="sr-only">{ariaLabel}</Label>
+        <Slider.Track>
+          <Slider.Fill />
+          <Slider.Thumb />
+        </Slider.Track>
+      </Slider>
+      <span className="canvas-property-pill-value" aria-live="polite">
+        {formatScale(safeScale)}
+      </span>
+    </div>
+  );
+}
+
 function CopyTypographyPills({
   typeScale,
   onTypeScaleChange,
@@ -57,8 +107,6 @@ function CopyTypographyPills({
   onTextAlignChange?: (value: TextAlign) => void;
 }) {
   if (!onTextAlignChange && !onTypeScaleChange) return null;
-
-  const safeScale = Number.isFinite(typeScale) ? typeScale : TYPE_SCALE_MIN;
 
   return (
     <div
@@ -81,60 +129,15 @@ function CopyTypographyPills({
       {onTextAlignChange && onTypeScaleChange ? <PillSeparator /> : null}
 
       {onTypeScaleChange ? (
-        <div className="canvas-property-pill-section canvas-property-pill-section--scale">
-          <span className="canvas-property-pill-label">Scale</span>
-          <Slider
-            aria-label="Text scale"
-            className="canvas-property-pill-scale-slider"
-            minValue={TYPE_SCALE_MIN}
-            maxValue={TYPE_SCALE_MAX}
-            step={TYPE_SCALE_STEP}
-            value={safeScale}
-            onChange={(next) => {
-              const n = Array.isArray(next) ? next[0] : next;
-              if (typeof n === "number" && !Number.isNaN(n)) {
-                onTypeScaleChange(n);
-              }
-            }}
-          >
-            <Label className="sr-only">Text scale</Label>
-            <Slider.Track>
-              <Slider.Fill />
-              <Slider.Thumb />
-            </Slider.Track>
-          </Slider>
-          <span className="canvas-property-pill-value" aria-live="polite">
-            {formatScale(safeScale)}
-          </span>
-        </div>
+        <InlineScaleSection
+          value={typeScale}
+          onChange={onTypeScaleChange}
+          min={TYPE_SCALE_MIN}
+          max={TYPE_SCALE_MAX}
+          step={TYPE_SCALE_STEP}
+          ariaLabel="Text scale"
+        />
       ) : null}
-    </div>
-  );
-}
-
-function LogoScalePill({
-  logoScale,
-  onLogoScaleChange,
-}: {
-  logoScale: number;
-  onLogoScaleChange: (value: number) => void;
-}) {
-  return (
-    <div
-      className="canvas-property-pill canvas-property-pill--slider"
-      role="group"
-      aria-label="Logo scale"
-    >
-      <InspectorSlider
-        label="Scale"
-        value={logoScale}
-        onChange={onLogoScaleChange}
-        min={LOGO_SCALE_MIN}
-        max={LOGO_SCALE_MAX}
-        step={LOGO_SCALE_STEP}
-        format={formatScale}
-        aria-label="Logo scale"
-      />
     </div>
   );
 }
@@ -149,6 +152,8 @@ function FeaturedSlotsPill({
   onRemove,
   onAdd,
   slotHasVisual = true,
+  featuredScale = 1,
+  onFeaturedScaleChange,
 }: {
   slotId: string;
   index: number;
@@ -160,6 +165,8 @@ function FeaturedSlotsPill({
   onAdd?: () => void;
   /** When false on the sole slot, hide clear (nothing to delete). */
   slotHasVisual?: boolean;
+  featuredScale?: number;
+  onFeaturedScaleChange?: (value: number) => void;
 }) {
   const atStart = index <= 0;
   const atEnd = index >= count - 1;
@@ -173,11 +180,17 @@ function FeaturedSlotsPill({
   const showManage = canAdd || canRemove;
   const removeLabel = isSoleSlot ? "Clear visual" : "Remove visual slot";
   const removeTooltip = isSoleSlot ? "Clear visual" : "Remove slot";
+  const hasSlotControls = canShuffle || showOrder || canRemove || canAdd;
+  const showScale = !!onFeaturedScaleChange;
 
-  if (!canShuffle && !showOrder && !canRemove && !canAdd) return null;
+  if (!hasSlotControls && !showScale) return null;
 
   return (
-    <div className="canvas-property-pill" role="group" aria-label="Visual slots">
+    <div
+      className={`canvas-property-pill${showScale ? " canvas-property-pill--typography" : ""}`}
+      role="group"
+      aria-label="Visual slots"
+    >
       {canShuffle ? (
         <Tooltip delay={500}>
           <Tooltip.Trigger>
@@ -296,6 +309,19 @@ function FeaturedSlotsPill({
           </Tooltip.Content>
         </Tooltip>
       ) : null}
+
+      {showScale && hasSlotControls ? <PillSeparator /> : null}
+
+      {showScale ? (
+        <InlineScaleSection
+          value={featuredScale}
+          onChange={onFeaturedScaleChange}
+          min={FEATURED_SCALE_MIN}
+          max={FEATURED_SCALE_MAX}
+          step={FEATURED_SCALE_STEP}
+          ariaLabel="Visual scale"
+        />
+      ) : null}
     </div>
   );
 }
@@ -310,6 +336,8 @@ export type CanvasPropertyPillsProps = {
   onTextAlignChange?: (value: TextAlign) => void;
   logoScale?: number;
   onLogoScaleChange?: (value: number) => void;
+  featuredScale?: number;
+  onFeaturedScaleChange?: (value: number) => void;
   featuredSlotIndex?: number;
   featuredSlotCount?: number;
   featuredSlotHasVisual?: boolean;
@@ -322,7 +350,7 @@ export type CanvasPropertyPillsProps = {
 
 /**
  * Floating quick-edit pills near the selected canvas element.
- * Supports text scale/align, logo scale, and featured slot shuffle/add/reorder/remove.
+ * Supports text scale/align, logo scale, and featured slot scale/shuffle/add/reorder/remove.
  */
 export function CanvasPropertyPills({
   selection,
@@ -333,6 +361,8 @@ export function CanvasPropertyPills({
   onTextAlignChange,
   logoScale = 1,
   onLogoScaleChange,
+  featuredScale = 1,
+  onFeaturedScaleChange,
   featuredSlotIndex = 0,
   featuredSlotCount = 1,
   featuredSlotHasVisual = true,
@@ -369,17 +399,28 @@ export function CanvasPropertyPills({
         data-canvas-chrome="property-pills"
         onPointerDown={(ev) => ev.stopPropagation()}
       >
-        <LogoScalePill
-          logoScale={logoScale}
-          onLogoScaleChange={onLogoScaleChange}
-        />
+        <div
+          className="canvas-property-pill canvas-property-pill--typography"
+          role="group"
+          aria-label="Logo scale"
+        >
+          <InlineScaleSection
+            value={logoScale}
+            onChange={onLogoScaleChange}
+            min={LOGO_SCALE_MIN}
+            max={LOGO_SCALE_MAX}
+            step={LOGO_SCALE_STEP}
+            ariaLabel="Logo scale"
+          />
+        </div>
       </div>
     );
   }
 
   if (
     kind === "featured" &&
-    (onShuffleFeaturedSlot ||
+    (onFeaturedScaleChange ||
+      onShuffleFeaturedSlot ||
       onReorderFeaturedSlot ||
       onRemoveFeaturedSlot ||
       onAddFeaturedSlot)
@@ -402,6 +443,8 @@ export function CanvasPropertyPills({
           onReorder={onReorderFeaturedSlot}
           onRemove={onRemoveFeaturedSlot}
           onAdd={onAddFeaturedSlot}
+          featuredScale={featuredScale}
+          onFeaturedScaleChange={onFeaturedScaleChange}
         />
       </div>
     );

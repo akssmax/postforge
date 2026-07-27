@@ -413,6 +413,7 @@ export const LAYOUT_SPACING_LABELS: Record<keyof PostLayoutSpacing, string> = {
   textZonePadBottom: "Text zone bottom",
   logoCopyGap: "Logo → copy",
   copyBlockGap: "Copy blocks",
+  featuredSlotGap: "Visual slots",
   footerPad: "Footer padding",
   footerBlockGap: "Footer gap",
 };

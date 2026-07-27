@@ -9,6 +9,7 @@ import {
   ColorPicker,
   ColorSlider,
   ColorSwatch,
+  Tooltip,
 } from "@heroui/react";
 import { RotateCcw } from "lucide-react";
 import { Label } from "@heroui/react";
@@ -47,15 +48,21 @@ export function BrandColorPicker({
       <div className="brand-color-picker-head">
         <Label className="social-tool-label !mb-0">{label}</Label>
         {extracted && extracted !== value ? (
-          <button
-            type="button"
-            className="brand-color-reset"
-            onClick={onReset}
-            aria-label={`Reset ${label}`}
-            title="Reset to extracted"
-          >
-            <RotateCcw className="size-3.5" />
-          </button>
+          <Tooltip delay={500}>
+            <Tooltip.Trigger>
+              <button
+                type="button"
+                className="brand-color-reset"
+                onClick={onReset}
+                aria-label={`Reset ${label}`}
+              >
+                <RotateCcw className="size-3.5" aria-hidden />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content placement="bottom" offset={8}>
+              <p className="layout-shuffle-tooltip-title">Reset to extracted</p>
+            </Tooltip.Content>
+          </Tooltip>
         ) : null}
       </div>
 

@@ -58,10 +58,21 @@ export function pickNextCopyVariant(
   variants: CopyVariant[] | undefined,
   currentIndex: number | undefined,
 ): { copy: PostCopy; nextIndex: number; pool: CopyVariant[] } {
+  return pickCopyVariantByDelta(current, layout, variants, currentIndex, 1);
+}
+
+/** Step forward/back through the copy variant pool. */
+export function pickCopyVariantByDelta(
+  current: PostCopy,
+  layout: PostLayout,
+  variants: CopyVariant[] | undefined,
+  currentIndex: number | undefined,
+  delta: 1 | -1,
+): { copy: PostCopy; nextIndex: number; pool: CopyVariant[] } {
   const pool =
     variants && variants.length > 0 ? variants : [...FALLBACK_COPY_VARIANTS];
   const index = typeof currentIndex === "number" ? currentIndex : 0;
-  const nextIndex = (index + 1) % pool.length;
+  const nextIndex = (index + delta + pool.length * 8) % pool.length;
   const variant = pool[nextIndex] ?? pool[0]!;
 
   return {

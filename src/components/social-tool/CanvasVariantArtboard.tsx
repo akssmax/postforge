@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Copy, Trash2 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Button, Tooltip } from "@heroui/react";
 import {
   ProductShotPost,
   type FeaturedImageTransform,
@@ -49,9 +51,10 @@ type Props = {
   /** Custom artboard name; empty/undefined falls back to index label */
   artboardName?: string;
   onRenameArtboard?: (name: string) => void;
-  /** Re-enable when delete artboard UX is ready. */
-  // canDeleteArtboard?: boolean;
-  // onDeleteArtboard?: () => void;
+  canDeleteArtboard?: boolean;
+  onDeleteArtboard?: () => void;
+  canDuplicateArtboard?: boolean;
+  onDuplicateArtboard?: () => void;
   onShuffle: (prefs: ShufflePreferences) => void;
   onGenerateVariants: () => void;
   generatingVariants: boolean;
@@ -72,8 +75,18 @@ type Props = {
     t: FeaturedImageTransform,
     slotId?: string,
   ) => void;
-  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing") => void;
-  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing") => void;
+  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing" | "copy") => void;
+  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing" | "copy") => void;
+  editingCopyField?: import("@/lib/social-tool/copyEdit").EditingCopyField | null;
+  onCopyFieldEditStart?: (
+    field: import("@/lib/social-tool/copyEdit").EditingCopyField,
+  ) => void;
+  onCopyFieldChange?: (
+    field: import("@/lib/social-tool/copyEdit").EditingCopyField,
+    value: string,
+  ) => void;
+  onCopyFieldCommit?: () => void;
+  onCopyFieldCancel?: () => void;
   onSpacingChange?: (v: PostLayoutSpacing) => void;
   onSelectVisualBlock?: (blockId: string, slotId?: string) => void;
   onGenerateVisualBlocks?: (
@@ -84,6 +97,7 @@ type Props = {
   onReorderFeaturedSlot?: (slotId: string, direction: "left" | "right") => void;
   onRemoveFeaturedSlot?: (slotId: string) => void;
   onShuffleFeaturedSlot?: (slotId: string) => void;
+  onUploadFeaturedImage?: (file: File, slotId: string) => void;
   generatingVisualBlocks?: boolean;
   canvasRef?: React.Ref<HTMLDivElement>;
   viewportRef?: React.Ref<HTMLDivElement>;
@@ -107,8 +121,10 @@ export function CanvasVariantArtboard({
   onActivate,
   artboardName,
   onRenameArtboard,
-  // canDeleteArtboard = false,
-  // onDeleteArtboard,
+  canDeleteArtboard = false,
+  onDeleteArtboard,
+  canDuplicateArtboard = false,
+  onDuplicateArtboard,
   onShuffle,
   onGenerateVariants,
   generatingVariants,
@@ -127,6 +143,11 @@ export function CanvasVariantArtboard({
   onFeaturedTransformChange,
   onHistoryCoalesceBegin,
   onHistoryCoalesceEnd,
+  editingCopyField = null,
+  onCopyFieldEditStart,
+  onCopyFieldChange,
+  onCopyFieldCommit,
+  onCopyFieldCancel,
   onSpacingChange,
   onSelectVisualBlock,
   onGenerateVisualBlocks,
@@ -134,6 +155,7 @@ export function CanvasVariantArtboard({
   onReorderFeaturedSlot,
   onRemoveFeaturedSlot,
   onShuffleFeaturedSlot,
+  onUploadFeaturedImage,
   generatingVisualBlocks = false,
   canvasRef,
   viewportRef,
@@ -315,13 +337,57 @@ export function CanvasVariantArtboard({
               {displayLabel}
             </button>
           )}
-          {/* Delete artboard — hidden until we find a better placement.
-          {isActive && canDeleteArtboard && onDeleteArtboard ? (
+          {isActive && (canDuplicateArtboard || canDeleteArtboard) ? (
             <div className="canvas-artboard-label-actions">
-              ...
+              {canDuplicateArtboard && onDuplicateArtboard ? (
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      isIconOnly
+                      aria-label="Duplicate artboard"
+                      className="canvas-artboard-action-btn"
+                      onPress={() => {
+                        onActivate();
+                        onDuplicateArtboard();
+                      }}
+                    >
+                      <Copy className="size-3.5" strokeWidth={2.25} aria-hidden />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    <p className="layout-shuffle-tooltip-title">Duplicate</p>
+                    <p className="layout-shuffle-tooltip-body">
+                      Clone this artboard next to it
+                    </p>
+                  </Tooltip.Content>
+                </Tooltip>
+              ) : null}
+              {canDeleteArtboard && onDeleteArtboard ? (
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      isIconOnly
+                      aria-label="Delete artboard"
+                      className="canvas-artboard-action-btn canvas-artboard-action-btn--danger"
+                      onPress={onDeleteArtboard}
+                    >
+                      <Trash2 className="size-3.5" strokeWidth={2.25} aria-hidden />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    <p className="layout-shuffle-tooltip-title">Delete</p>
+                    <p className="layout-shuffle-tooltip-body">
+                      Remove this artboard from the set
+                    </p>
+                  </Tooltip.Content>
+                </Tooltip>
+              ) : null}
             </div>
           ) : null}
-          */}
         </div>
         <div className="canvas-preview-toolbar">
         <LayoutShuffleButton
@@ -416,6 +482,9 @@ export function CanvasVariantArtboard({
                 onShuffleFeaturedSlot={
                   isActive ? onShuffleFeaturedSlot : undefined
                 }
+                onUploadFeaturedImage={
+                  isActive ? onUploadFeaturedImage : undefined
+                }
                 featuredImageSrc={featuredImageSrc}
                 featuredSvgMarkup={board.featured.image?.svgMarkup ?? null}
                 hasFeaturedImage={!!board.featured.image}
@@ -438,6 +507,13 @@ export function CanvasVariantArtboard({
                 onHistoryCoalesceEnd={
                   isActive ? onHistoryCoalesceEnd : undefined
                 }
+                editingCopyField={isActive ? editingCopyField : null}
+                onCopyFieldEditStart={
+                  isActive ? onCopyFieldEditStart : undefined
+                }
+                onCopyFieldChange={isActive ? onCopyFieldChange : undefined}
+                onCopyFieldCommit={isActive ? onCopyFieldCommit : undefined}
+                onCopyFieldCancel={isActive ? onCopyFieldCancel : undefined}
                 previewScale={previewScale}
                 interactive={interactive && isActive}
                 textAlign={doc.textAlign}

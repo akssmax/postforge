@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ImagePlus, RotateCcw, Shuffle, Trash2 } from "lucide-react";
-import { Button, Switch } from "@heroui/react";
+import { Button, Switch, Tooltip } from "@heroui/react";
 import {
   InspectorSlider,
   InspectorTransformRow,
@@ -18,6 +18,7 @@ import {
   type FeaturedVisualKind,
 } from "@/lib/social-tool/featuredVisualKind";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
+import { imageFileFromDataTransfer } from "@/lib/social-tool/featuredImageDrop";
 
 type GenerateOptions = {
   pickFeatured?: boolean;
@@ -89,6 +90,7 @@ export function FeaturedBlockPanel({
   onFeaturedTransformChange,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [dropActive, setDropActive] = useState(false);
   const showImageUpload = mode === "image";
   const targetSlotId = selectedSlotId;
 
@@ -196,7 +198,25 @@ export function FeaturedBlockPanel({
             </Button>
           </div>
 
-          <div className="featured-image-upload-actions flex flex-wrap gap-2">
+          <div
+            className={`featured-image-upload-actions flex flex-wrap gap-2${dropActive ? " is-drop-active" : ""}`}
+            onDragOver={(ev) => {
+              if (![...ev.dataTransfer.types].includes("Files")) return;
+              ev.preventDefault();
+              ev.dataTransfer.dropEffect = "copy";
+              setDropActive(true);
+            }}
+            onDragLeave={(ev) => {
+              if (ev.currentTarget.contains(ev.relatedTarget as Node)) return;
+              setDropActive(false);
+            }}
+            onDrop={(ev) => {
+              ev.preventDefault();
+              setDropActive(false);
+              const file = imageFileFromDataTransfer(ev.dataTransfer);
+              if (file) void onUploadImage(file, targetSlotId);
+            }}
+          >
             <input
               ref={inputRef}
               type="file"
@@ -223,6 +243,9 @@ export function FeaturedBlockPanel({
                 Remove
               </Button>
             ) : null}
+            <p className="w-full text-[11px] text-text-tertiary">
+              Or drop / paste an image onto the canvas slot
+            </p>
           </div>
 
           {showImageUpload && image ? (
@@ -297,17 +320,27 @@ export function FeaturedBlockPanel({
                     },
                   ]}
                   action={
-                    <button
-                      type="button"
-                      className="social-transform-reset"
-                      aria-label="Reset transform"
-                      title="Reset transform"
-                      onClick={() =>
-                        onFeaturedTransformChange({ ...DEFAULT_FEATURED_TRANSFORM })
-                      }
-                    >
-                      <RotateCcw className="size-3.5" />
-                    </button>
+                    <Tooltip delay={500}>
+                      <Tooltip.Trigger>
+                        <button
+                          type="button"
+                          className="social-transform-reset"
+                          aria-label="Reset transform"
+                          onClick={() =>
+                            onFeaturedTransformChange({
+                              ...DEFAULT_FEATURED_TRANSFORM,
+                            })
+                          }
+                        >
+                          <RotateCcw className="size-3.5" aria-hidden />
+                        </button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content placement="bottom" offset={8}>
+                        <p className="layout-shuffle-tooltip-title">
+                          Reset transform
+                        </p>
+                      </Tooltip.Content>
+                    </Tooltip>
                   }
                 />
                 <InspectorSlider

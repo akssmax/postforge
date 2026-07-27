@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Check, Trash2, Upload } from "lucide-react";
-import { Popover, Switch } from "@heroui/react";
+import { Popover, Switch, Tooltip } from "@heroui/react";
 import { generateBrandPatterns } from "@/lib/social-tool/patterns/brandPatterns";
 import {
   LIBRARY_PATTERNS,
@@ -75,18 +75,24 @@ function PatternSwatch({
         ) : null}
       </button>
       {onDelete ? (
-        <button
-          type="button"
-          className="pattern-lib-swatch-delete"
-          aria-label={`Delete ${label}`}
-          title="Delete pattern"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-        >
-          <Trash2 className="size-3" />
-        </button>
+        <Tooltip delay={500}>
+          <Tooltip.Trigger>
+            <button
+              type="button"
+              className="pattern-lib-swatch-delete"
+              aria-label={`Delete ${label}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+            >
+              <Trash2 className="size-3" aria-hidden />
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Content placement="bottom" offset={8}>
+            <p className="layout-shuffle-tooltip-title">Delete pattern</p>
+          </Tooltip.Content>
+        </Tooltip>
       ) : null}
     </div>
   );

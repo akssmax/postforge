@@ -184,9 +184,11 @@ export function useDesignHistory(designId: string) {
       coalesceRecordedRef.current = false;
       if (coalesceTimerRef.current) clearTimeout(coalesceTimerRef.current);
       // Safety: never leave coalesce stuck if pointerup is lost.
+      // Copy typing sessions need a longer window than pointer drags.
+      const timeoutMs = key === "copy" ? 120_000 : 8_000;
       coalesceTimerRef.current = setTimeout(() => {
         endCoalesce(key);
-      }, 8000);
+      }, timeoutMs);
     },
     [endCoalesce],
   );

@@ -189,6 +189,7 @@ export const updateSpacingToolSchema = z.object({
   textZonePadBottom: spacingTokenSchema.optional(),
   logoCopyGap: spacingTokenSchema.optional(),
   copyBlockGap: spacingTokenSchema.optional(),
+  featuredSlotGap: spacingTokenSchema.optional(),
   footerPad: spacingTokenSchema.optional(),
   footerBlockGap: spacingTokenSchema.optional(),
 });

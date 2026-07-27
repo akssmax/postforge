@@ -12,7 +12,7 @@ import {
 import type { DesignSessionPersisted } from "@/lib/design/types";
 import { createDesignId } from "@/lib/design/ids";
 import { applyShuffleToSession } from "@/lib/social-tool/applyShuffle";
-import { withShuffleAll } from "@/lib/social-tool/shufflePreferences";
+import { withShuffleAll, seedShufflePreferencesAllOn } from "@/lib/social-tool/shufflePreferences";
 import { getLayoutShuffleFamily, type PostLayoutId } from "@/lib/social-tool/postLayouts";
 import { layoutIdForDocument } from "@/lib/social-tool/layoutRegistry";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
@@ -214,6 +214,8 @@ export async function generateDesignVariants(
 
   const backgrounds = buildBackgroundPresets(originSession.brand.colors);
   const prefs = withShuffleAll(true);
+  // Keep origin shuffle panel fully enabled when exploring variants.
+  seedShufflePreferencesAllOn(originId);
   const variantSessions: DesignSessionPersisted[] = [];
 
   for (let i = 0; i < batchSize; i++) {
@@ -236,6 +238,7 @@ export async function generateDesignVariants(
     }
 
     persistBoardSession(next);
+    seedShufflePreferencesAllOn(next.designId);
     variantSessions.push(next);
   }
 

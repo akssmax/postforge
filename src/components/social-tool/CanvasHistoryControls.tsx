@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Redo2, Undo2 } from "lucide-react";
 import { Button, Tooltip } from "@heroui/react";
 
@@ -10,6 +11,7 @@ type Props = {
   onRedo: () => void;
   /** Flash when undo history hits the 11-step cap */
   historyLimitToast?: boolean;
+  trailing?: ReactNode;
 };
 
 export function CanvasHistoryControls({
@@ -18,6 +20,7 @@ export function CanvasHistoryControls({
   onUndo,
   onRedo,
   historyLimitToast = false,
+  trailing,
 }: Props) {
   return (
     <div
@@ -63,6 +66,7 @@ export function CanvasHistoryControls({
             <p className="layout-shuffle-tooltip-body">⌘⇧Z / Ctrl+Y</p>
           </Tooltip.Content>
         </Tooltip>
+        {trailing}
       </div>
 
       <div

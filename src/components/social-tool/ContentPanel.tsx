@@ -1,7 +1,7 @@
 "use client";
 
-import { AlignCenter, AlignLeft, AlignRight, Plus, Trash2 } from "lucide-react";
-import { Button, Label, Switch, TextArea, TextField } from "@heroui/react";
+import { AlignCenter, AlignLeft, AlignRight, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { Button, Label, Switch, TextArea, TextField, Tooltip } from "@heroui/react";
 import {
   InspectorSegment,
   InspectorSelect,
@@ -36,6 +36,9 @@ type Props = {
   onSubFontChange: (value: SocialFontId) => void;
   typeScale: number;
   onTypeScaleChange: (value: number) => void;
+  copyVariantIndex?: number;
+  copyVariantCount?: number;
+  onCycleCopyVariant?: (delta: 1 | -1) => void;
 };
 
 export function ContentPanel({
@@ -54,23 +57,75 @@ export function ContentPanel({
   onSubFontChange,
   typeScale,
   onTypeScaleChange,
+  copyVariantIndex = 0,
+  copyVariantCount = 0,
+  onCycleCopyVariant,
 }: Props) {
+  const showVariantCycle = !!onCycleCopyVariant && copyVariantCount > 1;
+
   return (
     <section className="social-tool-section space-y-3">
       <div className="flex items-center justify-between gap-3">
         <p className="social-tool-section-title !mb-0">Content</p>
-        <Switch
-          size="sm"
-          isSelected={showContent}
-          onChange={onShowContentChange}
-          aria-label="Show content on canvas"
-        >
-          <Switch.Content>
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
-          </Switch.Content>
-        </Switch>
+        <div className="flex items-center gap-2">
+          {showVariantCycle ? (
+            <div
+              className="copy-variant-cycle"
+              role="group"
+              aria-label="Copy variants"
+            >
+              <Tooltip delay={500}>
+                <Tooltip.Trigger>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    isIconOnly
+                    aria-label="Previous copy variant"
+                    onPress={() => onCycleCopyVariant(-1)}
+                  >
+                    <ChevronLeft className="size-3.5" aria-hidden />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content placement="bottom" offset={8}>
+                  <p className="layout-shuffle-tooltip-title">Previous variant</p>
+                  <p className="layout-shuffle-tooltip-body">Shortcut [</p>
+                </Tooltip.Content>
+              </Tooltip>
+              <span className="copy-variant-cycle__label" aria-live="polite">
+                {copyVariantIndex + 1}/{copyVariantCount}
+              </span>
+              <Tooltip delay={500}>
+                <Tooltip.Trigger>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    isIconOnly
+                    aria-label="Next copy variant"
+                    onPress={() => onCycleCopyVariant(1)}
+                  >
+                    <ChevronRight className="size-3.5" aria-hidden />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content placement="bottom" offset={8}>
+                  <p className="layout-shuffle-tooltip-title">Next variant</p>
+                  <p className="layout-shuffle-tooltip-body">Shortcut ]</p>
+                </Tooltip.Content>
+              </Tooltip>
+            </div>
+          ) : null}
+          <Switch
+            size="sm"
+            isSelected={showContent}
+            onChange={onShowContentChange}
+            aria-label="Show content on canvas"
+          >
+            <Switch.Content>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            </Switch.Content>
+          </Switch>
+        </div>
       </div>
 
       {showContent ? (
@@ -101,15 +156,24 @@ export function ContentPanel({
             <div key={field.id} className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="social-tool-label !mb-0">Extra {idx + 1}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  isIconOnly
-                  aria-label={`Remove field ${idx + 1}`}
-                  onPress={() => onRemoveExtraField(field.id)}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      isIconOnly
+                      aria-label={`Remove field ${idx + 1}`}
+                      onPress={() => onRemoveExtraField(field.id)}
+                    >
+                      <Trash2 className="size-3.5" aria-hidden />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    <p className="layout-shuffle-tooltip-title">
+                      Remove field {idx + 1}
+                    </p>
+                  </Tooltip.Content>
+                </Tooltip>
               </div>
               <TextField
                 fullWidth
