@@ -371,7 +371,6 @@ export function CanvasVariantArtboard({
                       isIconOnly
                       aria-label="Duplicate artboard"
                       className="canvas-artboard-action-btn"
-                      tabIndex={isActive ? 0 : -1}
                       onPress={() => {
                         onActivate();
                         onDuplicateArtboard();
@@ -399,7 +398,6 @@ export function CanvasVariantArtboard({
                       isIconOnly
                       aria-label="Delete artboard"
                       className="canvas-artboard-action-btn canvas-artboard-action-btn--danger"
-                      tabIndex={isActive ? 0 : -1}
                       onPress={onDeleteArtboard}
                     >
                       <Trash2 className="size-3.5" strokeWidth={2.25} aria-hidden />

@@ -1,4 +1,6 @@
 import { Syne, DM_Sans } from "next/font/google";
+import type { Metadata } from "next";
+import { withShareImages } from "@/lib/site/shareMetadata";
 
 const socialDisplay = Syne({
   variable: "--font-social-display",
@@ -12,6 +14,22 @@ const socialBody = DM_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   display: "swap",
+});
+
+export const metadata: Metadata = withShareImages({
+  title: "Postforge — Social post designer",
+  description:
+    "Upload your brand, brief the AI, shuffle layouts, and export for LinkedIn, Instagram, and print.",
+  openGraph: {
+    title: "Postforge — Social post designer",
+    description:
+      "Upload your brand, brief the AI, shuffle layouts, and export for LinkedIn, Instagram, and print.",
+  },
+  twitter: {
+    title: "Postforge — Social post designer",
+    description:
+      "Upload your brand, brief the AI, shuffle layouts, and export for LinkedIn, Instagram, and print.",
+  },
 });
 
 export default function ToolLayout({
