@@ -1,5 +1,13 @@
 /** Client-safe illustration accent recolor (mirrors server resolver). */
-const DEFAULT_RECOLOR = ["#6c63ff", "#6C63FF", "#6366F1", "#6366f1"];
+export const STORYSET_PRIMARY_ACCENTS = ["#407BFF", "#407bff"] as const;
+
+const DEFAULT_RECOLOR = [
+  "#6c63ff",
+  "#6C63FF",
+  "#6366F1",
+  "#6366f1",
+  ...STORYSET_PRIMARY_ACCENTS,
+];
 
 export function recolorIllustrationSvg(
   svg: string,

@@ -5,6 +5,7 @@ import { legacyPatternRef } from "@/lib/social-tool/patterns/resolvePattern";
 import { libraryPatternRef } from "@/lib/social-tool/patterns/library";
 import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
 import type { PlatformId, PostCopy } from "@/lib/social-tool/presets";
+import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
 
 export type LandingDemoDesign = {
   id: string;
@@ -20,6 +21,10 @@ export type LandingDemoDesign = {
   patternOpacity: number;
   patternScale: number;
   backgroundPresetId?: string;
+  /** Optional marketing preview tuning when auto type scale reads too large. */
+  typeScale?: number;
+  /** Optional featured visual scale for showcase compositions. */
+  featuredTransform?: Pick<FeaturedImageTransform, "scale">;
 };
 
 const STORYSET = "/visuals/illustrations/storyset";
@@ -33,16 +38,18 @@ export const LANDING_DEMO_DESIGNS: LandingDemoDesign[] = [
     platformId: "linkedin-square",
     layoutId: "classic-hero",
     copy: {
-      heading: "Think with Claude",
-      subheading: "Research, write, and code with an AI that stays on your wavelength.",
+      heading: "Think with\nClaude",
+      subheading: "Research, write, and code\non your wavelength.",
       extraFields: [],
     },
-    illustrationSrc: defaultLandingIllustration("claude"),
+    illustrationSrc: `${STORYSET}/design-thinking.svg`,
     showFeaturedImage: true,
     pattern: legacyPatternRef("monogram-soft"),
     showPattern: true,
-    patternOpacity: 0.12,
-    patternScale: 1.15,
+    patternOpacity: 0.1,
+    patternScale: 1.1,
+    typeScale: 2.05,
+    featuredTransform: { scale: 1.35 },
   },
   {
     id: "linear-ship",
@@ -51,8 +58,8 @@ export const LANDING_DEMO_DESIGNS: LandingDemoDesign[] = [
     platformId: "linkedin-square",
     layoutId: "product-focus",
     copy: {
-      heading: "Built for product velocity",
-      subheading: "Issues, cycles, and roadmaps — without the project-management tax.",
+      heading: "Built for\nproduct velocity",
+      subheading: "Issues, cycles, and roadmaps — without the PM tax.",
       extraFields: [],
     },
     illustrationSrc: `${STORYSET}/standup-meeting.svg`,
@@ -61,6 +68,7 @@ export const LANDING_DEMO_DESIGNS: LandingDemoDesign[] = [
     showPattern: true,
     patternOpacity: 0.18,
     patternScale: 1.3,
+    featuredTransform: { scale: 1.58 },
   },
   {
     id: "google-focus",
@@ -79,6 +87,7 @@ export const LANDING_DEMO_DESIGNS: LandingDemoDesign[] = [
     showPattern: false,
     patternOpacity: 0,
     patternScale: 1,
+    featuredTransform: { scale: 1.55 },
   },
   {
     id: "swiggy-promo",
@@ -97,6 +106,7 @@ export const LANDING_DEMO_DESIGNS: LandingDemoDesign[] = [
     showPattern: true,
     patternOpacity: 0.2,
     patternScale: 1.05,
+    featuredTransform: { scale: 1.62 },
   },
   {
     id: "blinkit-split",
@@ -115,6 +125,7 @@ export const LANDING_DEMO_DESIGNS: LandingDemoDesign[] = [
     showPattern: true,
     patternOpacity: 0.14,
     patternScale: 1.2,
+    featuredTransform: { scale: 1.48 },
   },
   {
     id: "linear-stack",
@@ -133,5 +144,6 @@ export const LANDING_DEMO_DESIGNS: LandingDemoDesign[] = [
     showPattern: true,
     patternOpacity: 0.2,
     patternScale: 1,
+    featuredTransform: { scale: 1.42 },
   },
 ];

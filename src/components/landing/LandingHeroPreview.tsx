@@ -41,6 +41,7 @@ function HeroFrame({ design }: { design: LandingDemoDesign }) {
         patternOpacity: design.patternOpacity,
         patternScale: design.patternScale,
         backgroundPresetId: design.backgroundPresetId,
+        typeScale: design.typeScale,
       }),
     [brand.colors, design],
   );
@@ -101,7 +102,10 @@ function HeroFrame({ design }: { design: LandingDemoDesign }) {
           }}
           patternOpacity={demo.patternOpacity}
           patternScale={demo.patternScale}
-          featuredTransform={DEFAULT_FEATURED_TRANSFORM}
+          featuredTransform={{
+            ...DEFAULT_FEATURED_TRANSFORM,
+            ...design.featuredTransform,
+          }}
           previewScale={previewScale}
           interactive={false}
         />

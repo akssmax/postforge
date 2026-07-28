@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import {
   Download,
@@ -54,20 +52,8 @@ function CapabilityLink({
   label: string;
   href: string;
 }) {
-  const isAnchor = href.startsWith("#");
-  const className = "pf-capability";
-
-  if (isAnchor) {
-    return (
-      <a href={href} className={className}>
-        <Icon className="size-4" strokeWidth={2} aria-hidden />
-        <span>{label}</span>
-      </a>
-    );
-  }
-
   return (
-    <Link href={href} className={className}>
+    <Link href={href} className="pf-capability">
       <Icon className="size-4" strokeWidth={2} aria-hidden />
       <span>{label}</span>
     </Link>

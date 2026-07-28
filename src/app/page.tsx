@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LandingCapabilities } from "@/components/landing/LandingCapabilities";
 import { LandingPage } from "@/components/landing/LandingPage";
 import { withShareImages } from "@/lib/site/shareMetadata";
 
@@ -19,5 +20,5 @@ export const metadata: Metadata = withShareImages({
 });
 
 export default function Home() {
-  return <LandingPage />;
+  return <LandingPage capabilities={<LandingCapabilities />} />;
 }

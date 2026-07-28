@@ -41,6 +41,13 @@ type Props = {
   /** Allow hide/show sidebar like the real editor */
   collapsible?: boolean;
   defaultAsideCollapsed?: boolean;
+  /** Decorative header actions render as skeleton placeholders */
+  headerSkeleton?: boolean;
+  onShuffle?: () => void;
+  spacingActive?: boolean;
+  onToggleSpacing?: () => void;
+  contrastActive?: boolean;
+  onToggleContrast?: () => void;
 };
 
 export function LandingEditorShell({
@@ -54,12 +61,21 @@ export function LandingEditorShell({
   className = "",
   collapsible = true,
   defaultAsideCollapsed = true,
+  headerSkeleton = false,
+  onShuffle,
+  spacingActive = false,
+  onToggleSpacing,
+  contrastActive = false,
+  onToggleContrast,
 }: Props) {
   const reduceMotion = useReducedMotion();
   const [asideCollapsed, setAsideCollapsed] = useState(defaultAsideCollapsed);
   const brand = getLandingBrand(brandId);
   const platform = getPlatform(platformId);
   const label = platformLabel ?? platform.label.replace("LinkedIn ", "LinkedIn · ");
+  const shuffleHot = highlight.shuffle ?? false;
+  const spacingHot = spacingActive || (highlight.spacing ?? false);
+  const contrastHot = contrastActive;
 
   return (
     <div className={`pf-tool-app ${className}`.trim()}>
@@ -67,19 +83,32 @@ export function LandingEditorShell({
         <div className="pf-tool-header-start">
           <span className="pf-tool-logo-mark" aria-hidden />
           <span className="pf-tool-wordmark">Postforge</span>
-          <span className="pf-tool-icon-btn" aria-hidden>
-            <PenSquare className="size-3.5" />
-          </span>
+          {headerSkeleton ? (
+            <span className="pf-tool-header-sk pf-tool-header-sk--icon" aria-hidden />
+          ) : (
+            <span className="pf-tool-icon-btn" aria-hidden>
+              <PenSquare className="size-3.5" />
+            </span>
+          )}
         </div>
         <div className="pf-tool-platform-pill">{label}</div>
         <div className="pf-tool-header-end">
-          <span className="pf-tool-avatar" aria-hidden />
-          <span
-            className={`pf-tool-export${highlight.export ? " is-hot" : ""}`}
-          >
-            <Download className="size-3.5" aria-hidden />
-            Export
-          </span>
+          {headerSkeleton ? (
+            <>
+              <span className="pf-tool-header-sk pf-tool-header-sk--avatar" aria-hidden />
+              <span className="pf-tool-header-sk pf-tool-header-sk--export" aria-hidden />
+            </>
+          ) : (
+            <>
+              <span className="pf-tool-avatar" aria-hidden />
+              <span
+                className={`pf-tool-export${highlight.export ? " is-hot" : ""}`}
+              >
+                <Download className="size-3.5" aria-hidden />
+                Export
+              </span>
+            </>
+          )}
         </div>
       </header>
 
@@ -211,40 +240,95 @@ export function LandingEditorShell({
 
         <div className="pf-tool-stage">
           <div className="pf-tool-toolbar">
-            {collapsible && asideCollapsed ? (
-              <Tooltip delay={500}>
-                <Tooltip.Trigger>
-                  <button
-                    type="button"
-                    className="pf-tool-pill pf-tool-pill--icon"
-                    aria-label="Show sidebar"
-                    onClick={() => setAsideCollapsed(false)}
-                  >
-                    <PanelLeftOpen className="size-3" aria-hidden />
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Content placement="bottom" offset={8}>
-                  Show sidebar
-                </Tooltip.Content>
-              </Tooltip>
-            ) : null}
-            <span
-              className={`pf-tool-pill${highlight.shuffle ? " is-hot" : ""}`}
-            >
-              <Shuffle className="size-3" aria-hidden />
-              Shuffle
-            </span>
+            <div className="pf-tool-toolbar-start">
+              {collapsible && asideCollapsed ? (
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <button
+                      type="button"
+                      className="pf-tool-pill pf-tool-pill--icon"
+                      aria-label="Show sidebar"
+                      onClick={() => setAsideCollapsed(false)}
+                    >
+                      <PanelLeftOpen className="size-3" aria-hidden />
+                    </button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    Show sidebar
+                  </Tooltip.Content>
+                </Tooltip>
+              ) : null}
+              {onShuffle ? (
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <button
+                      type="button"
+                      className={`pf-tool-pill${shuffleHot ? " is-hot" : ""}`}
+                      aria-label="Shuffle layout, surface, pattern, and copy"
+                      onClick={onShuffle}
+                    >
+                      <Shuffle className="size-3" aria-hidden />
+                      Shuffle
+                    </button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    Shuffle layout, surface, pattern, and copy
+                  </Tooltip.Content>
+                </Tooltip>
+              ) : (
+                <span className={`pf-tool-pill${shuffleHot ? " is-hot" : ""}`}>
+                  <Shuffle className="size-3" aria-hidden />
+                  Shuffle
+                </span>
+              )}
+            </div>
             <div className="pf-tool-toolbar-end">
-              <span
-                className={`pf-tool-pill${highlight.spacing ? " is-hot" : ""}`}
-              >
-                Spacing
-              </span>
-              <span
-                className={`pf-tool-contrast${highlight.spacing ? " is-hot" : ""}`}
-              >
-                Contrast
-              </span>
+              {onToggleSpacing ? (
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <button
+                      type="button"
+                      className={`pf-tool-pill${spacingHot ? " is-hot" : ""}`}
+                      aria-pressed={spacingActive}
+                      aria-label="Toggle spacing handles"
+                      onClick={onToggleSpacing}
+                    >
+                      Spacing
+                    </button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    Toggle spacing handles
+                  </Tooltip.Content>
+                </Tooltip>
+              ) : (
+                <span className={`pf-tool-pill${spacingHot ? " is-hot" : ""}`}>
+                  Spacing
+                </span>
+              )}
+              {onToggleContrast ? (
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <button
+                      type="button"
+                      className={`pf-tool-contrast${contrastHot ? " is-hot" : ""}`}
+                      aria-pressed={contrastActive}
+                      aria-label="Toggle contrast checks"
+                      onClick={onToggleContrast}
+                    >
+                      Contrast
+                    </button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    Toggle contrast checks
+                  </Tooltip.Content>
+                </Tooltip>
+              ) : (
+                <span
+                  className={`pf-tool-contrast${contrastHot ? " is-hot" : ""}`}
+                >
+                  Contrast
+                </span>
+              )}
             </div>
           </div>
           <div className="pf-tool-canvas-wrap pf-tool-canvas-wrap--landing">

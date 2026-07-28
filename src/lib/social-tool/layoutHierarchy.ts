@@ -80,6 +80,14 @@ function plainHeadingText(heading: string): string {
   return heading.replace(/\[\[(.+?)\]\]/g, "$1").trim();
 }
 
+/** Longest line drives horizontal type scale — not total character count. */
+function headingLineCharCount(heading: string): number {
+  const plain = plainHeadingText(heading);
+  const lines = plain.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) return 1;
+  return Math.max(...lines.map((line) => line.length));
+}
+
 function estimateFooterHeight(opts: {
   width: number;
   height: number;
@@ -190,8 +198,7 @@ function computeTypeScale(
 ): number {
   const { width, height, layout, copy, platformId } = input;
   const canvasScale = canvasScaleFactor(width, height);
-  const heading = plainHeadingText(copy.heading);
-  const charCount = Math.max(heading.length, 1);
+  const charCount = headingLineCharCount(copy.heading);
   const isTallPrint = height / width >= 1.8;
   const linkedInAd = isLinkedInAdPlatform(platformId);
   const effectiveTextWidth = resolveEffectiveCopyWidth(input, textWidth);

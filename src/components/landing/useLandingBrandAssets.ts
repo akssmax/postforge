@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { LandingBrand } from "@/components/landing/landingBrands";
 import {
   recolorIllustrationSvg,
+  STORYSET_PRIMARY_ACCENTS,
   stripSvgXmlDecl,
 } from "@/lib/social-tool/visualBlocks/library/illustrations/recolorClient";
 
@@ -85,7 +86,10 @@ export function useBrandRecoloredIllustration(
     void fetchSvg(illustrationSrc)
       .then((svg) => {
         if (cancelled) return;
-        setMarkup(recolorIllustrationSvg(svg, brand.colors.primary));
+        const accents = illustrationSrc.includes("/storyset/")
+          ? STORYSET_PRIMARY_ACCENTS
+          : undefined;
+        setMarkup(recolorIllustrationSvg(svg, brand.colors.primary, accents));
       })
       .catch(() => {
         if (!cancelled) setMarkup(null);

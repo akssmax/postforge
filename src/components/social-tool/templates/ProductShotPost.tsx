@@ -752,7 +752,7 @@ export function ProductShotPost({
     ? { color: textColorOverride }
     : undefined;
   const subStyle = {
-    maxWidth: isTallPrint ? "22em" : "28em",
+    maxWidth: isTallPrint ? "min(22em, 100%)" : "min(28em, 100%)",
     ...(subTextColorOverride ? { color: subTextColorOverride } : {}),
   };
 
@@ -804,7 +804,7 @@ export function ProductShotPost({
             key={field.id}
             className={`social-post-extra${zone === "footer" ? " social-post-extra--footer" : ""}${editing ? " is-copy-editing" : ""}`}
             data-copy-field={`extra:${field.id}`}
-            style={{ maxWidth: isTallPrint ? "22em" : "28em" }}
+            style={{ maxWidth: isTallPrint ? "min(22em, 100%)" : "min(28em, 100%)" }}
             onDoubleClick={(ev) =>
               startCopyFieldEdit({ kind: "extra", id: field.id }, ev)
             }

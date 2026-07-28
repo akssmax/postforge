@@ -168,7 +168,10 @@ export function createLandingDemoState(
     copy,
     copyVariantIndex:
       overrides?.copyVariantIndex ?? brandDefaults.copyVariantIndex,
-    typeScale: hierarchy.typeScale,
+    typeScale:
+      overrides?.typeScale != null
+        ? Math.min(overrides.typeScale, hierarchy.typeScale)
+        : hierarchy.typeScale,
     logoScale: hierarchy.logoScale,
     logoAlign: patch.logoAlign,
     logoPlacement: patch.logoPlacement,

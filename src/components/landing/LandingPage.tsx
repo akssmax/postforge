@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, type MouseEvent } from "react";
+import { useCallback, useState, type MouseEvent, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowUpRight, Menu } from "lucide-react";
@@ -10,7 +10,6 @@ import { Logo } from "@/components/Logo";
 import { ThemeControls } from "@/components/ThemeControls";
 import { LANDING_BRANDS } from "@/components/landing/landingBrands";
 import { LandingFeatureChapter } from "@/components/landing/LandingFeatureChapter";
-import { LandingCapabilities } from "@/components/landing/LandingCapabilities";
 import "./landing.css";
 
 const LandingHeroEditor = dynamic(
@@ -69,7 +68,11 @@ const NAV_LINKS = [
   { href: "/tool", label: "Launch" },
 ] as const;
 
-export function LandingPage() {
+type Props = {
+  capabilities?: ReactNode;
+};
+
+export function LandingPage({ capabilities }: Props) {
   const reduceMotion = useReducedMotion();
   const [shuffleRequest, setShuffleRequest] = useState(0);
   const [demoMounted, setDemoMounted] = useState(false);
@@ -151,14 +154,14 @@ export function LandingPage() {
       </header>
 
       <main>
-        <LandingHeroEditor onTryShuffle={handleTryShuffle} />
+        <LandingHeroEditor />
 
         <section className="pf-logos pf-logos--compact" aria-label="Brand examples">
           <p className="pf-logos-label">
-            Trusted brand systems — from SaaS to consumer apps
+            From popular brands to yours
           </p>
           <ul className="pf-logos-row">
-            {LANDING_BRANDS.map((brand) => (
+            {LANDING_BRANDS.filter((brand) => brand.id !== "blinkit").map((brand) => (
               <li key={brand.id}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -226,7 +229,7 @@ export function LandingPage() {
 
         <LandingGoldenGallery />
 
-        <LandingCapabilities />
+        {capabilities}
 
         <section className="pf-cta-band">
           <motion.div
@@ -313,7 +316,9 @@ export function LandingPage() {
         </div>
 
         <div className="pf-footer-bottom">
-          <p>© {new Date().getFullYear()} Postforge</p>
+          <p suppressHydrationWarning>
+            © {new Date().getFullYear()} Postforge
+          </p>
           <p className="pf-footer-note">Built for brand-first social posts.</p>
         </div>
       </footer>
