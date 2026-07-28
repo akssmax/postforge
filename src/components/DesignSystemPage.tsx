@@ -39,10 +39,6 @@ import { ThemeControls } from "@/components/ThemeControls";
 import { HeroMonogramPatternField } from "@/components/patterns/HeroMonogramPattern";
 import { MonogramCutout } from "@/components/patterns/MonogramCutout";
 import {
-  MonogramPattern,
-  type MonogramPatternVariant,
-} from "@/components/patterns/MonogramPattern";
-import {
   InspectorSelect,
   InspectorSegment,
   InspectorSlider,
@@ -662,40 +658,6 @@ export function DesignSystemPage() {
 // ${logoAnimations.join(" | ")}
 <Logo height={28} animation="leap" />`}
                     </pre>
-                  </div>
-                </div>
-
-                <div className="overflow-hidden rounded-xl border border-leap-line bg-surface-primary">
-                  <div className="border-b border-leap-line px-5 py-4">
-                    <p className="font-semibold text-text-primary">
-                      MonogramPattern
-                    </p>
-                    <p className="mt-1 text-sm text-text-tertiary">
-                      Footer / social pattern washes.
-                    </p>
-                  </div>
-                  <div className="grid gap-px bg-leap-line sm:grid-cols-3">
-                    {(
-                      [
-                        ["default", "Default"],
-                        ["highlight", "Highlight"],
-                        ["solid", "Solid"],
-                      ] as const satisfies ReadonlyArray<
-                        readonly [MonogramPatternVariant, string]
-                      >
-                    ).map(([variant, label]) => (
-                      <div
-                        key={variant}
-                        className="overflow-hidden bg-[linear-gradient(180deg,#064d4c_0%,#091a24_70%)]"
-                      >
-                        <p className="px-4 pt-4 text-[11px] font-medium tracking-wide text-brand-100/70 uppercase">
-                          {label}
-                        </p>
-                        <div className="flex justify-center overflow-hidden py-6">
-                          <MonogramPattern variant={variant} tileSize={140} />
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </div>
 

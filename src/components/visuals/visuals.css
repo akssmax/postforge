@@ -1,7 +1,13 @@
 .visuals-page {
   min-height: 100vh;
   padding: 32px clamp(20px, 4vw, 48px) 64px;
-  background: color-mix(in oklab, var(--surface-primary) 96%, var(--gray-950) 4%);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  color: var(--text-primary);
+  background: color-mix(in oklab, var(--gray-950) 3%, var(--surface-primary));
+}
+
+[data-theme="dark"] .visuals-page {
+  background: color-mix(in oklab, var(--white) 2.5%, var(--surface-primary));
 }
 
 .visuals-page__header {
@@ -18,29 +24,33 @@
   gap: 8px;
   width: fit-content;
   font-size: 0.875rem;
-  opacity: 0.72;
+  font-weight: 500;
+  color: var(--text-secondary);
   text-decoration: none;
+  transition: color 0.15s ease;
 }
 
 .visuals-page__back:hover {
-  opacity: 1;
+  color: var(--brand-500);
 }
 
 .visuals-page__eyebrow {
   margin: 0 0 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  opacity: 0.55;
+  color: var(--brand-500);
 }
 
 .visuals-page__title {
   margin: 0 0 10px;
-  font-family: var(--font-social-display, inherit);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   font-size: clamp(1.75rem, 4vw, 2.5rem);
-  font-weight: 700;
+  font-weight: 650;
   line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 
 .visuals-page__subtitle {
@@ -48,7 +58,7 @@
   max-width: 62ch;
   font-size: 0.9375rem;
   line-height: 1.55;
-  opacity: 0.72;
+  color: var(--text-tertiary);
 }
 
 .visuals-page__toolbar {

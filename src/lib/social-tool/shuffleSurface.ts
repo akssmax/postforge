@@ -62,6 +62,16 @@ function buildShufflePatternPool(includeBrandPatterns = false): PatternRef[] {
   ];
 }
 
+const shufflePatternPoolCache = new Map<boolean, PatternRef[]>();
+
+function getShufflePatternPool(includeBrandPatterns = false): PatternRef[] {
+  const cached = shufflePatternPoolCache.get(includeBrandPatterns);
+  if (cached) return cached;
+  const pool = buildShufflePatternPool(includeBrandPatterns);
+  shufflePatternPoolCache.set(includeBrandPatterns, pool);
+  return pool;
+}
+
 function pickRandom<T>(pool: T[], exclude?: T | null): T {
   const filtered =
     exclude != null ? pool.filter((item) => item !== exclude) : pool;
@@ -94,7 +104,7 @@ export function pickRandomShuffleSurface(
   const shuffleBackground = input.shuffleBackground ?? true;
   const shufflePattern = input.shufflePattern ?? true;
   const backgrounds = input.backgrounds.filter(Boolean);
-  const patternPool = buildShufflePatternPool(input.includeBrandPatterns ?? false);
+  const patternPool = getShufflePatternPool(input.includeBrandPatterns ?? false);
 
   const backgroundPresetId = shuffleBackground
     ? (pickRandomBackground(backgrounds, input.currentBackgroundId)?.id ??

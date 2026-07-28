@@ -43,6 +43,12 @@ export const LAYOUT_PLAYGROUND_PLATFORMS: PlatformId[] = [
 
 const STORAGE_KEY = "postforge:layout-reviews";
 
+let layoutReviewsMemoryCache: LayoutReviewRecord | null = null;
+
+export function invalidateLayoutReviewsCache(): void {
+  layoutReviewsMemoryCache = null;
+}
+
 const SPACING_KEYS = SPACING_TOKEN_KEYS;
 
 function isSpacingToken(value: unknown): value is SpacingToken {
@@ -128,18 +134,26 @@ export function mergeLayoutReviews(
 }
 
 export function loadLayoutReviews(): LayoutReviewRecord {
+  if (layoutReviewsMemoryCache) return layoutReviewsMemoryCache;
+
   if (typeof window === "undefined") {
-    return sanitizeRecord(LAYOUT_REVIEW_SEED);
+    layoutReviewsMemoryCache = sanitizeRecord(LAYOUT_REVIEW_SEED);
+    return layoutReviewsMemoryCache;
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return sanitizeRecord(LAYOUT_REVIEW_SEED);
-    return mergeLayoutReviews(
+    if (!raw) {
+      layoutReviewsMemoryCache = sanitizeRecord(LAYOUT_REVIEW_SEED);
+      return layoutReviewsMemoryCache;
+    }
+    layoutReviewsMemoryCache = mergeLayoutReviews(
       sanitizeRecord(LAYOUT_REVIEW_SEED),
       sanitizeRecord(JSON.parse(raw)),
     );
+    return layoutReviewsMemoryCache;
   } catch {
-    return sanitizeRecord(LAYOUT_REVIEW_SEED);
+    layoutReviewsMemoryCache = sanitizeRecord(LAYOUT_REVIEW_SEED);
+    return layoutReviewsMemoryCache;
   }
 }
 
@@ -149,6 +163,7 @@ export function getCommittedLayoutReviews(): LayoutReviewRecord {
 }
 
 export function saveLayoutReviews(record: LayoutReviewRecord): void {
+  layoutReviewsMemoryCache = record;
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
 }

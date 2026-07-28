@@ -15,6 +15,7 @@ import type { DesignRulesProfile } from "@/lib/llm/rules/types";
 import type { PlatformId } from "@/lib/social-tool/presets";
 import {
   attachArtboardTarget,
+  omitInvalidFeaturedSlotId,
   generateVisualBlockToolSchema,
   modifyVisualBlockToolSchema,
   selectVisualBlockToolSchema,
@@ -40,6 +41,8 @@ import {
 } from "@/lib/llm/stages/copyVariantWriter";
 import {
   composeVisualBlocksFromLibrary,
+  getLibraryPattern,
+  instantiateLibraryPattern,
   libraryPatternSummaryForPrompt,
 } from "@/lib/social-tool/visualBlocks/library";
 import { buildVisualPickIntentFromText } from "@/lib/social-tool/visualBlocks/library/scoring";
@@ -98,7 +101,11 @@ function buildSnapshotPrompt(snapshot: DesignSnapshot): string {
         )
         .join("; ") || "none — tools may create featured-primary only"
     }`,
-    `- Visual blocks: ${snapshot.featured.visualBlocks.map((b) => `${b.id}:${b.label}`).join(", ") || "none"}`,
+    `- Visual blocks: ${
+      snapshot.featured.visualBlocks
+        .map((b) => `${b.id}:${b.label}${b.libraryId ? `[${b.libraryId}]` : ""}`)
+        .join(", ") || "none"
+    }`,
     `- Active visual block: ${snapshot.featured.activeBlockId ?? "none"}`,
     `- Uploaded image available: ${snapshot.featured.hasUploadedImage}`,
     `- Canvas shapes (${snapshot.canvasShapes?.length ?? 0}/3): ${
@@ -214,40 +221,46 @@ function buildCanvasTools(
       description:
         "Show/hide a featured visual slot or switch between placeholder, composed, or uploaded image. Uses an existing slotId from the snapshot (or featured-primary if none). Never invents new slot ids.",
       inputSchema: withArtboardTargetSchema(updateFeaturedToolSchema),
-      execute: async (input) =>
-        attachArtboardTarget(computeUpdateFeaturedPatch(snapshot, input), input),
+      execute: async (input) => {
+        const normalized = omitInvalidFeaturedSlotId(input, snapshot);
+        return attachArtboardTarget(
+          computeUpdateFeaturedPatch(snapshot, normalized),
+          normalized,
+        );
+      },
     }),
     generateVisualBlock: tool({
       description:
         "Fill one featured visual slot with a visual block. Defaults to count=1 and an existing slot (selection, empty slot, or featured-primary). Does not add extra artboard slots. Prefer source=library; use source=generate only for custom AI SVG.",
       inputSchema: withArtboardTargetSchema(generateVisualBlockToolSchema),
       execute: async (input) => {
-        const source = input.source ?? "library";
+        const normalized = omitInvalidFeaturedSlotId(input, snapshot);
+        const source = normalized.source ?? "library";
         const payload = {
           headline: snapshot.copy.heading,
           subheading: snapshot.copy.subheading,
-          theme: input.theme,
-          brief: input.brief ?? snapshot.copy.heading,
+          theme: normalized.theme,
+          brief: normalized.brief ?? snapshot.copy.heading,
           brandColors: {
             primary: snapshot.brand.primary,
             accent: snapshot.brand.accent,
           },
-          count: input.count ?? 1,
+          count: normalized.count ?? 1,
           intent: buildVisualPickIntentFromText(
             snapshot.copy.heading,
             snapshot.copy.subheading,
-            input.theme,
-            input.brief,
+            normalized.theme,
+            normalized.brief,
             followUpMessage,
           ),
         };
         const blocks =
           source === "library"
-            ? composeVisualBlocksFromLibrary(payload, { libraryIds: input.libraryIds })
+            ? composeVisualBlocksFromLibrary(payload, { libraryIds: normalized.libraryIds })
             : await composeVisualBlocks({ ...payload, source: "generate" });
         return attachArtboardTarget(
-          computeGeneratedVisualBlocksPatch(snapshot, blocks, input.slotId),
-          input,
+          computeGeneratedVisualBlocksPatch(snapshot, blocks, normalized.slotId),
+          normalized,
         );
       },
     }),
@@ -256,8 +269,9 @@ function buildCanvasTools(
         "Modify an existing visual block SVG using a natural-language instruction. Targets one existing featured slot only.",
       inputSchema: withArtboardTargetSchema(modifyVisualBlockToolSchema),
       execute: async (input) => {
+        const normalized = omitInvalidFeaturedSlotId(input, snapshot);
         const blockId =
-          input.blockId ??
+          normalized.blockId ??
           snapshot.featured.activeBlockId ??
           snapshot.featured.visualBlocks[0]?.id;
         const existing = findVisualBlock(
@@ -268,30 +282,87 @@ function buildCanvasTools(
           })),
           blockId,
         );
-        if (!existing?.svgMarkup) {
+        if (!existing) {
+          return { success: false as const, error: "No visual block to modify" };
+        }
+
+        let blockForModify = existing;
+        if (!blockForModify.svgMarkup && blockForModify.libraryId) {
+          const pattern = getLibraryPattern(blockForModify.libraryId);
+          if (pattern) {
+            const reinstantiated = instantiateLibraryPattern(pattern, {
+              headline: snapshot.copy.heading,
+              subheading: snapshot.copy.subheading,
+              theme: snapshot.copy.heading,
+              brief: [snapshot.copy.heading, snapshot.copy.subheading]
+                .filter(Boolean)
+                .join(" "),
+              brandColors: {
+                primary: snapshot.brand.primary,
+                accent: snapshot.brand.accent,
+              },
+            });
+            if (reinstantiated) {
+              blockForModify = {
+                ...blockForModify,
+                svgMarkup: reinstantiated.svgMarkup,
+                content: reinstantiated.content,
+              };
+            }
+          }
+        }
+
+        if (!blockForModify.svgMarkup) {
           return { success: false as const, error: "No visual block to modify" };
         }
         const modified = await modifyVisualBlockComposer({
-          blockId: existing.id,
+          blockId: blockForModify.id,
           instruction: input.instruction,
-          block: existing,
+          block: blockForModify,
         });
         if (!modified) {
           return { success: false as const, error: "Could not modify visual block" };
         }
-        const fullBlock = { ...existing, ...modified, id: existing.id };
+        const fullBlock = { ...blockForModify, ...modified, id: blockForModify.id };
         return attachArtboardTarget(
-          computeModifiedVisualBlockPatch(snapshot, fullBlock, input.slotId),
-          input,
+          computeModifiedVisualBlockPatch(snapshot, fullBlock, normalized.slotId),
+          normalized,
         );
       },
     }),
     selectVisualBlock: tool({
       description:
-        "Switch the active visual block on one existing featured slot using a block id from the library.",
+        "Switch the featured visual to an existing block id or a library pattern id from the catalog. Prefer generateVisualBlock when swapping to a new illustration.",
       inputSchema: withArtboardTargetSchema(selectVisualBlockToolSchema),
-      execute: async (input) =>
-        attachArtboardTarget(computeSelectVisualBlockPatch(snapshot, input), input),
+      execute: async (input) => {
+        const normalized = omitInvalidFeaturedSlotId(input, snapshot);
+        let patch = computeSelectVisualBlockPatch(snapshot, normalized);
+        if (!patch.success) {
+          const pattern = getLibraryPattern(normalized.blockId);
+          if (pattern) {
+            const instantiated = instantiateLibraryPattern(pattern, {
+              headline: snapshot.copy.heading,
+              subheading: snapshot.copy.subheading,
+              theme: snapshot.copy.heading,
+              brief: [snapshot.copy.heading, snapshot.copy.subheading]
+                .filter(Boolean)
+                .join(" "),
+              brandColors: {
+                primary: snapshot.brand.primary,
+                accent: snapshot.brand.accent,
+              },
+            });
+            if (instantiated) {
+              patch = computeGeneratedVisualBlocksPatch(
+                snapshot,
+                [instantiated],
+                normalized.slotId,
+              );
+            }
+          }
+        }
+        return attachArtboardTarget(patch, normalized);
+      },
     }),
     updateLayout: tool({
       description:
@@ -403,11 +474,11 @@ export async function handleCanvasAgentRequest(input: {
       return {};
     },
     system: [
-      "You are Postforge's visual block assistant.",
-      "Focus on featured visual slots — generate, modify, or select visual blocks.",
-      "Do not rewrite the entire design unless the user explicitly asks.",
-      "Featured slots: only use slotIds listed in the snapshot. If none exist, omit slotId (system creates featured-primary only).",
-      "Never invent slot ids like featured-2. Do not add a second visual slot unless the snapshot already has multiple slots and the user asks to fill another existing empty one.",
+      "You are Postforge's canvas editing assistant.",
+      "Apply edits with tools, then confirm in plain language.",
+      "For illustration or featured visual changes (update, replace, swap, new illustration): use generateVisualBlock with source=library — not selectVisualBlock unless picking an id already listed under Visual blocks.",
+      "selectVisualBlock blockId may be a visual block id from the snapshot or a library pattern id from the catalog.",
+      "Featured slotId: only use ids listed under Featured slots in the snapshot. If unsure, omit slotId — the system picks the active or primary slot.",
       "generateVisualBlock defaults to count=1 — do not raise count unless the user asks for multiple options.",
       "Use generateVisualBlock for new diagrams/UI cards/illustrations.",
       "Prefer source=library (instant) unless the user asks for custom AI visuals.",

@@ -134,21 +134,39 @@ export function useBriefChat({
   const resolvedArtifactCategory = (artifactCategory ??
     designSnapshot?.artifactCategory) as ArtifactCategoryId | undefined;
 
+  const designSnapshotRef = useRef(designSnapshot);
+  designSnapshotRef.current = designSnapshot;
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/brief/chat",
-        body: {
-          platformId,
-          artifactCategory: resolvedArtifactCategory,
-          brandSummary,
-          designSnapshot: designSnapshot ?? undefined,
-        },
+        prepareSendMessagesRequest: ({
+          body,
+          messages,
+          id,
+          trigger,
+          messageId,
+          ...rest
+        }) => ({
+          ...rest,
+          body: {
+            ...body,
+            id,
+            messages,
+            trigger,
+            messageId,
+            platformId,
+            artifactCategory: resolvedArtifactCategory,
+            brandSummary,
+            designSnapshot: designSnapshotRef.current ?? undefined,
+          },
+        }),
       }),
-    [platformId, resolvedArtifactCategory, brandSummary, designSnapshot],
+    [platformId, resolvedArtifactCategory, brandSummary],
   );
 
-  const { messages, sendMessage, status, error, setMessages, stop } = useChat({
+  const { messages, sendMessage, status, error, setMessages, stop, clearError } = useChat({
     id: `brief-${designId}`,
     transport,
   });
@@ -369,6 +387,7 @@ export function useBriefChat({
     error,
     submitText,
     stopGenerating: stop,
+    clearError,
     isGenerating,
     offline,
     pendingVariants,

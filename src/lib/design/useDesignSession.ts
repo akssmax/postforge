@@ -112,6 +112,8 @@ import {
   upsertCanvasShape,
 } from "@/lib/social-tool/shapes/storage";
 import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
+import { buildFeaturedVisualPickInput } from "@/lib/social-tool/generateDesignVariants";
+import { pickShuffleFeaturedVisualBrowser } from "@/lib/social-tool/shuffleFeaturedVisualBrowser";
 import {
   activeVisualBlock,
   appendVisualBlocks,
@@ -120,6 +122,19 @@ import {
 } from "@/lib/social-tool/visualBlocks/storage";
 
 const PERSIST_DEBOUNCE_MS = 300;
+
+function sessionMediaKey(snapshot: DesignSessionPersisted): string {
+  const logos = snapshot.brand.logos;
+  return JSON.stringify({
+    featuredImageId: snapshot.featured.image?.id ?? null,
+    logoIds: Object.fromEntries(
+      Object.entries(logos ?? {}).map(([variant, record]) => [
+        variant,
+        record?.id ?? null,
+      ]),
+    ),
+  });
+}
 
 function visualBlockPickPayload(
   session: DesignSessionPersisted,
@@ -322,6 +337,7 @@ export function useDesignSession(
   const featuredBlobUrlRef = useRef<string | null>(null);
   const logoBlobUrlsRef = useRef<string[]>([]);
   const sessionRef = useRef<DesignSessionPersisted | null>(null);
+  const lastHydratedMediaRef = useRef<string>("");
   const getSeedSessionRef = useRef(options?.getSeedSession);
   getSeedSessionRef.current = options?.getSeedSession;
   const {
@@ -494,7 +510,11 @@ export function useDesignSession(
         schedulePersist(snapshot);
       }
       setSession(snapshot);
-      void hydrateSessionMedia(snapshot);
+      const mediaKey = sessionMediaKey(snapshot);
+      if (mediaKey !== lastHydratedMediaRef.current) {
+        lastHydratedMediaRef.current = mediaKey;
+        void hydrateSessionMedia(snapshot);
+      }
       return snapshot;
     },
     [designId, flushPersist, hydrateSessionMedia, schedulePersist],
@@ -1606,28 +1626,14 @@ export function useDesignSession(
         const doc = session.document;
         const headline = copyOverride?.headline ?? doc.copy.heading;
         const subheading = copyOverride?.subheading ?? doc.copy.subheading;
-        const response = await fetch("/api/visual-blocks/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...visualBlockPickPayload(session, {
-              headline,
-              subheading,
-              theme: headline,
-              brief: [headline, subheading].filter(Boolean).join(" "),
-              preferredKind: activeKind,
-            }),
-            pickFeatured: true,
-            excludeLibraryIds,
-            source: "library",
+        const newBlock = await pickShuffleFeaturedVisualBrowser(
+          buildFeaturedVisualPickInput(session, activeKind, {
+            headline,
+            subheading,
           }),
-        });
-        if (!response.ok) {
-          const payload = (await response.json()) as { error?: string };
-          throw new Error(payload.error ?? "Shuffle visual failed");
-        }
-        const payload = (await response.json()) as { blocks: VisualBlockRecord[] };
-        const newBlock = payload.blocks[0];
+          excludeLibraryIds,
+        );
+
         if (!newBlock) {
           setFeaturedError(
             `No matching ${

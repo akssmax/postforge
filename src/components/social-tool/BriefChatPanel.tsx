@@ -14,8 +14,8 @@ import {
   MessageResponse,
 } from "@/components/ai-elements/message";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { Button } from "@heroui/react";
-import { formatBriefChatError } from "@/lib/llm/streamErrors";
+import { Button, Tooltip } from "@heroui/react";
+import { formatBriefChatError, sanitizeAssistantMessageText } from "@/lib/llm/streamErrors";
 import type { BriefChatState } from "@/lib/llm/useBriefChat";
 import type { UIMessage } from "ai";
 import type { LucideIcon } from "lucide-react";
@@ -38,6 +38,7 @@ import {
   ThumbsDown,
   ThumbsUp,
   Type,
+  X,
   Wand2,
 } from "lucide-react";
 import {
@@ -56,7 +57,7 @@ import type { ArtifactCategoryId } from "@/lib/design-config/schemas";
 /** ~7 lines at 0.875rem / 1.375 line-height */
 const COMPOSER_MAX_HEIGHT_PX = 168;
 /** One line of text + vertical padding (0.35rem × 2 + 1.375lh). */
-const COMPOSER_SINGLE_LINE_PX = 36;
+const COMPOSER_SINGLE_LINE_PX = 32;
 
 export type BriefChatPanelMode = "onboarding" | "follow-up";
 
@@ -89,10 +90,12 @@ const FOLLOW_UP_SUGGESTIONS = [
 ] as const;
 
 function messageText(message: UIMessage): string {
-  return message.parts
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join("");
+  return sanitizeAssistantMessageText(
+    message.parts
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join(""),
+  );
 }
 
 type ToolStatus = {
@@ -154,8 +157,15 @@ function toolStatus(part: UIMessage["parts"][number]): ToolStatus | null {
   if (
     part.type === "tool-updateDesign" &&
     "state" in part &&
-    part.state === "output-available"
+    part.state === "output-available" &&
+    "output" in part &&
+    typeof part.output === "object" &&
+    part.output
   ) {
+    const output = part.output as { success?: boolean; error?: string };
+    if (output.success === false && output.error) {
+      return { label: output.error, Icon: Sparkles };
+    }
     return { label: "Design updated", Icon: Sparkles };
   }
 
@@ -166,13 +176,18 @@ function toolStatus(part: UIMessage["parts"][number]): ToolStatus | null {
     part.state === "output-available" &&
     "output" in part &&
     typeof part.output === "object" &&
-    part.output &&
-    "message" in part.output &&
-    typeof part.output.message === "string"
+    part.output
   ) {
-    const label = part.output.message;
-    const Icon = iconForToolType(part.type) ?? iconForStatusLabel(label);
-    return { label, Icon };
+    const output = part.output as { success?: boolean; message?: string; error?: string };
+    if (output.success === false && output.error) {
+      const Icon = iconForToolType(part.type) ?? CheckCircle2;
+      return { label: output.error, Icon };
+    }
+    if (typeof output.message === "string") {
+      const label = output.message;
+      const Icon = iconForToolType(part.type) ?? iconForStatusLabel(label);
+      return { label, Icon };
+    }
   }
 
   return null;
@@ -190,8 +205,14 @@ function synthesizeAssistantSummary(message: UIMessage): string | null {
   if (labels.length === 0) return null;
 
   const unique = [...new Set(labels)];
+  const hasFailure = unique.some((label) =>
+    /unknown|failed|not found|could not|no visual/i.test(label),
+  );
   if (unique.length === 1) {
     const label = unique[0]!;
+    if (hasFailure) {
+      return `That didn't work — ${label.charAt(0).toLowerCase()}${label.slice(1)}.`;
+    }
     if (/updated|changed|refreshed|removed/i.test(label)) {
       return `Done — ${label.charAt(0).toLowerCase()}${label.slice(1)}.`;
     }
@@ -242,7 +263,13 @@ function renderMessageParts(
       nodes.push(
         <p
           key={`${message.id}-${index}`}
-          className="brief-chat-tool-status mt-1 text-[10px] font-medium uppercase tracking-wide text-brand-600"
+          className={`brief-chat-tool-status mt-1 text-[10px] font-medium uppercase tracking-wide ${
+            status.label.toLowerCase().includes("unknown") ||
+            status.label.toLowerCase().includes("failed") ||
+            status.label.toLowerCase().includes("not found")
+              ? "text-danger"
+              : "text-brand-600"
+          }`}
         >
           <Icon className="size-3 shrink-0 opacity-90" aria-hidden />
           <span>{label}</span>
@@ -666,6 +693,7 @@ export function BriefChatPanel({
   error,
   submitText,
   stopGenerating,
+  clearError,
   status,
   isGenerating,
   mode = "onboarding",
@@ -713,9 +741,26 @@ export function BriefChatPanel({
 
       {error ? (
         <div className="brief-chat-section__error" role="alert">
-          <p className="brief-chat-section__error-title">
-            Couldn&apos;t complete that request
-          </p>
+          <div className="brief-chat-section__error-head">
+            <p className="brief-chat-section__error-title">
+              Couldn&apos;t complete that request
+            </p>
+            <Tooltip delay={500}>
+              <Tooltip.Trigger>
+                <button
+                  type="button"
+                  className="brief-chat-section__error-dismiss"
+                  aria-label="Dismiss error"
+                  onClick={() => clearError()}
+                >
+                  <X className="size-3.5" aria-hidden />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Content placement="top" offset={8}>
+                Dismiss
+              </Tooltip.Content>
+            </Tooltip>
+          </div>
           <p className="brief-chat-section__error-detail">
             {formatBriefChatError(error)}
           </p>

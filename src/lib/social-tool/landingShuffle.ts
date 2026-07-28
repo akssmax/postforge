@@ -2,9 +2,8 @@ import { buildBackgroundPresets } from "@/lib/brand/backgroundPresets";
 import type { BackgroundPreset, BrandColors } from "@/lib/brand/types";
 import type { LandingBrandId } from "@/components/landing/landingBrands";
 import {
-  defaultLandingCopy,
-  defaultLandingIllustration,
   getLandingBrandContent,
+  landingDefaultDesignOverrides,
   pickLandingCopyVariant,
   pickLandingIllustration,
 } from "@/components/landing/landingBrandContent";
@@ -131,28 +130,32 @@ export function createLandingDemoState(
   overrides?: Partial<LandingDemoState>,
 ): LandingDemoState {
   const content = getLandingBrandContent(brandId);
-  const platformId = overrides?.platformId ?? "linkedin-square";
+  const brandDefaults = landingDefaultDesignOverrides(brandId);
+  const platformId = overrides?.platformId ?? brandDefaults.platformId;
   const layoutId = coerceLandingLayoutId(
     platformId,
-    overrides?.layoutId ?? DEFAULT_POST_LAYOUT_ID,
+    overrides?.layoutId ?? brandDefaults.layoutId,
   );
   const layout = getPostLayout(layoutId);
   const patch = getLayoutStatePatch(layout);
   const copy = seedCopyForLayout(
-    overrides?.copy ?? defaultLandingCopy(brandId),
+    overrides?.copy ?? brandDefaults.copy,
     layout,
   );
   const illustrationSrc =
-    overrides?.illustrationSrc ?? defaultLandingIllustration(brandId);
+    overrides?.illustrationSrc ?? brandDefaults.illustrationSrc;
   const backgrounds = landingBackgroundPool(colors, content.preferLightBackground);
-  const background = resolveBackground(backgrounds, overrides?.backgroundPresetId);
+  const background = resolveBackground(
+    backgrounds,
+    overrides?.backgroundPresetId ?? brandDefaults.backgroundPresetId,
+  );
   const hierarchy = resolveLayoutHierarchyFromIds({
     platformId,
     layoutId,
     copy,
     spacing: DEFAULT_POST_LAYOUT_SPACING,
     showLogo: true,
-    showFeaturedImage: overrides?.showFeaturedImage ?? true,
+    showFeaturedImage: overrides?.showFeaturedImage ?? brandDefaults.showFeaturedImage,
     featuredMode: "image",
     productPage: "leads",
     hasUploadedFeaturedImage: true,
@@ -163,7 +166,8 @@ export function createLandingDemoState(
     layoutId,
     layoutName: layout.name,
     copy,
-    copyVariantIndex: overrides?.copyVariantIndex ?? 0,
+    copyVariantIndex:
+      overrides?.copyVariantIndex ?? brandDefaults.copyVariantIndex,
     typeScale: hierarchy.typeScale,
     logoScale: hierarchy.logoScale,
     logoAlign: patch.logoAlign,
@@ -171,12 +175,12 @@ export function createLandingDemoState(
     textAlign: patch.textAlign,
     backgroundPresetId: background.id,
     backgroundCss: background.css,
-    pattern: overrides?.pattern ?? legacyPatternRef("monogram-soft"),
-    showPattern: overrides?.showPattern ?? true,
-    patternOpacity: overrides?.patternOpacity ?? 0.22,
-    patternScale: overrides?.patternScale ?? 1.1,
+    pattern: overrides?.pattern ?? brandDefaults.pattern,
+    showPattern: overrides?.showPattern ?? brandDefaults.showPattern,
+    patternOpacity: overrides?.patternOpacity ?? brandDefaults.patternOpacity,
+    patternScale: overrides?.patternScale ?? brandDefaults.patternScale,
     illustrationSrc,
-    showFeaturedImage: overrides?.showFeaturedImage ?? true,
+    showFeaturedImage: overrides?.showFeaturedImage ?? brandDefaults.showFeaturedImage,
   };
 }
 

@@ -16,6 +16,7 @@ type Props = {
   onShuffle: (preferences: ShufflePreferences) => void;
   /** Per-artboard scope so shuffle toggles stay independent across boards */
   preferenceScopeId?: string;
+  isPending?: boolean;
 };
 
 function ShuffleMenuRow({
@@ -45,6 +46,7 @@ export function LayoutShuffleButton({
   layoutName,
   onShuffle,
   preferenceScopeId,
+  isPending = false,
 }: Props) {
   const [flash, setFlash] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -89,6 +91,7 @@ export function LayoutShuffleButton({
   }
 
   function handleShuffle() {
+    if (isPending) return;
     const prefs = loadShufflePreferences(preferenceScopeId);
     setPreferences(prefs);
     onShuffle(prefs);
@@ -116,6 +119,8 @@ export function LayoutShuffleButton({
               size="sm"
               aria-label="Shuffle layout and enabled options"
               className="layout-shuffle-combobutton-main canvas-tool-pill-btn"
+              isDisabled={isPending}
+              isPending={isPending}
               onPress={handleShuffle}
             >
               <Shuffle className="size-3.5 shrink-0" strokeWidth={2.25} />

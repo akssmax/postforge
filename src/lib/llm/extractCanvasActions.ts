@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
+import { CANVAS_TOOL_PART_TYPES } from "@/lib/llm/schemas/canvasTools";
 import { mergeCanvasPatches } from "@/lib/llm/services/computeCanvasPatch";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
 
@@ -8,24 +9,7 @@ type ToolOutput = CanvasPatchResult & {
   score?: number;
 };
 
-const CANVAS_TOOL_TYPES = [
-  "tool-updateCopy",
-  "tool-refreshCopyVariants",
-  "tool-updateBackground",
-  "tool-updatePattern",
-  "tool-updateFeatured",
-  "tool-generateVisualBlock",
-  "tool-modifyVisualBlock",
-  "tool-selectVisualBlock",
-  "tool-updateLayout",
-  "tool-updateBrand",
-  "tool-updateTypography",
-  "tool-updateVisibility",
-  "tool-updateSpacing",
-  "tool-addShape",
-  "tool-updateShape",
-  "tool-removeShape",
-] as const;
+const CANVAS_TOOL_TYPES = CANVAS_TOOL_PART_TYPES;
 
 function extractPatchesFromParts(parts: UIMessage["parts"]): CanvasPatchResult[] {
   const patches: CanvasPatchResult[] = [];

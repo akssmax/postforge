@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useId,
   useMemo,
   useRef,
@@ -9,7 +10,8 @@ import {
   type KeyboardEvent,
 } from "react";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { Tooltip } from "@heroui/react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ProductShotPost,
@@ -191,11 +193,14 @@ function GalleryThumb({
   );
 }
 
-export function LandingDesignGallery() {
+export function LandingDesignGallery({ compact = false }: { compact?: boolean }) {
   const reduceMotion = useReducedMotion();
   const listboxId = useId();
+  const carouselId = useId();
   const [selectedId, setSelectedId] = useState(LANDING_DEMO_DESIGNS[0]!.id);
   const [focusIndex, setFocusIndex] = useState(0);
+  const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
+  const [carouselPaused, setCarouselPaused] = useState(false);
   const thumbRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const selectedIndex = Math.max(
@@ -205,17 +210,41 @@ export function LandingDesignGallery() {
   const selected = LANDING_DEMO_DESIGNS[selectedIndex]!;
   const { brand, platform, layout } = useDemoCanvas(selected);
 
-  const selectAt = useCallback((index: number, focus = false) => {
-    const next = LANDING_DEMO_DESIGNS[index];
-    if (!next) return;
-    setSelectedId(next.id);
-    setFocusIndex(index);
-    if (focus) {
-      requestAnimationFrame(() => {
-        thumbRefs.current[index]?.focus();
-      });
-    }
-  }, []);
+  const selectAt = useCallback(
+    (index: number, focus = false, direction?: 1 | -1) => {
+      const next = LANDING_DEMO_DESIGNS[index];
+      if (!next) return;
+      if (direction !== undefined) {
+        setSlideDirection(direction);
+      } else if (index !== selectedIndex) {
+        setSlideDirection(index > selectedIndex ? 1 : -1);
+      }
+      setSelectedId(next.id);
+      setFocusIndex(index);
+      if (focus) {
+        requestAnimationFrame(() => {
+          thumbRefs.current[index]?.focus();
+        });
+      }
+    },
+    [selectedIndex],
+  );
+
+  const goPrev = useCallback(() => {
+    const count = LANDING_DEMO_DESIGNS.length;
+    selectAt((selectedIndex - 1 + count) % count, false, -1);
+  }, [selectAt, selectedIndex]);
+
+  const goNext = useCallback(() => {
+    const count = LANDING_DEMO_DESIGNS.length;
+    selectAt((selectedIndex + 1) % count, false, 1);
+  }, [selectAt, selectedIndex]);
+
+  useEffect(() => {
+    if (!compact || reduceMotion || carouselPaused) return;
+    const timer = window.setInterval(goNext, 6000);
+    return () => window.clearInterval(timer);
+  }, [carouselPaused, compact, goNext, reduceMotion]);
 
   function onStripKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const count = LANDING_DEMO_DESIGNS.length;
@@ -238,6 +267,151 @@ export function LandingDesignGallery() {
       return;
     }
     selectAt(next, true);
+  }
+
+  function onCarouselKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      goPrev();
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      goNext();
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      selectAt(0, false, -1);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      selectAt(LANDING_DEMO_DESIGNS.length - 1, false, 1);
+    }
+  }
+
+  if (compact) {
+    return (
+      <div
+        className="pf-gallery-carousel"
+        id={carouselId}
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Example outputs"
+        onMouseEnter={() => setCarouselPaused(true)}
+        onMouseLeave={() => setCarouselPaused(false)}
+        onFocusCapture={() => setCarouselPaused(true)}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setCarouselPaused(false);
+          }
+        }}
+        onKeyDown={onCarouselKeyDown}
+      >
+        <div className="pf-gallery-carousel-stage">
+          <Tooltip delay={500}>
+            <Tooltip.Trigger>
+              <button
+                type="button"
+                className="pf-gallery-carousel-nav pf-gallery-carousel-nav--prev"
+                aria-label="Previous example"
+                aria-controls={carouselId}
+                onClick={goPrev}
+              >
+                <ChevronLeft className="size-5" aria-hidden />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content placement="left" offset={8}>
+              Previous
+            </Tooltip.Content>
+          </Tooltip>
+
+          <div
+            className="pf-gallery-carousel-spotlight"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={selected.id}
+                className="pf-gallery-carousel-frame"
+                initial={
+                  reduceMotion
+                    ? false
+                    : { opacity: 0, x: slideDirection * 48, scale: 0.985 }
+                }
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={
+                  reduceMotion
+                    ? undefined
+                    : { opacity: 0, x: slideDirection * -48, scale: 0.99 }
+                }
+                transition={{ duration: reduceMotion ? 0 : 0.38, ease }}
+              >
+                <GalleryCanvas
+                  design={selected}
+                  maxWidth={480}
+                  maxHeight={520}
+                />
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          <Tooltip delay={500}>
+            <Tooltip.Trigger>
+              <button
+                type="button"
+                className="pf-gallery-carousel-nav pf-gallery-carousel-nav--next"
+                aria-label="Next example"
+                aria-controls={carouselId}
+                onClick={goNext}
+              >
+                <ChevronRight className="size-5" aria-hidden />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content placement="right" offset={8}>
+              Next
+            </Tooltip.Content>
+          </Tooltip>
+        </div>
+
+        <div className="pf-gallery-carousel-copy">
+          <p className="pf-gallery-kicker">{brand.name}</p>
+          <h3 className="pf-gallery-title">{selected.title}</h3>
+          <p className="pf-gallery-caption">
+            {platform.label} · {layout.name}
+          </p>
+          <p className="pf-gallery-lede">{selected.copy.heading}</p>
+          {selected.copy.subheading ? (
+            <p className="pf-gallery-sub">{selected.copy.subheading}</p>
+          ) : null}
+        </div>
+
+        <div
+          className="pf-gallery-carousel-dots"
+          role="tablist"
+          aria-label="Choose example"
+        >
+          {LANDING_DEMO_DESIGNS.map((design, index) => (
+            <button
+              key={design.id}
+              type="button"
+              role="tab"
+              className={`pf-gallery-carousel-dot${
+                design.id === selectedId ? " is-active" : ""
+              }`}
+              aria-selected={design.id === selectedId}
+              aria-label={`${design.title}, ${getLandingBrand(design.brandId).name}`}
+              tabIndex={design.id === selectedId ? 0 : -1}
+              onClick={() => selectAt(index, false, index > selectedIndex ? 1 : -1)}
+            />
+          ))}
+        </div>
+
+        <Link
+          href="/designs"
+          className="pf-btn pf-btn-ghost pf-btn-sm pf-gallery-carousel-cta"
+        >
+          View saved designs
+          <ArrowUpRight className="size-4" />
+        </Link>
+      </div>
+    );
   }
 
   return (

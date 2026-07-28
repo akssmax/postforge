@@ -46,7 +46,7 @@ export function LandingShufflePlayground({
 
   const platform = getPlatform(demo.platformId);
   const stageRef = useRef<HTMLDivElement>(null);
-  const maxPreviewScale = compact ? 0.46 : 0.52;
+  const maxPreviewScale = compact ? 0.56 : 0.68;
   const [previewScale, setPreviewScale] = useState(maxPreviewScale);
 
   useEffect(() => {
@@ -77,13 +77,7 @@ export function LandingShufflePlayground({
   function selectBrand(id: LandingBrandId) {
     const next = getLandingBrand(id);
     setBrandId(id);
-    setDemo(
-      createLandingDemoState(id, next.colors, {
-        layoutId: demo.layoutId,
-        platformId: demo.platformId,
-        showFeaturedImage: true,
-      }),
-    );
+    setDemo(createLandingDemoState(id, next.colors));
   }
 
   function handleShuffle() {

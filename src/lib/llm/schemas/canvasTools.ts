@@ -2,6 +2,7 @@ import { z } from "zod";
 import { POST_LAYOUTS } from "@/lib/social-tool/postLayouts";
 import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
 import type { DesignDocument } from "@/lib/design/types";
+import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 import type { BrandKitPersisted } from "@/lib/brand/types";
 import type { FeaturedBlockPersisted } from "@/lib/social-tool/featuredBlock";
 
@@ -38,6 +39,18 @@ export type CanvasPatchResult = {
   targetArtboards?: ArtboardTarget;
   error?: string;
 };
+
+export function omitInvalidFeaturedSlotId<T extends { slotId?: string }>(
+  input: T,
+  snapshot: DesignSnapshot,
+): T {
+  const slotId = input.slotId?.trim();
+  if (!slotId) return input;
+  const slots = snapshot.featured.slots ?? [];
+  if (slots.some((slot) => slot.slotId === slotId)) return input;
+  const { slotId: _removed, ...rest } = input;
+  return rest as T;
+}
 
 export function attachArtboardTarget<T extends { targetArtboards?: ArtboardTarget }>(
   patch: CanvasPatchResult,
@@ -119,7 +132,11 @@ export const modifyVisualBlockToolSchema = z.object({
 });
 
 export const selectVisualBlockToolSchema = z.object({
-  blockId: z.string(),
+  blockId: z
+    .string()
+    .describe(
+      "Visual block id from the snapshot, an existing block's libraryId, or a library pattern id from the catalog.",
+    ),
   slotId: featuredSlotIdSchema,
 });
 
@@ -263,3 +280,26 @@ export type CanvasToolName =
   | "addShape"
   | "updateShape"
   | "removeShape";
+
+export const CANVAS_TOOL_NAMES = [
+  "updateCopy",
+  "refreshCopyVariants",
+  "updateBackground",
+  "updatePattern",
+  "updateFeatured",
+  "generateVisualBlock",
+  "modifyVisualBlock",
+  "selectVisualBlock",
+  "updateLayout",
+  "updateBrand",
+  "updateTypography",
+  "updateVisibility",
+  "updateSpacing",
+  "addShape",
+  "updateShape",
+  "removeShape",
+] as const satisfies readonly CanvasToolName[];
+
+export const CANVAS_TOOL_PART_TYPES = CANVAS_TOOL_NAMES.map(
+  (name) => `tool-${name}` as const,
+);

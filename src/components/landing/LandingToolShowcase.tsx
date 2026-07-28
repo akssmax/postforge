@@ -100,7 +100,13 @@ const BRAND_ROTATION: readonly LandingBrandId[] = [
   "blinkit",
 ];
 
-export function LandingToolShowcase() {
+const WORKFLOW_STEPS: readonly TourStepId[] = ["brand", "chat", "export"];
+
+type Props = {
+  variant?: "full" | "workflow";
+};
+
+export function LandingToolShowcase({ variant = "workflow" }: Props) {
   const reduceMotion = useReducedMotion();
   const [stepIndex, setStepIndex] = useState(0);
   const [brandIndex, setBrandIndex] = useState(0);
@@ -112,9 +118,17 @@ export function LandingToolShowcase() {
     createLandingDemoState("claude", getLandingBrand("claude").colors),
   );
 
-  const step = TOUR_STEPS[stepIndex] ?? TOUR_STEPS[0];
+  const activeSteps = useMemo(
+    () =>
+      variant === "workflow"
+        ? TOUR_STEPS.filter((s) => WORKFLOW_STEPS.includes(s.id))
+        : TOUR_STEPS,
+    [variant],
+  );
+
+  const step = activeSteps[stepIndex % activeSteps.length] ?? activeSteps[0]!;
   const platform = getPlatform(demo.platformId);
-  const previewScale = 0.38;
+  const previewScale = 0.54;
   const illustrationMarkup = useBrandRecoloredIllustration(
     demo.illustrationSrc,
     brand,
@@ -134,7 +148,9 @@ export function LandingToolShowcase() {
   );
 
   useEffect(() => {
-    const el = document.getElementById("tool-demo");
+    const el = document.getElementById(
+      variant === "workflow" ? "workflow" : "tool-demo",
+    );
     if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -144,16 +160,16 @@ export function LandingToolShowcase() {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [variant]);
 
   useEffect(() => {
     if (!inView || reduceMotion) return;
     const duration = step.durationMs;
     const timer = window.setTimeout(() => {
-      setStepIndex((i) => (i + 1) % TOUR_STEPS.length);
+      setStepIndex((i) => (i + 1) % activeSteps.length);
     }, duration);
     return () => window.clearTimeout(timer);
-  }, [inView, reduceMotion, step.durationMs, stepIndex]);
+  }, [inView, reduceMotion, step.durationMs, stepIndex, activeSteps.length]);
 
   useEffect(() => {
     if (!inView) return;
@@ -164,11 +180,7 @@ export function LandingToolShowcase() {
         const nextId = BRAND_ROTATION[next] ?? "claude";
         const nextBrand = getLandingBrand(nextId);
         setDemo((prev) =>
-          createLandingDemoState(nextId, nextBrand.colors, {
-            layoutId: prev.layoutId,
-            platformId: prev.platformId,
-            showFeaturedImage: true,
-          }),
+          createLandingDemoState(nextId, nextBrand.colors),
         );
         return next;
       });
@@ -211,7 +223,7 @@ export function LandingToolShowcase() {
     <div className="pf-tool-showcase">
       <div className="pf-tool-showcase-layout">
         <ol className="pf-tool-benefits" aria-label="Design tool benefits">
-          {TOUR_STEPS.map((item, i) => {
+          {activeSteps.map((item, i) => {
             const Icon = item.icon;
             const active = i === stepIndex;
             return (

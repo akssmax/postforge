@@ -12,17 +12,18 @@ export function ensureFeaturedSlots(
   slots: FeaturedSlotContent[] | undefined,
   fallback?: Partial<FeaturedSlotContent>,
 ): FeaturedSlotContent[] {
-  if (slots && slots.length > 0) return slots;
-  return [
-    {
-      slotId: FEATURED_PRIMARY_SLOT_ID,
-      mode: fallback?.mode ?? "placeholder",
-      productPage: fallback?.productPage,
-      activeBlockId: fallback?.activeBlockId ?? null,
-      transform: fallback?.transform,
-      visible: fallback?.visible ?? true,
-    },
-  ];
+  const primary: FeaturedSlotContent = {
+    slotId: FEATURED_PRIMARY_SLOT_ID,
+    mode: fallback?.mode ?? "placeholder",
+    productPage: fallback?.productPage,
+    activeBlockId: fallback?.activeBlockId ?? null,
+    transform: fallback?.transform,
+    visible: fallback?.visible ?? true,
+  };
+
+  if (!slots || slots.length === 0) return [primary];
+  if (slots.some((slot) => slot.slotId === FEATURED_PRIMARY_SLOT_ID)) return slots;
+  return [primary, ...slots];
 }
 
 export function nextFeaturedSlotId(slots: FeaturedSlotContent[]): string {

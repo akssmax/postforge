@@ -172,6 +172,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const copyEditBaselineRef = useRef<string>("");
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const pendingDeleteBoardRef = useRef<string | null>(null);
+  const shuffleInFlightRef = useRef(false);
+  const [shufflingBoardId, setShufflingBoardId] = useState<string | null>(null);
   const [pendingDeleteBoardId, setPendingDeleteBoardId] = useState<string | null>(
     null,
   );
@@ -608,23 +610,32 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   }
 
   async function shuffleBoard(boardId: string, prefs: ShufflePreferences) {
+    if (shuffleInFlightRef.current) return;
     const source = boardSessionFor(boardId);
     if (!source) return;
-    const result = applyShuffleToSession(source, {
-      prefs,
-      backgrounds: session.backgroundPresets,
-    });
 
-    let next = result.session;
-    if (result.shouldShuffleFeaturedVisual) {
-      next = (await shuffleFeaturedVisualForSession(next)).session;
-    }
+    shuffleInFlightRef.current = true;
+    setShufflingBoardId(boardId);
+    try {
+      const result = applyShuffleToSession(source, {
+        prefs,
+        backgrounds: session.backgroundPresets,
+      });
 
-    // Persist only this artboard's snapshot
-    variantGroup.replaceBoard(next);
+      let next = result.session;
+      if (result.shouldShuffleFeaturedVisual) {
+        next = (await shuffleFeaturedVisualForSession(next)).session;
+      }
 
-    if (boardId === variantGroup.activeDesignId) {
-      session.adoptSession(next);
+      if (boardId === variantGroup.activeDesignId) {
+        session.adoptSession(next);
+        variantGroup.mirrorBoard(next);
+      } else {
+        variantGroup.replaceBoard(next);
+      }
+    } finally {
+      shuffleInFlightRef.current = false;
+      setShufflingBoardId(null);
     }
   }
 
@@ -1070,7 +1081,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const editableTextSlots = useMemo(
     () =>
       getEditableTextSlots(doc.layoutRef, doc.layoutId, doc.textSlots, doc.copy, doc.artifactId),
-    [doc.layoutRef, doc.layoutId, doc.textSlots, doc.copy],
+    [doc.layoutRef, doc.layoutId, doc.textSlots, doc.copy, doc.artifactId],
   );
 
   const showFeaturedInspector = useMemo(() => {
@@ -1744,6 +1755,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       onShuffle={(prefs) => {
                         void shuffleBoard(board.designId, prefs);
                       }}
+                      shufflePending={shufflingBoardId === board.designId}
                       onGenerateVariants={() => {
                         void handleGenerateVariants();
                       }}

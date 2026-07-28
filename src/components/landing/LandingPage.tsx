@@ -3,65 +3,58 @@
 import { useCallback, useState, type MouseEvent } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import {
-  ArrowUpRight,
-  Download,
-  LayoutGrid,
-  Menu,
-  Palette,
-  Presentation,
-  Shuffle,
-  SlidersHorizontal,
-  Sparkles,
-  type LucideIcon,
-} from "lucide-react";
+import { ArrowUpRight, Menu } from "lucide-react";
 import { Popover, Tooltip } from "@heroui/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Logo } from "@/components/Logo";
 import { ThemeControls } from "@/components/ThemeControls";
 import { LANDING_BRANDS } from "@/components/landing/landingBrands";
+import { LandingFeatureChapter } from "@/components/landing/LandingFeatureChapter";
+import { LandingCapabilities } from "@/components/landing/LandingCapabilities";
 import "./landing.css";
 
-const LandingShufflePlayground = dynamic(
+const LandingHeroEditor = dynamic(
   () =>
-    import("@/components/landing/LandingShufflePlayground").then(
-      (m) => m.LandingShufflePlayground,
+    import("@/components/landing/LandingHeroEditor").then(
+      (m) => m.LandingHeroEditor,
     ),
+  {
+    ssr: false,
+    loading: () => <div className="pf-playground-skeleton" aria-hidden />,
+  },
+);
+
+const LandingFeatureEditorPreview = dynamic(
+  () =>
+    import("@/components/landing/LandingFeatureEditorPreview").then(
+      (m) => m.LandingFeatureEditorPreview,
+    ),
+  { ssr: false },
+);
+
+const LandingLiveDemo = dynamic(
+  () =>
+    import("@/components/landing/LandingLiveDemo").then((m) => m.LandingLiveDemo),
   {
     ssr: false,
     loading: () => (
       <div className="pf-playground-skeleton" aria-hidden>
-        Loading canvas…
+        Loading product demo…
       </div>
     ),
   },
 );
 
-const LandingDesignGallery = dynamic(
+const LandingGoldenGallery = dynamic(
   () =>
-    import("@/components/landing/LandingDesignGallery").then(
-      (m) => m.LandingDesignGallery,
+    import("@/components/landing/LandingGoldenGallery").then(
+      (m) => m.LandingGoldenGallery,
     ),
   {
     ssr: false,
     loading: () => (
       <div className="pf-gallery-skeleton" aria-hidden>
-        Loading designs…
-      </div>
-    ),
-  },
-);
-
-const LandingToolShowcase = dynamic(
-  () =>
-    import("@/components/landing/LandingToolShowcase").then(
-      (m) => m.LandingToolShowcase,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="pf-tool-skeleton" aria-hidden>
-        Loading tool demo…
+        Loading examples…
       </div>
     ),
   },
@@ -70,74 +63,33 @@ const LandingToolShowcase = dynamic(
 const ease = [0.22, 1, 0.36, 1] as const;
 
 const NAV_LINKS = [
-  { href: "#playground", label: "Shuffle" },
-  { href: "#gallery", label: "Designs" },
-  { href: "#tool-demo", label: "Tool" },
-  { href: "#features", label: "Features" },
-  { href: "/tool", label: "Open tool" },
+  { href: "#product", label: "Product" },
+  { href: "#examples", label: "Examples" },
+  { href: "/visuals", label: "Visuals" },
+  { href: "/tool", label: "Launch" },
 ] as const;
-
-const FEATURES: ReadonlyArray<{
-  title: string;
-  body: string;
-  icon: LucideIcon;
-}> = [
-  {
-    title: "Shuffle",
-    icon: Shuffle,
-    body: "One click cycles layout, background, pattern, and copy until the composition clicks — no blank canvas.",
-  },
-  {
-    title: "Brand kit",
-    icon: Palette,
-    body: "Upload a logo, extract colors, pick brand backgrounds, and tile logo patterns that stay on-brand.",
-  },
-  {
-    title: "AI brief",
-    icon: Sparkles,
-    body: "Describe the post in the tool and generate on-brand designs from a short brief — then refine with Shuffle.",
-  },
-  {
-    title: "Visual blocks",
-    icon: LayoutGrid,
-    body: "Drop in product GenUI previews or illustration blocks for the featured slot — ready-made, not pasted screenshots.",
-  },
-  {
-    title: "Spacing & contrast",
-    icon: SlidersHorizontal,
-    body: "Tune spacing with live handles and catch contrast issues before you export.",
-  },
-  {
-    title: "Export ready",
-    icon: Download,
-    body: "Download PNG, JPG, or PDF — including print standee sizes when you need them.",
-  },
-  {
-    title: "Slide decks",
-    icon: Presentation,
-    body: "Build short decks on a separate canvas with the same brand system. Start posts at /tool; decks live at /slides.",
-  },
-];
 
 export function LandingPage() {
   const reduceMotion = useReducedMotion();
   const [shuffleRequest, setShuffleRequest] = useState(0);
+  const [demoMounted, setDemoMounted] = useState(false);
 
-  const scrollToPlayground = useCallback((behavior: ScrollBehavior = "smooth") => {
-    document.getElementById("playground")?.scrollIntoView({
+  const scrollToProduct = useCallback((behavior: ScrollBehavior = "smooth") => {
+    document.getElementById("product")?.scrollIntoView({
       behavior,
-      block: "center",
+      block: "start",
     });
   }, []);
 
   const handleTryShuffle = useCallback(
-    (event: MouseEvent<HTMLAnchorElement>) => {
-      event.preventDefault();
-      scrollToPlayground(reduceMotion ? "auto" : "smooth");
+    (event?: MouseEvent<HTMLAnchorElement>) => {
+      event?.preventDefault();
+      setDemoMounted(true);
+      scrollToProduct(reduceMotion ? "auto" : "smooth");
       setShuffleRequest((n) => n + 1);
       window.history.replaceState(null, "", "#playground");
     },
-    [reduceMotion, scrollToPlayground],
+    [reduceMotion, scrollToProduct],
   );
 
   return (
@@ -199,54 +151,12 @@ export function LandingPage() {
       </header>
 
       <main>
-        <section className="pf-hero" aria-label="Hero">
-          <div className="pf-hero-glow" aria-hidden />
-          <div className="pf-hero-grid" aria-hidden />
+        <LandingHeroEditor onTryShuffle={handleTryShuffle} />
 
-          <div className="pf-hero-inner">
-            <motion.div
-              className="pf-hero-copy"
-              initial={reduceMotion ? false : { opacity: 0, y: 28 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, ease }}
-            >
-              <h1 className="pf-hero-title">
-                From logo to finished post — in one canvas.
-              </h1>
-              <p className="pf-hero-lede">
-                Upload your brand, shuffle layouts until it looks right, export for
-                LinkedIn, Instagram, X, and more.
-              </p>
-              <div className="pf-hero-cta">
-                <Link href="/tool" className="pf-btn pf-btn-accent">
-                  Open design tool
-                  <ArrowUpRight className="size-5" />
-                </Link>
-                <a
-                  href="#playground"
-                  className="pf-btn pf-btn-ghost"
-                  onClick={handleTryShuffle}
-                >
-                  <Shuffle className="size-4" aria-hidden />
-                  Try Shuffle
-                </a>
-              </div>
-            </motion.div>
-
-            <motion.div
-              className="pf-hero-stage"
-              id="playground"
-              initial={reduceMotion ? false : { opacity: 0, y: 40, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.85, delay: 0.12, ease }}
-            >
-              <LandingShufflePlayground compact shuffleRequest={shuffleRequest} />
-            </motion.div>
-          </div>
-        </section>
-
-        <section className="pf-logos" aria-label="Brand examples">
-          <p className="pf-logos-label">Works with any brand</p>
+        <section className="pf-logos pf-logos--compact" aria-label="Brand examples">
+          <p className="pf-logos-label">
+            Trusted brand systems — from SaaS to consumer apps
+          </p>
           <ul className="pf-logos-row">
             {LANDING_BRANDS.map((brand) => (
               <li key={brand.id}>
@@ -261,77 +171,62 @@ export function LandingPage() {
           </ul>
         </section>
 
-        <section id="gallery" className="pf-gallery">
-          <motion.div
-            className="pf-section-head"
-            initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.55, ease }}
-          >
-            <h2>Generated designs, ready to remix.</h2>
-            <p>
-              Real canvases with real layouts — pick a brand in Shuffle above, or
-              start your own thread in the tool.
-            </p>
-          </motion.div>
-          <LandingDesignGallery />
-        </section>
+        <div id="features" className="pf-chapters">
+          <LandingFeatureChapter
+            kicker="Brand kit"
+            title="Your logo becomes a design system"
+            body="Upload once — Postforge extracts colors, builds backgrounds, and tiles logo patterns across every post."
+            href="/tool"
+            linkLabel="Open design tool"
+            visual={
+              <LandingFeatureEditorPreview
+                designId="linear-ship"
+                brandId="linear"
+                highlight={{ brand: true }}
+              />
+            }
+          />
+          <LandingFeatureChapter
+            kicker="Shuffle"
+            title="Explore finished compositions in one click"
+            body="Cycle layout, surface, pattern, and copy across artboards — skip the blank canvas."
+            href="#playground"
+            linkLabel="Try Shuffle live"
+            align="right"
+            visual={
+              <LandingFeatureEditorPreview
+                designId="swiggy-promo"
+                brandId="swiggy"
+                highlight={{ shuffle: true }}
+              />
+            }
+          />
+          <LandingFeatureChapter
+            kicker="AI brief"
+            title="Describe it once, refine in chat"
+            body="Brief the AI in plain language, get a first draft on canvas, then follow up without leaving the editor."
+            href="/tool"
+            linkLabel="Start with a brief"
+            visual={
+              <LandingFeatureEditorPreview
+                designId="claude-launch"
+                brandId="claude"
+                highlight={{}}
+                asideTab="chat"
+                chatVisible={3}
+              />
+            }
+          />
+        </div>
 
-        <section id="tool-demo" className="pf-tool-section">
-          <motion.div
-            className="pf-section-head"
-            initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.55, ease }}
-          >
-            <h2>The design tool, in motion.</h2>
-            <p>
-              A full editor chrome — brand kit, Shuffle, AI chat, spacing checks,
-              and export — walking through the flow that ships a post.
-            </p>
-          </motion.div>
-          <LandingToolShowcase />
-        </section>
+        <LandingLiveDemo
+          shuffleRequest={shuffleRequest}
+          forceMount={demoMounted}
+        />
 
-        <section id="features" className="pf-features">
-          <motion.div
-            className="pf-section-head"
-            initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.55, ease }}
-          >
-            <h2>Everything you need to ship the look.</h2>
-            <p>
-              From brand kit to export — with Shuffle as the fastest way to explore
-              compositions that already look finished.
-            </p>
-          </motion.div>
+        <LandingGoldenGallery />
 
-          <div className="pf-feature-grid pf-feature-grid-wide">
-            {FEATURES.map((item, i) => {
-              const Icon = item.icon;
-              return (
-              <motion.article
-                key={item.title}
-                className={`pf-feature${item.title === "Shuffle" ? " pf-feature-accent" : ""}`}
-                initial={reduceMotion ? false : { opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, delay: i * 0.05, ease }}
-              >
-                <div className="pf-feature-icon" aria-hidden>
-                  <Icon className="pf-feature-icon__svg" strokeWidth={2} />
-                </div>
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-              </motion.article>
-              );
-            })}
-          </div>
-        </section>
+        <LandingCapabilities />
 
         <section className="pf-cta-band">
           <motion.div
@@ -341,13 +236,13 @@ export function LandingPage() {
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.55, ease }}
           >
-            <h2>Start with your logo.</h2>
+            <h2>Ready to ship your next post?</h2>
             <p>
-              Open the canvas, upload a brand mark, and Shuffle until the post
-              looks finished.
+              Open the canvas, upload your logo, and explore on-brand compositions
+              in minutes.
             </p>
             <Link href="/tool" className="pf-btn pf-btn-accent">
-              Go to design tool
+              Start designing
               <ArrowUpRight className="size-5" />
             </Link>
           </motion.div>
@@ -359,8 +254,8 @@ export function LandingPage() {
           <div className="pf-footer-brand">
             <Logo href="/" height={28} className="text-current" />
             <p className="pf-footer-tagline">
-              From logo to finished post — design branded socials and slides in
-              one canvas.
+              On-brand social posts and slide decks — from logo to export in one
+              canvas.
             </p>
             <Link href="/tool" className="pf-btn pf-btn-accent pf-btn-sm">
               Launch tool
@@ -390,16 +285,16 @@ export function LandingPage() {
               <h3 className="pf-footer-heading">Explore</h3>
               <ul>
                 <li>
-                  <a href="#playground">Shuffle</a>
-                </li>
-                <li>
-                  <a href="#gallery">Design gallery</a>
-                </li>
-                <li>
-                  <a href="#tool-demo">Tool demo</a>
-                </li>
-                <li>
                   <a href="#features">Features</a>
+                </li>
+                <li>
+                  <a href="#playground">Try Shuffle</a>
+                </li>
+                <li>
+                  <a href="#examples">Examples</a>
+                </li>
+                <li>
+                  <a href="#product">Product demo</a>
                 </li>
               </ul>
             </div>

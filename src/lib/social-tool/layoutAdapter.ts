@@ -14,7 +14,7 @@ import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import type { PostCopy, ProductPageId } from "@/lib/social-tool/presets";
 import { normalizeProductPage } from "@/lib/social-tool/presets";
 import type { FeaturedBlockPersisted } from "@/lib/social-tool/featuredBlock";
-import { getSlotConstraint } from "@/lib/social-tool/slotLibrary";
+import { resolveEditableSlotLabel } from "@/lib/social-tool/slotLibrary";
 
 export type EditableTextSlot = {
   slotId: string;
@@ -22,6 +22,47 @@ export type EditableTextSlot = {
   text: string;
   label: string;
 };
+
+function disambiguateEditableSlotLabels(slots: EditableTextSlot[]): EditableTextSlot[] {
+  const counts = new Map<string, number>();
+  for (const slot of slots) {
+    counts.set(slot.label, (counts.get(slot.label) ?? 0) + 1);
+  }
+
+  const seen = new Map<string, number>();
+  return slots.map((slot) => {
+    if ((counts.get(slot.label) ?? 0) <= 1) return slot;
+    const index = (seen.get(slot.label) ?? 0) + 1;
+    seen.set(slot.label, index);
+    return index === 1 ? slot : { ...slot, label: `${slot.label} ${index}` };
+  });
+}
+
+export function getEditableTextSlots(
+  layoutRef: LayoutRef | undefined,
+  layoutId: PostLayoutId,
+  textSlots: TextSlotContent[] | undefined,
+  copy: PostCopy,
+  artifactId?: string,
+): EditableTextSlot[] {
+  const layout = resolveLayoutRef(layoutRef ?? catalogLayoutRef(layoutId));
+  const current = textSlots ?? textSlotsFromCopy(copy, layout);
+
+  const slots = layout.slots
+    .filter((slot) => slot.kind === "text")
+    .map((slot) => {
+      const role = slot.textRole ?? "body";
+      const content = current.find((s) => s.slotId === slot.id);
+      return {
+        slotId: slot.id,
+        role,
+        text: content?.text ?? "",
+        label: resolveEditableSlotLabel(slot.id, role, copy, artifactId),
+      };
+    });
+
+  return disambiguateEditableSlotLabels(slots);
+}
 
 export function patchTextSlot(
   textSlots: TextSlotContent[],
@@ -37,30 +78,6 @@ export function patchTextSlot(
     return [...textSlots, { slotId, text, role }];
   }
   return textSlots;
-}
-
-export function getEditableTextSlots(
-  layoutRef: LayoutRef | undefined,
-  layoutId: PostLayoutId,
-  textSlots: TextSlotContent[] | undefined,
-  copy: PostCopy,
-  artifactId?: string,
-): EditableTextSlot[] {
-  const layout = resolveLayoutRef(layoutRef ?? catalogLayoutRef(layoutId));
-  const current = textSlots ?? textSlotsFromCopy(copy, layout);
-
-  return layout.slots
-    .filter((slot) => slot.kind === "text")
-    .map((slot) => {
-      const role = slot.textRole ?? "body";
-      const content = current.find((s) => s.slotId === slot.id);
-      return {
-        slotId: slot.id,
-        role,
-        text: content?.text ?? "",
-        label: getSlotConstraint(role, undefined, artifactId).label,
-      };
-    });
 }
 
 export function syncDocumentTextSlots(
@@ -345,18 +362,12 @@ export function copyFromTextSlots(
     else if (slot.role === "subheading") next.subheading = slot.text;
     else {
       const idx = next.extraFields.findIndex((f) => f.id === slot.slotId);
+      const existingLabel = idx >= 0 ? next.extraFields[idx]?.label?.trim() : "";
       const label =
-        slot.role === "caption"
-          ? "Caption"
-          : slot.role === "contact"
-            ? "Contact"
-            : slot.role === "cta"
-              ? "Call to action"
-              : slot.slotId.startsWith("section-")
-                ? `Section ${Number(slot.slotId.split("-")[1] ?? 0) + 1}`
-                : "Detail";
+        existingLabel ||
+        resolveEditableSlotLabel(slot.slotId, slot.role, base);
       if (idx >= 0) {
-        next.extraFields[idx] = { ...next.extraFields[idx], value: slot.text };
+        next.extraFields[idx] = { ...next.extraFields[idx], value: slot.text, label };
       } else {
         next.extraFields.push({
           id: slot.slotId,

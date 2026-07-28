@@ -242,16 +242,21 @@ export function computeSelectVisualBlockPatch(
   snapshot: DesignSnapshot,
   input: z.infer<typeof selectVisualBlockToolSchema>,
 ): CanvasPatchResult {
-  const block = findVisualBlock(snapshotVisualBlocks(snapshot), input.blockId);
-  if (!block) {
-    return { success: false, error: `Unknown visual block: ${input.blockId}` };
+  const blocks = snapshotVisualBlocks(snapshot);
+  const byId = findVisualBlock(blocks, input.blockId);
+  if (byId) {
+    return buildComposedFeaturedPatch(snapshot, blocks, byId.id, input.slotId);
   }
-  return buildComposedFeaturedPatch(
-    snapshot,
-    snapshotVisualBlocks(snapshot),
-    block.id,
-    input.slotId,
-  );
+
+  const byLibraryId = blocks.find((block) => block.libraryId === input.blockId);
+  if (byLibraryId) {
+    return buildComposedFeaturedPatch(snapshot, blocks, byLibraryId.id, input.slotId);
+  }
+
+  return {
+    success: false,
+    error: `Unknown visual block: ${input.blockId}. Use generateVisualBlock for new library illustrations.`,
+  };
 }
 
 export function computeGeneratedVisualBlocksPatch(

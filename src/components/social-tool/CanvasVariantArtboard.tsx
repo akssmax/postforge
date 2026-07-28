@@ -58,6 +58,7 @@ type Props = {
   canDuplicateArtboard?: boolean;
   onDuplicateArtboard?: () => void;
   onShuffle: (prefs: ShufflePreferences) => void;
+  shufflePending?: boolean;
   onGenerateVariants: () => void;
   generatingVariants: boolean;
   canGenerate: boolean;
@@ -129,6 +130,7 @@ export function CanvasVariantArtboard({
   canDuplicateArtboard = false,
   onDuplicateArtboard,
   onShuffle,
+  shufflePending = false,
   onGenerateVariants,
   generatingVariants,
   canGenerate,
@@ -353,8 +355,13 @@ export function CanvasVariantArtboard({
               {displayLabel}
             </button>
           )}
-          {isActive && (canDuplicateArtboard || canDeleteArtboard) ? (
-            <div className="canvas-artboard-label-actions">
+          {canDuplicateArtboard || canDeleteArtboard ? (
+            <div
+              className={`canvas-artboard-label-actions${
+                isActive ? "" : " is-placeholder"
+              }`}
+              aria-hidden={!isActive}
+            >
               {canDuplicateArtboard && onDuplicateArtboard ? (
                 <Tooltip delay={500}>
                   <Tooltip.Trigger>
@@ -364,6 +371,7 @@ export function CanvasVariantArtboard({
                       isIconOnly
                       aria-label="Duplicate artboard"
                       className="canvas-artboard-action-btn"
+                      tabIndex={isActive ? 0 : -1}
                       onPress={() => {
                         onActivate();
                         onDuplicateArtboard();
@@ -379,7 +387,9 @@ export function CanvasVariantArtboard({
                     </p>
                   </Tooltip.Content>
                 </Tooltip>
-              ) : null}
+              ) : (
+                <span className="canvas-artboard-action-btn canvas-artboard-action-btn--spacer" aria-hidden />
+              )}
               {canDeleteArtboard && onDeleteArtboard ? (
                 <Tooltip delay={500}>
                   <Tooltip.Trigger>
@@ -389,6 +399,7 @@ export function CanvasVariantArtboard({
                       isIconOnly
                       aria-label="Delete artboard"
                       className="canvas-artboard-action-btn canvas-artboard-action-btn--danger"
+                      tabIndex={isActive ? 0 : -1}
                       onPress={onDeleteArtboard}
                     >
                       <Trash2 className="size-3.5" strokeWidth={2.25} aria-hidden />
@@ -401,7 +412,9 @@ export function CanvasVariantArtboard({
                     </p>
                   </Tooltip.Content>
                 </Tooltip>
-              ) : null}
+              ) : (
+                <span className="canvas-artboard-action-btn canvas-artboard-action-btn--spacer" aria-hidden />
+              )}
             </div>
           ) : null}
         </div>
@@ -409,6 +422,7 @@ export function CanvasVariantArtboard({
         <LayoutShuffleButton
           layoutName={activeLayout.name}
           onShuffle={onShuffle}
+          isPending={shufflePending}
           preferenceScopeId={board.designId}
         />
         <div className="canvas-preview-toolbar-end">

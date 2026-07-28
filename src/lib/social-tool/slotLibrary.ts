@@ -1,4 +1,5 @@
 import type { TextSlotRole } from "@/lib/social-tool/dynamicLayout";
+import type { PostCopy } from "@/lib/social-tool/presets";
 import {
   isCopyOnlyArtifact,
   isInviteArtifact,
@@ -67,6 +68,22 @@ const DEFAULT_CONSTRAINTS: Record<TextSlotRole, SlotConstraint> = {
 };
 
 export function resolveSlotLabel(role: TextSlotRole, artifactId?: string): string {
+  if (isInviteArtifact(artifactId)) {
+    switch (role) {
+      case "headline":
+        return "Event title";
+      case "subheading":
+        return "Host / couple";
+      case "body":
+        return "Date & details";
+      case "contact":
+        return "Location";
+      case "cta":
+        return "RSVP";
+      default:
+        break;
+    }
+  }
   if (isEventArtifact(artifactId)) {
     switch (role) {
       case "headline":
@@ -81,22 +98,6 @@ export function resolveSlotLabel(role: TextSlotRole, artifactId?: string): strin
         return "RSVP / CTA";
       case "caption":
         return "RSVP / CTA";
-      default:
-        break;
-    }
-  }
-  if (isInviteArtifact(artifactId)) {
-    switch (role) {
-      case "headline":
-        return "Event title";
-      case "subheading":
-        return "Host / couple";
-      case "body":
-        return "Date & details";
-      case "contact":
-        return "Location";
-      case "cta":
-        return "RSVP";
       default:
         break;
     }
@@ -215,6 +216,48 @@ export function resolveSlotLabel(role: TextSlotRole, artifactId?: string): strin
     }
   }
   return DEFAULT_CONSTRAINTS[role].label;
+}
+
+/** Sidebar label for one editable text slot — prefers stored copy labels, then slot id. */
+export function resolveEditableSlotLabel(
+  slotId: string,
+  role: TextSlotRole,
+  copy: PostCopy,
+  artifactId?: string,
+): string {
+  const fromCopy = copy.extraFields.find((field) => field.id === slotId)?.label?.trim();
+  if (fromCopy) return fromCopy;
+
+  if (slotId.startsWith("section-")) {
+    const index = Number(slotId.split("-")[1] ?? 0);
+    if (artifactId === "checklist") return `Item ${index + 1}`;
+    return `Section ${index + 1}`;
+  }
+
+  if (slotId === "extra-2") {
+    if (isInviteArtifact(artifactId)) return "Date & details";
+    if (isEventArtifact(artifactId)) return "Date & time";
+    if (isSocialAdArtifact(artifactId)) return "Supporting copy";
+    if (artifactId === "hiring_post") return "Highlights";
+    if (artifactId === "proposal_cover") return "Summary";
+  }
+
+  if (slotId === "contact-footer") {
+    if (isInviteArtifact(artifactId)) return "Location";
+    if (isEventArtifact(artifactId)) return "Venue";
+    if (artifactId === "business_card") return "Contact";
+    if (artifactId === "proposal_cover") return "Prepared for";
+    if (artifactId === "certificate") return "Signatory";
+  }
+
+  if (slotId === "extras-footer") {
+    if (isInviteArtifact(artifactId)) return "RSVP";
+    if (isEventArtifact(artifactId)) return "RSVP / CTA";
+    if (artifactId === "hiring_post") return "Apply CTA";
+    if (isSocialAdArtifact(artifactId)) return "Call to action";
+  }
+
+  return resolveSlotLabel(role, artifactId);
 }
 
 export function getSlotConstraint(

@@ -115,6 +115,28 @@ function sanitizeBriefChatMessage(message: string): string {
   return `${trimmed.slice(0, 277)}…`;
 }
 
+/** Strip leaked tool-call syntax Mistral sometimes echoes into assistant text. */
+export function sanitizeAssistantMessageText(text: string): string {
+  let cleaned = text
+    .replace(/<\|[^|>]*tool_calls[^|>]*\|>[\s\S]*$/gi, "")
+    .replace(/<\|redacted_tool_calls_section_begin\|>[\s\S]*$/gi, "")
+    .trim();
+
+  const assistantJson = cleaned.match(/\bassistant\s*(\{[\s\S]*\})\s*$/i);
+  if (assistantJson?.[1]) {
+    try {
+      const parsed = JSON.parse(assistantJson[1]) as { error?: string };
+      if (typeof parsed.error === "string") {
+        cleaned = cleaned.slice(0, assistantJson.index).trim();
+      }
+    } catch {
+      /* keep text */
+    }
+  }
+
+  return cleaned;
+}
+
 /** Whether the client should route the next submit through offline generation. */
 export function isBriefChatOfflineError(error: Error | undefined): boolean {
   if (!error) return false;

@@ -101,7 +101,7 @@ export function buildDesignSnapshotInput(input: {
         id: block.id,
         label: block.label,
         kind: block.kind,
-        svgMarkup: block.svgMarkup,
+        libraryId: block.libraryId,
         theme: block.theme,
       })),
     },

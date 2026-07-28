@@ -67,6 +67,7 @@ export const LANDING_BRANDS: LandingBrand[] = [
     id: "blinkit",
     name: "Blinkit",
     logoSrc: "/landing/brands/blinkit.svg",
+    usesExplicitColors: true,
     colors: {
       primary: "#F8C301",
       secondary: "#0C831F",

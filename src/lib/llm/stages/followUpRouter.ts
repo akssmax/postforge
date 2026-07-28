@@ -95,6 +95,8 @@ export async function routeFollowUp(
   if (heuristic.mode === "regen" && matchesPhrase(message, REGEN_PHRASES)) {
     return heuristic;
   }
+  // Skip the classify LLM when heuristics already route to a canvas edit.
+  if (heuristic.mode === "edit") return heuristic;
 
   try {
     const model = createMistralModel();

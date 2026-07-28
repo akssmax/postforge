@@ -39,6 +39,8 @@ export type UseDesignVariantGroupResult = {
   /** Clone a board and append it next to the source. Returns the new board id. */
   duplicateBoard: (sourceDesignId: string) => string | null;
   syncBoard: (session: DesignSessionPersisted) => void;
+  /** Update cached board state without an extra persist write. */
+  mirrorBoard: (session: DesignSessionPersisted) => void;
   generateVariants: (originSession: DesignSessionPersisted) => Promise<void>;
   patchBoardDocument: (
     boardId: string,
@@ -168,6 +170,17 @@ export function useDesignVariantGroup(
       return next;
     });
   }, [originDesignId]);
+
+  const mirrorBoard = useCallback((session: DesignSessionPersisted) => {
+    const snapshot = structuredClone(session) as DesignSessionPersisted;
+    setBoards((prev) => {
+      const idx = prev.findIndex((b) => b.designId === snapshot.designId);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      next[idx] = snapshot;
+      return next;
+    });
+  }, []);
 
   const replaceBoard = useCallback((session: DesignSessionPersisted) => {
     const snapshot = structuredClone(session) as DesignSessionPersisted;
@@ -309,6 +322,7 @@ export function useDesignVariantGroup(
     removeBoard,
     duplicateBoard,
     syncBoard,
+    mirrorBoard,
     generateVariants,
     patchBoardDocument,
     replaceBoard,

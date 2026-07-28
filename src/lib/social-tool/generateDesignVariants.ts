@@ -12,6 +12,7 @@ import {
 import type { DesignSessionPersisted } from "@/lib/design/types";
 import { createDesignId } from "@/lib/design/ids";
 import { applyShuffleToSession } from "@/lib/social-tool/applyShuffle";
+import { applyFeaturedVisualBlockToSession } from "@/lib/social-tool/applyFeaturedVisualBlock";
 import { withShuffleAll, seedShufflePreferencesAllOn } from "@/lib/social-tool/shufflePreferences";
 import { getLayoutShuffleFamily, type PostLayoutId } from "@/lib/social-tool/postLayouts";
 import { layoutIdForDocument } from "@/lib/social-tool/layoutRegistry";
@@ -19,11 +20,8 @@ import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { inferFeaturedVisualKind, isFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import type { FeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import { activeVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
-import {
-  FEATURED_PRIMARY_SLOT_ID,
-  withAssignedVisualBlock,
-} from "@/lib/social-tool/featuredSlots";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
+import { pickShuffleFeaturedVisualBrowser } from "@/lib/social-tool/shuffleFeaturedVisualBrowser";
 import { buildBackgroundPresets } from "@/lib/brand/backgroundPresets";
 import {
   defaultBackgroundPresetIdForColors,
@@ -44,6 +42,31 @@ export type GenerateDesignVariantsResult = {
   variantIds: string[];
   batchSize: number;
 };
+
+export function buildFeaturedVisualPickInput(
+  session: DesignSessionPersisted,
+  activeKind: FeaturedVisualKind,
+  copy?: { headline?: string; subheading?: string },
+) {
+  const headline = copy?.headline ?? session.document.copy.heading;
+  const subheading = copy?.subheading ?? session.document.copy.subheading;
+  return {
+    headline,
+    subheading,
+    theme: headline,
+    brief: [headline, subheading].filter(Boolean).join(" "),
+    brandColors: {
+      primary: session.brand.colors.primary,
+      accent: session.brand.colors.accent,
+    },
+    preferredKind: activeKind,
+    intent: { featuredVisualKind: activeKind },
+    semantic: {
+      featuredKind: activeKind,
+      platformId: session.document.platformId,
+    },
+  };
+}
 
 export async function shuffleFeaturedVisualForSession(
   session: DesignSessionPersisted,
@@ -72,79 +95,35 @@ export async function shuffleFeaturedVisualForSession(
     ]),
   ];
 
-  const headline = session.document.copy.heading;
-  const subheading = session.document.copy.subheading;
-  const brief = [headline, subheading].filter(Boolean).join(" ");
-
   try {
-    const response = await fetch("/api/visual-blocks/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        headline,
-        subheading,
-        theme: headline,
-        brief,
-        brandColors: {
-          primary: session.brand.colors.primary,
-          accent: session.brand.colors.accent,
-        },
-        preferredKind: activeKind,
-        intent: { featuredVisualKind: activeKind },
-        semantic: {
-          featuredKind: activeKind,
-          platformId: session.document.platformId,
-        },
-        pickFeatured: true,
-        excludeLibraryIds: localExclude,
-        source: "library",
-      }),
-    });
-    if (!response.ok) return { session };
+    let newBlock: VisualBlockRecord | null = null;
 
-    const payload = (await response.json()) as { blocks: VisualBlockRecord[] };
-    const newBlock = payload.blocks[0];
+    if (typeof window !== "undefined") {
+      newBlock = await pickShuffleFeaturedVisualBrowser(
+        buildFeaturedVisualPickInput(session, activeKind),
+        localExclude,
+      );
+    } else {
+      const response = await fetch("/api/visual-blocks/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...buildFeaturedVisualPickInput(session, activeKind),
+          pickFeatured: true,
+          excludeLibraryIds: localExclude,
+          source: "library",
+        }),
+      });
+      if (response.ok) {
+        const payload = (await response.json()) as { blocks: VisualBlockRecord[] };
+        newBlock = payload.blocks[0] ?? null;
+      }
+    }
+
     if (!newBlock) return { session };
 
-    const visualBlocks = withAssignedVisualBlock(
-      blocks,
-      session.document.featuredSlots,
-      newBlock,
-      FEATURED_PRIMARY_SLOT_ID,
-    );
     return {
-      session: {
-        ...session,
-        featured: {
-          ...session.featured,
-          mode: "composed",
-          activeBlockId: newBlock.id,
-          visualBlocks,
-        },
-        document: {
-          ...session.document,
-          featuredVisualKind: activeKind,
-          showFeaturedImage: true,
-          featuredSlots: (session.document.featuredSlots ?? [
-            {
-              slotId: FEATURED_PRIMARY_SLOT_ID,
-              mode: "composed" as const,
-              visible: true,
-              activeBlockId: session.featured.activeBlockId,
-            },
-          ]).map((slot) =>
-            slot.slotId === FEATURED_PRIMARY_SLOT_ID
-              ? {
-                  ...slot,
-                  mode: "composed" as const,
-                  visible: true,
-                  activeBlockId: newBlock.id,
-                }
-              : slot,
-          ),
-        },
-        updatedAt: Date.now(),
-      },
+      session: applyFeaturedVisualBlockToSession(session, newBlock, activeKind),
       libraryId: newBlock.libraryId,
     };
   } catch {
@@ -222,6 +201,11 @@ export async function generateDesignVariants(
   seedShufflePreferencesAllOn(originId);
   const variantSessions: DesignSessionPersisted[] = [];
   const usedPaletteIds: string[] = [];
+  const pendingVisualShuffles: Array<{
+    index: number;
+    session: DesignSessionPersisted;
+    excludeLibraryIds: string[];
+  }> = [];
 
   for (let i = 0; i < batchSize; i++) {
     const clone = cloneDesignSession(originSession, createDesignId());
@@ -253,16 +237,37 @@ export async function generateDesignVariants(
     usedLayoutIds.push(shuffled.layoutId);
     usedFamilies.push(shuffled.layoutFamily);
 
-    let next = shuffled.session;
     if (shuffled.shouldShuffleFeaturedVisual) {
-      const visual = await shuffleFeaturedVisualForSession(next, usedLibraryIds);
-      next = visual.session;
+      pendingVisualShuffles.push({
+        index: i,
+        session: shuffled.session,
+        excludeLibraryIds: [...usedLibraryIds],
+      });
+      variantSessions.push(shuffled.session);
+    } else {
+      variantSessions.push(shuffled.session);
+    }
+  }
+
+  if (pendingVisualShuffles.length > 0) {
+    const visualResults = await Promise.all(
+      pendingVisualShuffles.map(async (entry) => {
+        const visual = await shuffleFeaturedVisualForSession(
+          entry.session,
+          entry.excludeLibraryIds,
+        );
+        return { index: entry.index, ...visual };
+      }),
+    );
+    for (const visual of visualResults) {
+      variantSessions[visual.index] = visual.session;
       if (visual.libraryId) usedLibraryIds.push(visual.libraryId);
     }
+  }
 
+  for (const next of variantSessions) {
     persistBoardSession(next);
     seedShufflePreferencesAllOn(next.designId);
-    variantSessions.push(next);
   }
 
   const boards = [...baseBoards, ...variantSessions];
