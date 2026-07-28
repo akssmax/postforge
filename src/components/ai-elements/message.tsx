@@ -99,9 +99,9 @@ export const MessageAction = ({
 
   if (tooltip) {
     return (
-      <TooltipProvider>
+      <TooltipProvider delay={500}>
         <Tooltip>
-          <TooltipTrigger>{button}</TooltipTrigger>
+          <TooltipTrigger render={button} />
           <TooltipContent>
             <p>{tooltip}</p>
           </TooltipContent>

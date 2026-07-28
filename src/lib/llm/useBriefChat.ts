@@ -148,7 +148,7 @@ export function useBriefChat({
     [platformId, resolvedArtifactCategory, brandSummary, designSnapshot],
   );
 
-  const { messages, sendMessage, status, error, setMessages } = useChat({
+  const { messages, sendMessage, status, error, setMessages, stop } = useChat({
     id: `brief-${designId}`,
     transport,
   });
@@ -368,6 +368,7 @@ export function useBriefChat({
     status,
     error,
     submitText,
+    stopGenerating: stop,
     isGenerating,
     offline,
     pendingVariants,

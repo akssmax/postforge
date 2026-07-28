@@ -32,6 +32,7 @@ import {
   Palette,
   RefreshCw,
   Sparkles,
+  Square,
   Stamp,
   ThumbsDown,
   ThumbsUp,
@@ -44,6 +45,7 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
+  type MouseEvent,
   Fragment,
   type ReactNode,
 } from "react";
@@ -482,6 +484,8 @@ function BriefChatComposer({
   mode,
   submitText,
   isGenerating,
+  chatStatus,
+  onStop,
   autoFocus,
   onSkip,
   draftPrompt,
@@ -489,6 +493,8 @@ function BriefChatComposer({
   mode: BriefChatPanelMode;
   submitText: (text: string) => boolean;
   isGenerating: boolean;
+  chatStatus?: BriefChatState["status"];
+  onStop?: () => void;
   autoFocus?: boolean;
   onSkip?: () => void;
   draftPrompt?: string | null;
@@ -501,11 +507,14 @@ function BriefChatComposer({
   const heightRef = useRef(COMPOSER_SINGLE_LINE_PX);
   const isFollowUp = mode === "follow-up";
   const placeholder = isFollowUp ? "Ask a follow-up…" : "Describe your design…";
-  const submitLabel = isGenerating
-    ? "Generating"
-    : isFollowUp
-      ? "Send follow-up"
-      : "Generate";
+  const canStop = isGenerating && !!onStop;
+  const submitLabel = canStop
+    ? "Stop generating"
+    : isGenerating
+      ? "Generating"
+      : isFollowUp
+        ? "Send follow-up"
+        : "Generate";
 
   const multiline =
     value.length > 0 &&
@@ -578,6 +587,13 @@ function BriefChatComposer({
     skipHeightAnimationRef.current = true;
   }
 
+  function handleActionClick(e: MouseEvent<HTMLButtonElement>) {
+    if (canStop) {
+      e.preventDefault();
+      onStop?.();
+    }
+  }
+
   function handleSubmit(e?: FormEvent) {
     e?.preventDefault();
     if (submitText(value)) {
@@ -623,13 +639,18 @@ function BriefChatComposer({
           aria-label={placeholder}
         />
         <button
-          type="submit"
-          className="brief-chat-prompt__submit"
-          disabled={isGenerating || !value.trim()}
+          type={canStop ? "button" : "submit"}
+          className={`brief-chat-prompt__submit${canStop && chatStatus === "streaming" ? " is-stop" : ""}`}
+          disabled={isGenerating ? !canStop : !value.trim()}
           aria-label={submitLabel}
+          onClick={handleActionClick}
         >
           {isGenerating ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden />
+            chatStatus === "streaming" ? (
+              <Square className="size-4" aria-hidden />
+            ) : (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            )
           ) : (
             <ArrowUp className="size-4" aria-hidden />
           )}
@@ -643,6 +664,8 @@ export function BriefChatPanel({
   messages,
   error,
   submitText,
+  stopGenerating,
+  status,
   isGenerating,
   offline,
   mode = "onboarding",
@@ -700,6 +723,8 @@ export function BriefChatPanel({
         mode={mode}
         submitText={submitText}
         isGenerating={isGenerating}
+        chatStatus={status}
+        onStop={stopGenerating}
         autoFocus={autoFocus}
         onSkip={onSkip}
         draftPrompt={draftPrompt}

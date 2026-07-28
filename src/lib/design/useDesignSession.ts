@@ -19,6 +19,7 @@ import {
   withLogoSvgOriginal,
 } from "@/lib/brand/logoContrastFix";
 import { resolveLayoutHierarchy } from "@/lib/social-tool/layoutHierarchy";
+import { adaptSessionToPlatform } from "@/lib/social-tool/adaptPlatformChange";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { getPlatform } from "@/lib/social-tool/presets";
 import {
@@ -223,6 +224,7 @@ export type UseDesignSessionResult = {
     options?: { recordHistory?: boolean },
   ) => void;
   setPlatformId: (platformId: PlatformId) => void;
+  changePlatformId: (platformId: PlatformId) => void;
   uploadLogo: (file: File) => Promise<void>;
   uploadLogoVariant: (variant: BrandLogoVariant, file: File) => Promise<void>;
   removeLogo: () => Promise<void>;
@@ -577,6 +579,16 @@ export function useDesignSession(
   const setPlatformId = useCallback(
     (platformId: PlatformId) => patchDocument({ platformId }),
     [patchDocument],
+  );
+
+  const changePlatformId = useCallback(
+    (platformId: PlatformId) => {
+      updateSession((prev) => {
+        if (prev.document.platformId === platformId) return prev;
+        return adaptSessionToPlatform(prev, platformId);
+      });
+    },
+    [updateSession],
   );
 
   const advanceOnboarding = useCallback(
@@ -1812,6 +1824,7 @@ export function useDesignSession(
       featuredError,
       patchDocument,
       setPlatformId,
+      changePlatformId,
       uploadLogo,
       uploadLogoVariant,
       removeLogo,
@@ -1872,6 +1885,7 @@ export function useDesignSession(
       featuredError,
       patchDocument,
       setPlatformId,
+      changePlatformId,
       uploadLogo,
       uploadLogoVariant,
       removeLogo,

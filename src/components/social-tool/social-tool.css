@@ -2949,6 +2949,28 @@ html:has(.social-tool) body {
   overflow: hidden;
 }
 
+button.canvas-platform-pill-badge-trigger {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+button.canvas-platform-pill-badge-trigger:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--brand-500) 35%, transparent);
+  background: var(--overlay-hover);
+}
+
+button.canvas-platform-pill-badge-trigger:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.canvas-platform-pill-chevron {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+
 .canvas-platform-pill-value {
   display: inline-flex;
   align-items: center;
@@ -3004,6 +3026,34 @@ html:has(.social-tool) body {
 .canvas-platform-option-meta {
   font-size: 0.6875rem;
   color: var(--text-tertiary);
+}
+
+.canvas-platform-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.125rem;
+}
+
+.canvas-platform-option-button {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.canvas-platform-option-button:hover {
+  background: var(--overlay-hover);
+}
+
+.canvas-platform-option-button.is-current,
+.canvas-platform-option-button[aria-selected="true"] {
+  background: color-mix(in oklab, var(--brand-500) 10%, transparent);
 }
 
 .canvas-platform-pill [data-slot="value"],
@@ -4816,6 +4866,15 @@ html:has(.social-tool) body {
   .brief-chat-prompt__input {
     transition: none;
   }
+}
+
+.brief-chat-prompt__submit.is-stop {
+  background: var(--gray-700);
+}
+
+.dark .brief-chat-prompt__submit.is-stop {
+  background: var(--gray-300);
+  color: var(--gray-950);
 }
 
 .brief-chat-prompt__submit:disabled {

@@ -158,16 +158,19 @@ export function ContentPanel({
         })}
       </div>
 
-      <InspectorSegment
-        aria-label="Text alignment"
-        value={textAlign}
-        onChange={(value) => onTextAlignChange(value as TextAlign)}
-        options={ALIGN_OPTIONS.map((opt) => ({
-          id: opt.id,
-          label: opt.label,
-          icon: opt.icon,
-        }))}
-      />
+      <div className="social-tool-row">
+        <span className="social-tool-row-label">Align</span>
+        <InspectorSegment
+          aria-label="Text alignment"
+          value={textAlign}
+          onChange={(value) => onTextAlignChange(value as TextAlign)}
+          options={ALIGN_OPTIONS.map((opt) => ({
+            id: opt.id,
+            label: opt.label,
+            icon: opt.icon,
+          }))}
+        />
+      </div>
 
       <InspectorSelect
         label="Heading font"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { ChevronDown, Download, Loader2, PanelLeft } from "lucide-react";
 import { Button, Tooltip } from "@heroui/react";
 import {
@@ -10,7 +10,7 @@ import {
 import { DesignToolHeader } from "@/components/social-tool/DesignToolHeader";
 import { ExportMenu } from "@/components/social-tool/ExportMenu";
 import { ExportProgressOverlay } from "@/components/social-tool/ExportProgressOverlay";
-import { CanvasPlatformBadge } from "@/components/social-tool/CanvasPlatformPicker";
+import { CanvasPlatformBadgePicker } from "@/components/social-tool/CanvasPlatformPicker";
 import { ContrastIssuesToggle } from "@/components/social-tool/ContrastIssuesToggle";
 import {
   DEFAULT_FEATURED_TRANSFORM,
@@ -26,8 +26,10 @@ import {
 } from "@/lib/social-tool/layoutAdapter";
 import {
   getPlatform,
+  type PlatformId,
   type PostCopy,
 } from "@/lib/social-tool/presets";
+import { adaptSessionToPlatform } from "@/lib/social-tool/adaptPlatformChange";
 import type { ExportFormat } from "@/lib/social-tool/exportPost";
 import { resolveDesignCanvasSize } from "@/lib/design-engine/canvasSpec";
 import {
@@ -192,6 +194,23 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const canvasSize = useMemo(
     () => resolveDesignCanvasSize(doc),
     [doc],
+  );
+
+  const handlePlatformChange = useCallback(
+    (nextPlatformId: PlatformId) => {
+      const active = session.session;
+      if (!active || active.document.platformId === nextPlatformId) return;
+
+      const adaptedActive = adaptSessionToPlatform(active, nextPlatformId);
+      session.adoptSession(adaptedActive);
+      variantGroup.replaceBoard(adaptedActive);
+
+      for (const board of boardsRef.current) {
+        if (board.designId === adaptedActive.designId) continue;
+        variantGroup.replaceBoard(adaptSessionToPlatform(board, nextPlatformId));
+      }
+    },
+    [session, variantGroup],
   );
 
   useEffect(() => {
@@ -1272,10 +1291,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       <DesignToolHeader
         center={
           isReady ? (
-            <CanvasPlatformBadge
-              platformId={doc.platformId}
+            <CanvasPlatformBadgePicker
+              value={doc.platformId}
               canvasSpec={doc.canvasSpec}
               artifactId={doc.artifactId}
+              onChange={handlePlatformChange}
             />
           ) : null
         }

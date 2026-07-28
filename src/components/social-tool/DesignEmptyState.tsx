@@ -41,6 +41,7 @@ export function DesignEmptyState({
       <div className="mt-6 flex w-full max-w-[240px] flex-col gap-2">
         <Button
           variant="primary"
+          className="w-full"
           isDisabled={uploading}
           onPress={() => inputRef.current?.click()}
         >
@@ -52,7 +53,7 @@ export function DesignEmptyState({
           {uploading ? "Uploading…" : "Upload logo"}
         </Button>
         {onDescribe ? (
-          <Button variant="secondary" onPress={onDescribe}>
+          <Button variant="secondary" className="w-full" onPress={onDescribe}>
             <Sparkles className="size-4" aria-hidden />
             Describe your design
           </Button>
