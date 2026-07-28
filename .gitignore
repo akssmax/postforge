@@ -44,5 +44,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Storyset illustrations — fetched locally via `npm run fetch:storyset`
-/public/visuals/illustrations/storyset/
+# Storyset local cache — full library fetched via `npm run fetch:storyset`
+/data/storyset-cache/

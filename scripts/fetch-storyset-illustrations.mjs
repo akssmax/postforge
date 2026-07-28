@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /**
  * Fetches Storyset illustrations (open-source, attribution required) and writes:
- * - public/visuals/illustrations/storyset/*.svg
+ * - data/storyset-cache/illustrations/storyset/*.svg  (local cache, gitignored)
  * - src/lib/social-tool/visualBlocks/library/illustrations/storyset-manifest.json
  *
- * Run: node scripts/fetch-storyset-illustrations.mjs
+ * Promote SVGs to production in batches: npm run deploy:storyset
+ *
+ * Run: npm run fetch:storyset
  * Options:
  *   --style=rafiki   Storyset style (default: rafiki)
  *   --limit=N        Stop after N new downloads (for testing)
@@ -13,13 +15,11 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-
-const ROOT = path.resolve(import.meta.dirname, "..");
-const OUT_DIR = path.join(ROOT, "public/visuals/illustrations/storyset");
-const MANIFEST_PATH = path.join(
-  ROOT,
-  "src/lib/social-tool/visualBlocks/library/illustrations/storyset-manifest.json",
-);
+import {
+  STORYSET_CACHE_DIR,
+  STORYSET_MANIFEST_PATH,
+  storysetAssetPath,
+} from "./storyset-paths.mjs";
 const API_URL = "https://stories.freepiklabs.com/api/vectors";
 
 const args = process.argv.slice(2);
@@ -141,6 +141,8 @@ async function downloadSvg(url, dest) {
 }
 
 async function main() {
+  const OUT_DIR = STORYSET_CACHE_DIR;
+  const MANIFEST_PATH = STORYSET_MANIFEST_PATH;
   await fs.mkdir(OUT_DIR, { recursive: true });
 
   /** @type {ManifestEntry[]} */
@@ -167,7 +169,7 @@ async function main() {
       const name = item.illustration?.name || illustrationSlug.replace(/-/g, " ");
       const filename = `${illustrationSlug}.svg`;
       const dest = path.join(OUT_DIR, filename);
-      const assetPath = `/visuals/illustrations/storyset/${filename}`;
+      const assetPath = storysetAssetPath(illustrationSlug);
       const id = `storyset-${illustrationSlug}`;
       const tags = buildTags(name, illustrationSlug, item.tags, styleArg);
 
@@ -217,9 +219,10 @@ async function main() {
   await fs.mkdir(path.dirname(MANIFEST_PATH), { recursive: true });
   await fs.writeFile(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
-  console.log(`Manifest: ${manifest.length} entries → ${path.relative(ROOT, MANIFEST_PATH)}`);
-  console.log(`SVGs in: ${path.relative(ROOT, OUT_DIR)}`);
+  console.log(`Manifest: ${manifest.length} entries → ${STORYSET_MANIFEST_PATH}`);
+  console.log(`SVGs in cache: ${OUT_DIR}`);
   if (!skipDownload) console.log(`Downloaded ${downloaded} new SVG(s).`);
+  console.log("Promote to production: npm run deploy:storyset");
   console.log("Done.");
 }
 
