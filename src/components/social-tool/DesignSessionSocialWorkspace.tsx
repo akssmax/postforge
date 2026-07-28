@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { ChevronDown, Download, Loader2, PanelLeft } from "lucide-react";
-import { Button, Tooltip } from "@heroui/react";
+import { Button, Modal, Tooltip, useOverlayState } from "@heroui/react";
 import {
   DesignInspector,
   type AsideTab,
@@ -171,6 +171,18 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   >(null);
   const copyEditBaselineRef = useRef<string>("");
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const pendingDeleteBoardRef = useRef<string | null>(null);
+  const [pendingDeleteBoardId, setPendingDeleteBoardId] = useState<string | null>(
+    null,
+  );
+  const deleteBoardModal = useOverlayState({
+    onOpenChange: (isOpen) => {
+      if (!isOpen) {
+        pendingDeleteBoardRef.current = null;
+        setPendingDeleteBoardId(null);
+      }
+    },
+  });
   const reduceMotion = useReducedMotion();
   const asideTransition = reduceMotion ? { duration: 0 } : asidePanelSpring;
 
@@ -272,6 +284,12 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         ) {
           e.preventDefault();
           redoRef.current();
+          return;
+        }
+        if (e.code === "Backslash" && !e.shiftKey && !e.altKey && isReady) {
+          e.preventDefault();
+          setAsideCollapsed((collapsed) => !collapsed);
+          return;
         }
         return;
       }
@@ -524,6 +542,43 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     });
   }, [session.session, variantGroup.boards, variantGroup.group.boardNames]);
 
+  const deleteBoardMessage = useMemo(() => {
+    if (!pendingDeleteBoardId) {
+      return "This artboard will be removed. This cannot be undone.";
+    }
+    const index = variantGroup.boards.findIndex(
+      (b) => b.designId === pendingDeleteBoardId,
+    );
+    const name =
+      variantGroup.group.boardNames?.[pendingDeleteBoardId]?.trim() ||
+      (index >= 0 ? `Artboard ${index + 1}` : "This artboard");
+    const heading = (
+      variantGroup.boards.find((b) => b.designId === pendingDeleteBoardId) ??
+      (session.session?.designId === pendingDeleteBoardId ? session.session : null)
+    )?.document.copy.heading
+      ?.trim()
+      .replace(/\[\[(.+?)\]\]/g, "$1");
+    if (heading) {
+      return (
+        <>
+          <span className="font-semibold text-text-primary">{name}</span> with copy
+          &ldquo;{heading}&rdquo; will be removed. This cannot be undone.
+        </>
+      );
+    }
+    return (
+      <>
+        <span className="font-semibold text-text-primary">{name}</span> will be removed.
+        This cannot be undone.
+      </>
+    );
+  }, [
+    pendingDeleteBoardId,
+    variantGroup.boards,
+    variantGroup.group.boardNames,
+    session.session,
+  ]);
+
   useEffect(() => {
     if (variantGroup.phase !== "revealing") return;
     // Nudge stage so newly revealed variants sit in view
@@ -605,24 +660,38 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     });
   }
 
-  async function handleDeleteBoard(boardId: string) {
+  function boardSessionForDelete(boardId: string) {
+    return (
+      variantGroup.boards.find((b) => b.designId === boardId) ??
+      (session.session?.designId === boardId ? session.session : null)
+    );
+  }
+
+  function requestDeleteBoard(boardId: string) {
     if (variantGroup.boards.length <= 1) return;
     if (boardId === originDesignId) return;
 
-    const board =
-      variantGroup.boards.find((b) => b.designId === boardId) ??
-      (session.session?.designId === boardId ? session.session : null);
+    const board = boardSessionForDelete(boardId);
     const heading = board?.document.copy.heading?.trim() ?? "";
     const hasVisual =
       !!board &&
       (board.featured.mode !== "placeholder" ||
         !!board.featured.image ||
         (board.featured.visualBlocks?.length ?? 0) > 0);
+
     if (heading || hasVisual) {
-      if (!window.confirm("Delete this artboard? This cannot be undone.")) {
-        return;
-      }
+      pendingDeleteBoardRef.current = boardId;
+      setPendingDeleteBoardId(boardId);
+      window.requestAnimationFrame(() => deleteBoardModal.open());
+      return;
     }
+
+    void performDeleteBoard(boardId);
+  }
+
+  async function performDeleteBoard(boardId: string) {
+    if (variantGroup.boards.length <= 1) return;
+    if (boardId === originDesignId) return;
 
     if (session.session) {
       variantGroup.syncBoard(session.session);
@@ -632,12 +701,19 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     const nextActiveId = await variantGroup.removeBoard(boardId);
     if (!nextActiveId) return;
 
+    deleteBoardModal.close();
     setAdjustSpacing(false);
     clearInspectorSelection();
 
     if (wasActive) {
       requestAnimationFrame(() => handleActivateBoard(nextActiveId));
     }
+  }
+
+  function confirmDeleteBoard() {
+    const boardId = pendingDeleteBoardRef.current ?? pendingDeleteBoardId;
+    if (!boardId) return;
+    void performDeleteBoard(boardId);
   }
 
   function handleDuplicateBoard(boardId: string) {
@@ -1663,7 +1739,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         variantGroup.boards.length > 1
                       }
                       onDeleteArtboard={() => {
-                        void handleDeleteBoard(board.designId);
+                        requestDeleteBoard(board.designId);
                       }}
                       onShuffle={(prefs) => {
                         void shuffleBoard(board.designId, prefs);
@@ -1852,6 +1928,29 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         </div>
       </div>
       </LayoutGroup>
+
+      <Modal state={deleteBoardModal}>
+        <Modal.Backdrop>
+          <Modal.Container size="sm">
+            <Modal.Dialog>
+              <Modal.Header>
+                <Modal.Heading>Delete artboard?</Modal.Heading>
+              </Modal.Header>
+              <Modal.Body>
+                <p className="text-sm text-text-secondary">{deleteBoardMessage}</p>
+              </Modal.Body>
+              <Modal.Footer className="gap-2">
+                <Button variant="secondary" onPress={deleteBoardModal.close}>
+                  Cancel
+                </Button>
+                <Button variant="danger" onPress={confirmDeleteBoard}>
+                  Delete artboard
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
     </div>
   );
 }

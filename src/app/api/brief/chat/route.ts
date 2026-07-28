@@ -3,6 +3,7 @@ import {
   handleBriefChatRequest,
   type BriefChatRequestBody,
 } from "@/lib/llm/services/briefChatService";
+import { toBriefChatClientError } from "@/lib/llm/streamErrors";
 import { normalizePlatformId } from "@/lib/social-tool/presets";
 
 /**
@@ -18,10 +19,13 @@ export async function POST(req: Request) {
     const json = await req.json();
     const parsed = briefChatBodySchema.safeParse(json);
     if (!parsed.success) {
-      return new Response(JSON.stringify({ error: parsed.error.message }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: toBriefChatClientError(parsed.error.message) }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
 
     const platformId = normalizePlatformId(parsed.data.platformId);
@@ -35,9 +39,12 @@ export async function POST(req: Request) {
   } catch (err) {
     return new Response(
       JSON.stringify({
-        error: err instanceof Error ? err.message : "Brief chat failed",
+        error: toBriefChatClientError(err),
       }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
     );
   }
 }

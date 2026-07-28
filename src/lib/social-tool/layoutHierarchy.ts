@@ -11,7 +11,6 @@ import {
   getPostLayout,
   layoutUsesSplit,
   resolveFeaturedLayoutZones,
-  resolveMaxStackedTextZone,
   resolveSplitLayoutZones,
   estimateTextBandMinHeight,
   type PostLayout,
@@ -324,10 +323,19 @@ function stackedCopyFits(
     spacing: input.spacing,
     logoScale,
   });
-  const maxTextZone = resolveMaxStackedTextZone({
+  const { textZone } = resolveFeaturedLayoutZones({
     width: input.width,
     height: input.height,
     footerH,
+    layout: input.layout,
+    showFeaturedImage: true,
+    isTallPrint,
+    typeScale,
+    showTopLogo: input.showLogo && input.layout.logoPlacement === "top",
+    spacing: input.spacing,
+    logoScale,
+    copy: input.copy,
+    platformId: input.platformId,
   });
   const minTextZone = estimateTextBandMinHeight({
     width: input.width,
@@ -342,7 +350,7 @@ function stackedCopyFits(
     platformId: input.platformId,
   });
 
-  return minTextZone <= maxTextZone;
+  return minTextZone <= textZone;
 }
 
 function estimateSplitCopyStackHeight(

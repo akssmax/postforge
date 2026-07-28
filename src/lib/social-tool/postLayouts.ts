@@ -1064,6 +1064,13 @@ export function resolveFeaturedLayoutZones(opts: {
   let textZone = Math.round(height * textRatio);
   textZone = Math.max(textZone, minTextZone);
   textZone = Math.min(textZone, maxTextZone);
+  // Copy must fit — shrink the featured band below minProductZoneShare if needed.
+  if (minTextZone > textZone) {
+    textZone = Math.min(
+      minTextZone,
+      Math.max(0, height - footerH - layoutPad),
+    );
+  }
   const productZone = Math.max(0, height - textZone - footerH - layoutPad);
 
   return { textZone, productZone };

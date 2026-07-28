@@ -161,11 +161,14 @@ export function applyShuffleToSession(
       : {}),
     copy: nextCopy,
     copyVariantIndex: nextCopyVariantIndex,
-    ...(shouldRecalcTypeScale && hierarchy
-      ? { typeScale: hierarchy.typeScale, logoScale: hierarchy.logoScale }
-      : {}),
-    ...(shouldRecalcFeaturedTransform && hierarchy
-      ? { featuredTransform: hierarchy.featuredTransform }
+    ...(hierarchy
+      ? {
+          typeScale: hierarchy.typeScale,
+          logoScale: hierarchy.logoScale,
+          ...(shouldRecalcFeaturedTransform
+            ? { featuredTransform: hierarchy.featuredTransform }
+            : {}),
+        }
       : {}),
     ...(prefs.layout && doc.decorationLevel
       ? {

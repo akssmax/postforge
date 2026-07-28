@@ -6,6 +6,7 @@ import { Button, Popover, Tooltip } from "@heroui/react";
 const SHORTCUTS: ReadonlyArray<{ keys: string; action: string }> = [
   { keys: "⌘Z / ⌘⇧Z", action: "Undo / Redo" },
   { keys: "1–7", action: "Focus artboard" },
+  { keys: "⌘\\", action: "Toggle sidebar" },
   { keys: "Enter", action: "Edit selected copy" },
   { keys: "[ / ]", action: "Cycle copy variants" },
   { keys: "Delete", action: "Clear / remove visual slot" },

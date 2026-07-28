@@ -2325,6 +2325,16 @@ html:has(.social-tool) body {
   color: rgb(220 38 38);
 }
 
+.brief-chat-section__error-title {
+  margin: 0 0 0.2rem;
+  font-weight: 600;
+}
+
+.brief-chat-section__error-detail {
+  margin: 0;
+  color: color-mix(in oklab, rgb(220 38 38) 88%, var(--text-secondary));
+}
+
 
 .brief-chat-section--sidebar .brief-chat-conversation {
   flex: 1;

@@ -15,6 +15,7 @@ import {
 } from "@/components/ai-elements/message";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@heroui/react";
+import { formatBriefChatError } from "@/lib/llm/streamErrors";
 import type { BriefChatState } from "@/lib/llm/useBriefChat";
 import type { UIMessage } from "ai";
 import type { LucideIcon } from "lucide-react";
@@ -667,7 +668,6 @@ export function BriefChatPanel({
   stopGenerating,
   status,
   isGenerating,
-  offline,
   mode = "onboarding",
   onSkip,
   autoFocus,
@@ -712,11 +712,14 @@ export function BriefChatPanel({
       </Conversation>
 
       {error ? (
-        <p className="brief-chat-section__error" role="alert">
-          {offline
-            ? "LLM unavailable — your next message will use the offline generator."
-            : error.message}
-        </p>
+        <div className="brief-chat-section__error" role="alert">
+          <p className="brief-chat-section__error-title">
+            Couldn&apos;t complete that request
+          </p>
+          <p className="brief-chat-section__error-detail">
+            {formatBriefChatError(error)}
+          </p>
+        </div>
       ) : null}
 
       <BriefChatComposer

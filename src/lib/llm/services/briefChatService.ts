@@ -32,15 +32,6 @@ import { validateDesignPlan } from "@/lib/llm/services/layoutValidator";
 import type { PlatformId } from "@/lib/social-tool/presets";
 import { resolvePipelineBrandContext } from "@/lib/brand/starterPalettes";
 
-const designVariantResultSchema = z.object({
-  theme: z.string(),
-  layoutId: z.string(),
-  rationale: z.string(),
-  summary: z.string(),
-  score: z.number(),
-  plan: z.custom<unknown>(),
-});
-
 export type BriefChatRequestBody = {
   messages: UIMessage[];
   platformId: PlatformId;
@@ -211,8 +202,11 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
             updateDesignVariants: tool({
               description: "Return themed design variants for the user to pick.",
               inputSchema: z.object({
-                variants: z.array(designVariantResultSchema).min(1).max(3),
-                summary: z.string(),
+                summary: z
+                  .string()
+                  .describe(
+                    "One short sentence introducing the themed variants for the user.",
+                  ),
               }),
               execute: async () => ({
                 success: true as const,
@@ -225,7 +219,7 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
           toolChoice: "auto",
         });
 
-        writer.merge(result.toUIMessageStream());
+        writer.merge(result.toUIMessageStream({ onError: toBriefChatClientError }));
         return;
       }
 
@@ -325,7 +319,7 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
         toolChoice: "auto",
       });
 
-      writer.merge(result.toUIMessageStream());
+      writer.merge(result.toUIMessageStream({ onError: toBriefChatClientError }));
     },
   });
 
