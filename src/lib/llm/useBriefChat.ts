@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import {
-  loadBriefChatMessages,
+  ensureBriefChatMessagesLoaded,
   saveBriefChatMessages,
 } from "@/lib/design/designSession";
 import {
@@ -173,35 +173,44 @@ export function useBriefChat({
 
   useLayoutEffect(() => {
     hasRestoredRef.current = false;
-    const restored = loadBriefChatMessages(designId);
-    setMessages(restored);
+    let cancelled = false;
 
-    const lastUserIndex = findLastUserIndex(restored);
-    lastUserTurnRef.current = lastUserIndex;
-    lastAppliedRef.current = "";
-    lastClientActionRef.current = "";
+    void (async () => {
+      const restored = await ensureBriefChatMessagesLoaded(designId);
+      if (cancelled) return;
+      setMessages(restored);
 
-    if (lastUserIndex < 0) {
-      setPendingVariants(null);
-      hasRestoredRef.current = true;
-      return;
-    }
-
-    const { plan, patches, variants } = extractTurnPayload(
-      restored,
-      lastUserIndex,
-    );
-    if (variants?.length) {
-      setPendingVariants(variants);
+      const lastUserIndex = findLastUserIndex(restored);
+      lastUserTurnRef.current = lastUserIndex;
       lastAppliedRef.current = "";
-    } else {
-      setPendingVariants(null);
-      lastAppliedRef.current = turnApplyFingerprint(plan, patches);
-    }
+      lastClientActionRef.current = "";
 
-    const action = extractLatestClientAction(restored);
-    lastClientActionRef.current = `${lastUserIndex}:${action ?? ""}`;
-    hasRestoredRef.current = true;
+      if (lastUserIndex < 0) {
+        setPendingVariants(null);
+        hasRestoredRef.current = true;
+        return;
+      }
+
+      const { plan, patches, variants } = extractTurnPayload(
+        restored,
+        lastUserIndex,
+      );
+      if (variants?.length) {
+        setPendingVariants(variants);
+        lastAppliedRef.current = "";
+      } else {
+        setPendingVariants(null);
+        lastAppliedRef.current = turnApplyFingerprint(plan, patches);
+      }
+
+      const action = extractLatestClientAction(restored);
+      lastClientActionRef.current = `${lastUserIndex}:${action ?? ""}`;
+      hasRestoredRef.current = true;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [designId, setMessages]);
 
   useEffect(() => {

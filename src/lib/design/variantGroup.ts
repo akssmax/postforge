@@ -1,6 +1,7 @@
 import { createDesignId } from "@/lib/design/ids";
 import {
-  designSessionStorageKey,
+  deleteDesignSessionStorage,
+  ensureDesignSessionLoaded,
   loadDesignSession,
   saveDesignSession,
 } from "@/lib/design/designSession";
@@ -163,8 +164,7 @@ export function saveVariantGroup(group: DesignVariantGroup): void {
 }
 
 export function deleteDesignSessionKey(designId: string): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(designSessionStorageKey(designId));
+  deleteDesignSessionStorage(designId);
 }
 
 /** Deep-clone a session under a new design id (brand/featured blobs stay shared by key). */
@@ -173,8 +173,9 @@ export function cloneDesignSession(
   newDesignId: string = createDesignId(),
 ): DesignSessionPersisted {
   const cloned = structuredClone(source) as DesignSessionPersisted;
+  const { briefChatMessages: _chat, ...rest } = cloned;
   return {
-    ...cloned,
+    ...rest,
     designId: newDesignId,
     updatedAt: Date.now(),
     document: {
@@ -215,7 +216,18 @@ export function loadBoardSessions(
   return boardIds.map((id) => loadDesignSession(id));
 }
 
+export async function loadBoardSessionsAsync(
+  boardIds: string[],
+): Promise<DesignSessionPersisted[]> {
+  return Promise.all(boardIds.map((id) => ensureDesignSessionLoaded(id)));
+}
+
 export function persistBoardSession(session: DesignSessionPersisted): void {
+  if (isNonOriginVariantBoard(session.designId) && session.briefChatMessages?.length) {
+    const { briefChatMessages: _chat, ...rest } = session;
+    saveDesignSession(rest as DesignSessionPersisted);
+    return;
+  }
   saveDesignSession(session);
 }
 

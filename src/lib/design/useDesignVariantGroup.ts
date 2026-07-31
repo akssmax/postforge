@@ -7,6 +7,7 @@ import {
   cloneDesignSession,
   createEmptyVariantGroup,
   loadBoardSessions,
+  loadBoardSessionsAsync,
   loadVariantGroup,
   MAX_VARIANT_BOARDS,
   persistBoardSession,
@@ -63,10 +64,18 @@ export function useDesignVariantGroup(
   const [pendingBatchSize, setPendingBatchSize] = useState(0);
 
   useEffect(() => {
-    const loaded = loadVariantGroup(originDesignId);
-    setGroup(loaded);
-    setBoards(loadBoardSessions(loaded.boardIds));
-    setPhase(loaded.boardIds.length > 1 ? "ready" : "idle");
+    let cancelled = false;
+    void (async () => {
+      const loaded = loadVariantGroup(originDesignId);
+      const boards = await loadBoardSessionsAsync(loaded.boardIds);
+      if (cancelled) return;
+      setGroup(loaded);
+      setBoards(boards);
+      setPhase(loaded.boardIds.length > 1 ? "ready" : "idle");
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [originDesignId]);
 
   const setActiveDesignId = useCallback(
@@ -97,7 +106,7 @@ export function useDesignVariantGroup(
 
       const nextGroup = loadVariantGroup(originDesignId);
       setGroup(nextGroup);
-      setBoards(loadBoardSessions(nextGroup.boardIds));
+      setBoards(await loadBoardSessionsAsync(nextGroup.boardIds));
       setPhase(nextGroup.boardIds.length > 1 ? "ready" : "idle");
       return nextActiveId;
     },

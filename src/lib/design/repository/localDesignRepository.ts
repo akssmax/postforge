@@ -1,7 +1,9 @@
 import { BRAND_LOGO_VARIANTS, getLogoRecord } from "@/lib/brand/logoVariants";
 import { deleteLogoBlob } from "@/lib/brand/storage";
 import {
+  deleteDesignSessionStorage,
   designSessionStorageKey,
+  ensureDesignSessionLoadedWithMeta,
   loadDesignSession,
   saveDesignSession,
 } from "@/lib/design/designSession";
@@ -125,9 +127,9 @@ export class LocalDesignRepository implements DesignRepository {
 
   async get(id: string): Promise<DesignSessionPersisted | null> {
     if (typeof window === "undefined") return null;
-    const raw = localStorage.getItem(designSessionStorageKey(id));
-    if (!raw) return null;
-    return loadDesignSession(id);
+    const { session, existed } = await ensureDesignSessionLoadedWithMeta(id);
+    if (!existed) return null;
+    return session;
   }
 
   async upsert(session: DesignSessionPersisted): Promise<DesignSummary | null> {
@@ -187,7 +189,7 @@ export class LocalDesignRepository implements DesignRepository {
       } else {
         await deleteDesignThumbnail(boardId);
       }
-      localStorage.removeItem(designSessionStorageKey(boardId));
+      deleteDesignSessionStorage(boardId);
       removeDesignPatterns(boardId);
       removeDesignIndexEntry(boardId);
     }
@@ -211,7 +213,7 @@ export class LocalDesignRepository implements DesignRepository {
       await deleteDesignThumbnail(boardId);
     }
 
-    localStorage.removeItem(designSessionStorageKey(boardId));
+    deleteDesignSessionStorage(boardId);
     removeDesignPatterns(boardId);
     saveVariantGroup(nextGroup);
 

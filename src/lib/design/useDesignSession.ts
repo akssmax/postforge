@@ -50,7 +50,8 @@ import type {
 } from "@/lib/brand/types";
 import {
   createBlankSession,
-  designSessionStorageKey,
+  ensureDesignSessionLoaded,
+  ensureDesignSessionLoadedWithMeta,
   loadDesignSession,
   saveDesignSession,
   scopedBlobKey,
@@ -406,13 +407,10 @@ export function useDesignSession(
     async function init() {
       try {
         const seed = getSeedSessionRef.current?.();
-        const hadStoredSession =
-          typeof window !== "undefined" &&
-          !!localStorage.getItem(designSessionStorageKey(designId));
-        const loaded =
+        const { session: loaded, existed: hadStoredSession } =
           seed?.designId === designId
-            ? seed
-            : (loadDesignSession(designId) ?? createBlankSession(designId));
+            ? { session: seed, existed: true }
+            : await ensureDesignSessionLoadedWithMeta(designId);
         const next = {
           ...loaded,
           designId,

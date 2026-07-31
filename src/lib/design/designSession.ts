@@ -19,6 +19,15 @@ import type {
 } from "@/lib/design/types";
 import { migrateDocumentV1ToV2 } from "@/lib/social-tool/layoutAdapter";
 import { migrateFeaturedSlotBlockIds } from "@/lib/social-tool/featuredSlots";
+import {
+  deleteCachedSession,
+  peekCachedSession,
+  readChatFromIdb,
+  readSessionFromIdb,
+  setCachedSession,
+  writeChatToIdb,
+  writeSessionToIdb,
+} from "@/lib/design/sessionIdb";
 
 export const EMPTY_POST_COPY: PostCopy = {
   heading: "",
@@ -123,43 +132,6 @@ function normalizeDocument(
   return migrateDocumentV1ToV2(merged, featured);
 }
 
-export function loadDesignSession(designId: string): DesignSessionPersisted {
-  if (typeof window === "undefined") {
-    return createBlankSession(designId);
-  }
-  try {
-    const raw = localStorage.getItem(designSessionStorageKey(designId));
-    if (!raw) return createBlankSession(designId);
-    const parsed = JSON.parse(raw) as DesignSessionPersisted;
-    const featured = normalizeFeaturedPersisted(parsed.featured);
-    const document = normalizeDocument(parsed.document, featured);
-    return {
-      designId,
-      updatedAt: parsed.updatedAt ?? Date.now(),
-      brand: normalizeBrandKit(parsed.brand),
-      featured,
-      document: {
-        ...document,
-        featuredSlots: migrateFeaturedSlotBlockIds(
-          document.featuredSlots,
-          featured.activeBlockId,
-        ),
-      },
-      briefChatMessages: normalizeBriefChatMessages(parsed.briefChatMessages),
-    };
-  } catch {
-    return createBlankSession(designId);
-  }
-}
-
-export function saveDesignSession(session: DesignSessionPersisted): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(
-    designSessionStorageKey(session.designId),
-    JSON.stringify({ ...session, updatedAt: Date.now() }),
-  );
-}
-
 function normalizeBriefChatMessages(raw: unknown): UIMessage[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter(
@@ -173,8 +145,178 @@ function normalizeBriefChatMessages(raw: unknown): UIMessage[] {
   );
 }
 
+function normalizeLoadedSession(
+  designId: string,
+  parsed: DesignSessionPersisted,
+): DesignSessionPersisted {
+  const featured = normalizeFeaturedPersisted(parsed.featured);
+  const document = normalizeDocument(parsed.document, featured);
+  return {
+    designId,
+    updatedAt: parsed.updatedAt ?? Date.now(),
+    brand: normalizeBrandKit(parsed.brand),
+    featured,
+    document: {
+      ...document,
+      featuredSlots: migrateFeaturedSlotBlockIds(
+        document.featuredSlots,
+        featured.activeBlockId,
+      ),
+    },
+    briefChatMessages: normalizeBriefChatMessages(parsed.briefChatMessages),
+  };
+}
+
+function readLegacyLocalStorageSession(
+  designId: string,
+): DesignSessionPersisted | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(designSessionStorageKey(designId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as DesignSessionPersisted;
+    return normalizeLoadedSession(designId, parsed);
+  } catch {
+    return null;
+  }
+}
+
+function writeLegacyLocalStorageSession(session: DesignSessionPersisted): void {
+  if (typeof window === "undefined") return;
+  const { briefChatMessages: _chat, ...body } = session;
+  localStorage.setItem(
+    designSessionStorageKey(session.designId),
+    JSON.stringify({ ...body, updatedAt: Date.now() }),
+  );
+}
+
+function removeLegacyLocalStorageSession(designId: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(designSessionStorageKey(designId));
+}
+
+function warnPersistFailure(designId: string, err: unknown): void {
+  console.warn(`[postforge] failed to persist design session ${designId}`, err);
+}
+
+/** Sync read — returns cache, legacy localStorage, or blank. Prefer ensureDesignSessionLoaded for IDB. */
+export function loadDesignSession(designId: string): DesignSessionPersisted {
+  const cached = peekCachedSession(designId);
+  if (cached) return cached;
+
+  const legacy = readLegacyLocalStorageSession(designId);
+  if (legacy) {
+    setCachedSession(legacy);
+    void migrateLegacySession(legacy);
+    return legacy;
+  }
+
+  return createBlankSession(designId);
+}
+
+/** Load from IndexedDB (with legacy migration). Use on editor mount and board preload. */
+export async function ensureDesignSessionLoaded(
+  designId: string,
+): Promise<DesignSessionPersisted> {
+  const result = await ensureDesignSessionLoadedWithMeta(designId);
+  return result.session;
+}
+
+export async function ensureDesignSessionLoadedWithMeta(
+  designId: string,
+): Promise<{ session: DesignSessionPersisted; existed: boolean }> {
+  const cached = peekCachedSession(designId);
+  if (cached) return { session: cached, existed: true };
+
+  const fromIdb = await readSessionFromIdb(designId);
+  if (fromIdb) return { session: fromIdb, existed: true };
+
+  const legacy = readLegacyLocalStorageSession(designId);
+  if (legacy) {
+    await migrateLegacySession(legacy);
+    return { session: legacy, existed: true };
+  }
+
+  const blank = createBlankSession(designId);
+  setCachedSession(blank);
+  return { session: blank, existed: false };
+}
+
+async function migrateLegacySession(session: DesignSessionPersisted): Promise<void> {
+  setCachedSession(session);
+  removeLegacyLocalStorageSession(session.designId);
+  try {
+    await writeSessionToIdb(session);
+    if (session.briefChatMessages?.length) {
+      await writeChatToIdb(session.designId, session.briefChatMessages);
+    }
+  } catch (err) {
+    warnPersistFailure(session.designId, err);
+    try {
+      writeLegacyLocalStorageSession(session);
+    } catch (legacyErr) {
+      warnPersistFailure(session.designId, legacyErr);
+    }
+  }
+}
+
+export function hasStoredDesignSession(designId: string): boolean {
+  if (typeof window === "undefined") return false;
+  if (peekCachedSession(designId)) return true;
+  return localStorage.getItem(designSessionStorageKey(designId)) != null;
+}
+
+export function saveDesignSession(session: DesignSessionPersisted): void {
+  if (typeof window === "undefined") return;
+
+  const next: DesignSessionPersisted = {
+    ...session,
+    updatedAt: Date.now(),
+  };
+  setCachedSession(next);
+
+  void (async () => {
+    try {
+      await writeSessionToIdb(next);
+      removeLegacyLocalStorageSession(next.designId);
+    } catch (err) {
+      warnPersistFailure(next.designId, err);
+      try {
+        writeLegacyLocalStorageSession(next);
+      } catch (legacyErr) {
+        warnPersistFailure(next.designId, legacyErr);
+      }
+    }
+  })();
+}
+
 export function loadBriefChatMessages(designId: string): UIMessage[] {
-  return loadDesignSession(designId).briefChatMessages ?? [];
+  const cached = peekCachedSession(designId);
+  if (cached?.briefChatMessages?.length) {
+    return cached.briefChatMessages;
+  }
+  return [];
+}
+
+export async function ensureBriefChatMessagesLoaded(
+  designId: string,
+): Promise<UIMessage[]> {
+  const cached = peekCachedSession(designId);
+  if (cached?.briefChatMessages?.length) {
+    return cached.briefChatMessages;
+  }
+
+  const legacy = readLegacyLocalStorageSession(designId);
+  if (legacy?.briefChatMessages?.length) {
+    setCachedSession(legacy);
+    return legacy.briefChatMessages;
+  }
+
+  const messages = await readChatFromIdb(designId);
+  if (messages.length > 0 && cached) {
+    setCachedSession({ ...cached, briefChatMessages: messages });
+  }
+  return messages;
 }
 
 export function saveBriefChatMessages(
@@ -182,6 +324,33 @@ export function saveBriefChatMessages(
   messages: UIMessage[],
 ): void {
   if (typeof window === "undefined") return;
-  const session = loadDesignSession(designId);
-  saveDesignSession({ ...session, briefChatMessages: messages });
+
+  const cached = peekCachedSession(designId) ?? loadDesignSession(designId);
+  setCachedSession({ ...cached, briefChatMessages: messages });
+
+  void (async () => {
+    try {
+      await writeChatToIdb(designId, messages);
+      await writeSessionToIdb({ ...cached, briefChatMessages: undefined });
+      removeLegacyLocalStorageSession(designId);
+    } catch (err) {
+      warnPersistFailure(designId, err);
+      try {
+        writeLegacyLocalStorageSession({ ...cached, briefChatMessages: messages });
+      } catch (legacyErr) {
+        warnPersistFailure(designId, legacyErr);
+      }
+    }
+  })();
+}
+
+export function deleteDesignSessionStorage(designId: string): void {
+  if (typeof window === "undefined") return;
+  removeLegacyLocalStorageSession(designId);
+  deleteCachedSession(designId);
+  void import("@/lib/design/sessionIdb").then(({ deleteSessionFromIdb }) =>
+    deleteSessionFromIdb(designId).catch((err) => {
+      warnPersistFailure(designId, err);
+    }),
+  );
 }
