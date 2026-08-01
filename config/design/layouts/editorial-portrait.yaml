@@ -1,0 +1,24 @@
+id: editorial-portrait
+platforms: [all]
+campaigns:
+  - thought_leadership
+  - promotion
+recipes:
+  - founder_spotlight
+visualPriority: medium
+contentDensity: medium
+readingPattern: left
+visualWeight: medium
+densityClass: balanced
+supports:
+  - logo
+  - headline
+  - subheading
+  - body
+  - photo
+score:
+  thought_leadership: 0.88
+  hiring: 0.75
+  case_study: 0.82
+artifactSupports:
+  - social_post

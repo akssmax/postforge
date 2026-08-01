@@ -5,10 +5,10 @@ import {
   requiredRatio,
   resolveBackgroundHex,
   resolveForegroundHex,
-  worstLogoContrast,
   type ContrastLevel,
   type ContrastResult,
 } from "@/lib/brand/contrast";
+import { evaluateSvgGraphicContrast } from "@/lib/brand/logoContrastFix";
 import {
   hexToRgb,
   isNearNeutral,
@@ -49,6 +49,7 @@ export type VisualBalanceFixPatch = {
   featuredTransformScale?: number;
   layoutSpacing?: PostLayoutSpacing;
   patternOpacity?: number;
+  accentColor?: string;
 };
 
 function hasAccentMarkup(text: string): boolean {
@@ -174,11 +175,12 @@ export function evaluateFeaturedVisualContrast(input: {
   if (!showFeaturedImage || !featuredSvgMarkup) return null;
 
   const bg = resolveBackgroundHex(backgroundCss);
-  const colors = extractSvgFills(featuredSvgMarkup);
-  if (colors.length === 0) return null;
+  const svgEval = evaluateSvgGraphicContrast(featuredSvgMarkup, backgroundCss);
+  if (!svgEval) return null;
 
-  const { ratio, foreground } = worstLogoContrast(colors, bg);
-  const dominant = dominantSvgColor(colors);
+  const { ratio, foreground } = svgEval;
+  const colors = extractSvgFills(featuredSvgMarkup);
+  const dominant = dominantSvgColor(colors.length > 0 ? colors : [foreground]);
   const camouflaged = dominant ? isCamouflaged(dominant, bg) : false;
   const level: ContrastLevel = "graphic";
   const required = 2.5;
@@ -421,6 +423,32 @@ export function suggestVisualBalanceFix(
   }
 
   const bg = resolveBackgroundHex(input.backgroundCss);
+  if (
+    hasAccentMarkup(input.headingText ?? "") &&
+    input.accentColor &&
+    isCamouflaged(input.accentColor, bg)
+  ) {
+    patch.accentColor = suggestReadableAccent(bg, input.accentColor);
+    changed = true;
+  }
+
+  if (input.featuredSvgMarkup && input.brandAccent) {
+    const dominant = dominantSvgColor(extractSvgFills(input.featuredSvgMarkup));
+    if (
+      dominant &&
+      hueDistance(dominant, input.brandAccent) < 18 &&
+      !isNearNeutral(dominant)
+    ) {
+      patch.featuredTransformScale =
+        patch.featuredTransformScale ??
+        roundScale(Math.max(0.72, featuredScale * 0.86));
+      if (input.showPattern && (input.patternOpacity ?? 0) > 0.18) {
+        patch.patternOpacity = Math.min(input.patternOpacity ?? 0.28, 0.14);
+      }
+      changed = true;
+    }
+  }
+
   const bgRgb = hexToRgb(bg);
   if (
     bgRgb &&

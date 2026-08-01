@@ -150,7 +150,7 @@ export function ContentPanel({
               )}
               {slot.role === "headline" ? (
                 <p className="text-[0.6875rem] text-text-tertiary">
-                  Use [[accent]]text[[/accent]] for emphasis
+                  Use [[text]] for emphasis
                 </p>
               ) : null}
             </div>

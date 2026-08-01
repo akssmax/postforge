@@ -1,9 +1,10 @@
-import type {
-  LogoAlign,
-  LogoPlacement,
-  PlatformId,
-  PostCopy,
-  TextAlign,
+import {
+  createNumberedListPlaceholders,
+  type LogoAlign,
+  type LogoPlacement,
+  type PlatformId,
+  type PostCopy,
+  type TextAlign,
 } from "@/lib/social-tool/presets";
 
 /**
@@ -40,7 +41,12 @@ export type PostLayoutId =
   | "social-ad"
   | "proposal-cover"
   | "section-stack"
-  | "comparison-columns";
+  | "comparison-columns"
+  | "bold-statement-corner"
+  | "editorial-portrait"
+  | "display-quote"
+  | "numbered-list"
+  | "promotion-hero";
 
 /** Vertical bands vs side-by-side columns */
 export type PostLayoutComposition = "stack" | "split";
@@ -67,6 +73,20 @@ export type FeaturedFrameRadius =
   | "bottom-left"
   | "bottom-right"
   | "none";
+
+/** How the featured visual occupies the canvas */
+export type FeaturedZoneMode = "hero" | "corner" | "portrait-strip";
+
+export type FeaturedContentPolicy = "auto" | "image" | "library";
+
+export type CtaRenderMode = "text" | "button";
+
+export type HeadlineScaleProfile = "default" | "display" | "poster";
+
+export type ListStyle = "none" | "numbered";
+
+/** Reserved extraField id for numbered-list footer author line */
+export const FOOTER_AUTHOR_EXTRA_ID = "footer-author";
 
 export type PostLayout = {
   id: PostLayoutId;
@@ -112,7 +132,32 @@ export type PostLayout = {
   footerContact?: boolean;
   /** Second featured column (comparisons, dual visuals) */
   secondFeaturedSlot?: boolean;
+  featuredZoneMode?: FeaturedZoneMode;
+  headlineScaleProfile?: HeadlineScaleProfile;
+  accentPlacementHint?: "last-line" | "key-phrase";
+  listStyle?: ListStyle;
+  listItemCount?: { min: number; max: number };
+  /** Hero slot defaults: image (photo) vs composed UI library. */
+  featuredContentPolicy?: FeaturedContentPolicy;
+  /** Footer CTA renders as a brand-colored UI button block. */
+  ctaRenderMode?: CtaRenderMode;
 };
+
+export function layoutUsesCtaButton(layout: PostLayout): boolean {
+  return layout.ctaRenderMode === "button";
+}
+
+export function layoutFeaturedZoneMode(layout: PostLayout): FeaturedZoneMode {
+  return layout.featuredZoneMode ?? "hero";
+}
+
+export function layoutUsesCornerFeatured(layout: PostLayout): boolean {
+  return layoutFeaturedZoneMode(layout) === "corner";
+}
+
+export function layoutUsesPortraitFeatured(layout: PostLayout): boolean {
+  return layoutFeaturedZoneMode(layout) === "portrait-strip";
+}
 
 export const DEFAULT_POST_LAYOUT_ID: PostLayoutId = "classic-hero";
 
@@ -669,7 +714,41 @@ export const POST_LAYOUTS: PostLayout[] = [
     mainBlocks: ["headline", "subheading"],
     extrasPlacement: "footer",
     footerBlocks: ["extras"],
+    featuredContentPolicy: "image",
+    ctaRenderMode: "button",
     promptHints: ["linkedin ad", "instagram ad", "sponsored post", "product launch ad"],
+  },
+  {
+    id: "promotion-hero",
+    name: "Promotion hero",
+    summary: "Headline, hero photo, and branded CTA button",
+    description:
+      "Slot-driven promotion layout — message up top, large hero image, footer CTA as a brand-colored button. Ideal for travel, lifestyle, and brand campaigns.",
+    tags: ["promotion", "travel", "lifestyle", "hero", "cta", "ad"],
+    bestFor: ["instagram-square", "instagram-story", "linkedin-square"],
+    stack: "featured-first",
+    textZoneRatio: 0.36,
+    textZoneMax: 0.44,
+    textVerticalAlign: "start",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "top-left",
+    mainBlocks: ["headline", "subheading"],
+    extrasPlacement: "footer",
+    footerBlocks: ["extras"],
+    featuredContentPolicy: "image",
+    ctaRenderMode: "button",
+    promptHints: [
+      "promotion",
+      "travel",
+      "book your stay",
+      "hero image",
+      "destination",
+      "lifestyle brand",
+      "airbnb",
+      "unique places to stay",
+    ],
   },
   {
     id: "proposal-cover",
@@ -739,6 +818,120 @@ export const POST_LAYOUTS: PostLayout[] = [
     footerBlocks: [],
     secondFeaturedSlot: true,
     promptHints: ["comparison", "versus", "before and after", "side by side"],
+  },
+  {
+    id: "bold-statement-corner",
+    name: "Bold statement corner",
+    summary: "Display headline with a small corner photo accent",
+    description:
+      "Text-first thought leadership with a large left-aligned headline and a small photographic accent in the bottom-right corner — common on LinkedIn creator posts.",
+    tags: ["thought-leadership", "bold", "headline", "corner-photo", "text-heavy"],
+    bestFor: ["linkedin-square", "linkedin-landscape", "instagram-square"],
+    stack: "text-first",
+    textZoneRatio: 0.78,
+    textZoneMax: 0.88,
+    textVerticalAlign: "center",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "bottom-right",
+    featuredZoneMode: "corner",
+    headlineScaleProfile: "display",
+    accentPlacementHint: "last-line",
+    mainBlocks: ["headline", "subheading"],
+    extrasPlacement: "hidden",
+    footerBlocks: [],
+    promptHints: [
+      "bold statement",
+      "large headline",
+      "corner photo",
+      "text heavy",
+      "thought leadership",
+    ],
+  },
+  {
+    id: "editorial-portrait",
+    name: "Editorial portrait",
+    summary: "Founder spotlight with portrait strip at the bottom",
+    description:
+      "Editorial layout for team and founder posts — left-aligned copy, brand mark, and a portrait photo strip along the bottom edge.",
+    tags: ["founder", "team", "portrait", "editorial", "spotlight"],
+    bestFor: ["linkedin-square", "linkedin-landscape"],
+    stack: "text-first",
+    textZoneRatio: 0.58,
+    textZoneMax: 0.65,
+    textVerticalAlign: "start",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "none",
+    featuredZoneMode: "portrait-strip",
+    headlineScaleProfile: "display",
+    mainBlocks: ["headline", "subheading", "extras"],
+    extrasPlacement: "main",
+    footerBlocks: [],
+    promptHints: [
+      "founder",
+      "team spotlight",
+      "portrait",
+      "meet the team",
+      "CEO",
+    ],
+  },
+  {
+    id: "display-quote",
+    name: "Display quote",
+    summary: "Left-aligned poster-style quote with optional corner photo",
+    description:
+      "Typography-first quote card with display-scale headline, minimal subline, and optional small corner visual.",
+    tags: ["quote", "poster", "typography", "minimal"],
+    bestFor: ["linkedin-square", "instagram-square"],
+    stack: "text-first",
+    textZoneRatio: 0.82,
+    textZoneMax: 0.92,
+    textVerticalAlign: "center",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "bottom-right",
+    featuredZoneMode: "corner",
+    headlineScaleProfile: "poster",
+    includeFeaturedSlot: true,
+    mainBlocks: ["headline", "subheading"],
+    extrasPlacement: "hidden",
+    footerBlocks: [],
+    promptHints: ["quote card", "display quote", "poster typography", "pull quote"],
+  },
+  {
+    id: "numbered-list",
+    name: "Numbered list",
+    summary: "Headline with 2–6 numbered tips or checklist items",
+    description:
+      "Carousel-style tips slide with a headline, numbered list items with dividers, and a footer author line — no featured visual.",
+    tags: ["tips", "checklist", "numbered", "list", "carousel", "how-to"],
+    bestFor: ["linkedin-square", "linkedin-landscape", "instagram-square"],
+    stack: "text-first",
+    textZoneRatio: 0.88,
+    textZoneMax: 0.96,
+    textVerticalAlign: "start",
+    logoPlacement: "top",
+    logoAlign: "left",
+    textAlign: "left",
+    featuredRadius: "none",
+    listStyle: "numbered",
+    listItemCount: { min: 2, max: 6 },
+    includeFeaturedSlot: false,
+    mainBlocks: ["headline", "subheading"],
+    extrasPlacement: "main",
+    footerBlocks: ["extras"],
+    promptHints: [
+      "tips",
+      "things to show",
+      "checklist",
+      "numbered list",
+      "how to",
+      "four things",
+    ],
   },
 ];
 
@@ -913,22 +1106,39 @@ export function estimateTextBandMinHeight(opts: {
   mainBlocks.forEach((block, index) => {
     if (index > 0) content += copyBlockGap;
     if (block === "headline") {
+      if (!copy?.heading?.trim()) return;
       const wireframeH = Math.round((isTallPrint ? 72 : 64) * scale * typeScale);
-      const lines = copy?.heading
-        ? Math.max(
-            1,
-            estimateWrappedLineCount(
-              plainHeadingText(copy.heading),
-              copyLineWidth,
-              headlineCharWidth,
-            ),
-          )
-        : 1;
+      const lines = Math.max(
+        1,
+        estimateWrappedLineCount(
+          plainHeadingText(copy.heading),
+          copyLineWidth,
+          headlineCharWidth,
+        ),
+      );
       content += Math.max(
         wireframeH,
         Math.ceil(lines * headlineFontSize * 1.08),
       );
     } else if (block === "subheading") {
+      const promoteToHeadline =
+        !copy?.heading?.trim() && !!copy?.subheading?.trim();
+      if (promoteToHeadline) {
+        const wireframeH = Math.round((isTallPrint ? 72 : 64) * scale * typeScale);
+        const lines = Math.max(
+          1,
+          estimateWrappedLineCount(
+            plainHeadingText(copy?.subheading ?? ""),
+            copyLineWidth,
+            headlineCharWidth,
+          ),
+        );
+        content += Math.max(
+          wireframeH,
+          Math.ceil(lines * headlineFontSize * 1.08),
+        );
+        return;
+      }
       const wireframeH = Math.round((isTallPrint ? 40 : 36) * scale * typeScale);
       const lines = copy?.subheading?.trim()
         ? Math.max(
@@ -942,9 +1152,33 @@ export function estimateTextBandMinHeight(opts: {
         : 1;
       content += Math.max(wireframeH, Math.ceil(lines * subFontSize * 1.4));
     } else if (block === "extras") {
-      const fields = copy?.extraFields?.filter((field) => field.value.trim()) ?? [];
+      const fields =
+        layout.listStyle === "numbered"
+          ? (copy?.extraFields?.filter(
+              (field) => field.id !== FOOTER_AUTHOR_EXTRA_ID,
+            ) ?? [])
+          : (copy?.extraFields?.filter((field) => field.value.trim()) ?? []);
       if (fields.length === 0) {
-        content += Math.round(28 * scale * typeScale);
+        const minItems = layout.listStyle === "numbered" ? 2 : 1;
+        content += Math.round(28 * scale * typeScale) * minItems;
+      } else if (layout.listStyle === "numbered") {
+        for (const field of fields) {
+          const titleLines = Math.max(
+            1,
+            estimateWrappedLineCount(
+              field.label || "Title",
+              extraLineWidth,
+              extraCharWidth * 1.1,
+            ),
+          );
+          const bodyLines = Math.max(
+            1,
+            estimateWrappedLineCount(field.value, extraLineWidth, extraCharWidth),
+          );
+          content += Math.ceil(titleLines * extraFontSize * 1.35 * 1.15);
+          content += Math.ceil(bodyLines * extraFontSize * 1.45);
+          content += Math.round(10 * scale);
+        }
       } else {
         for (const field of fields) {
           const lines = Math.max(
@@ -1037,6 +1271,56 @@ export function resolveFeaturedLayoutZones(opts: {
       ),
       productZone: 0,
     };
+  }
+
+  if (layoutFeaturedZoneMode(layout) === "corner") {
+    const textRatio = resolveTextZoneRatio(layout, {
+      showFeaturedImage: true,
+      isTallPrint,
+      typeScale,
+      aspect,
+    });
+    const minTextZone = estimateTextBandMinHeight({
+      width,
+      height,
+      layout,
+      showTopLogo,
+      spacing,
+      isTallPrint,
+      logoScale,
+      typeScale,
+      copy,
+      platformId,
+    });
+    let textZone = Math.round(height * textRatio);
+    textZone = Math.max(textZone, minTextZone);
+    textZone = Math.min(textZone, Math.max(0, height - footerH - layoutPad));
+    return { textZone, productZone: 0 };
+  }
+
+  if (layoutFeaturedZoneMode(layout) === "portrait-strip") {
+    const portraitShare = 0.35;
+    const minTextZone = estimateTextBandMinHeight({
+      width,
+      height,
+      layout,
+      showTopLogo,
+      spacing,
+      isTallPrint,
+      logoScale,
+      typeScale,
+      copy,
+      platformId,
+    });
+    const maxTextZone = Math.round(height * (1 - portraitShare));
+    let textZone = Math.min(
+      Math.round(height * layout.textZoneRatio),
+      maxTextZone,
+    );
+    textZone = Math.max(textZone, minTextZone);
+    textZone = Math.min(textZone, Math.max(0, height - footerH - layoutPad));
+    const productZone = Math.max(0, height - textZone - footerH - layoutPad);
+    return { textZone, productZone };
   }
 
   const textRatio = resolveTextZoneRatio(layout, {
@@ -1218,8 +1502,22 @@ export function resolveFooterBlocks(
   return blocks;
 }
 
+export function defaultListItemCount(
+  count?: { min: number; max: number } | number,
+): number {
+  if (typeof count === "number") return count;
+  return count?.max ?? 4;
+}
+
 /** Add a blank extra field when the layout expects footer/main extras */
 export function seedCopyForLayout(copy: PostCopy, layout: PostLayout): PostCopy {
+  if (layout.listStyle === "numbered" && copy.extraFields.length === 0) {
+    return {
+      ...copy,
+      extraFields: createNumberedListPlaceholders(defaultListItemCount(layout.listItemCount)),
+    };
+  }
+
   const wantsExtras =
     (layout.extrasPlacement === "footer" &&
       layout.footerBlocks.includes("extras")) ||

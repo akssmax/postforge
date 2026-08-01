@@ -23,6 +23,24 @@ import {
 import type { PostLayout } from "@/lib/social-tool/postLayouts";
 import type { PlatformId } from "@/lib/social-tool/presets";
 
+function layoutCopyHints(layout: PostLayout): string[] {
+  const hints: string[] = [];
+  if (
+    layout.headlineScaleProfile === "display" ||
+    layout.headlineScaleProfile === "poster"
+  ) {
+    hints.push("Use multi-line headlines with \\n between lines.");
+    hints.push("Wrap the final phrase or key line in [[accent]] markup.");
+    if (layout.accentPlacementHint === "last-line") {
+      hints.push("Place [[accent]] on the last line only.");
+    }
+  }
+  if (layout.listStyle === "numbered") {
+    hints.push("Do not generate numbered list item copy — structure placeholders only.");
+  }
+  return hints;
+}
+
 function asIntent(intentOrPlan: CampaignIntent | CampaignPlan): CampaignIntent {
   if ("campaign" in intentOrPlan && typeof intentOrPlan.campaign === "object") {
     return campaignPlanToIntent(intentOrPlan as CampaignPlan);
@@ -256,6 +274,7 @@ export async function writeSlots(input: {
           : "",
         rulesProfilePrompt(input.rulesProfile),
         ...copyStructureInstructions(input.rulesProfile),
+        ...layoutCopyHints(input.layout),
       ]
         .filter(Boolean)
         .join("\n"),

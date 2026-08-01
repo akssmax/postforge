@@ -1,4 +1,5 @@
 import type { DesignBlockId } from "@/lib/brand/contrast";
+import { copySlotIdFromSelectionId } from "@/lib/social-tool/copyEdit";
 
 /** Inspector target when an element is selected on the canvas */
 export type CanvasSelectionId =
@@ -7,9 +8,11 @@ export type CanvasSelectionId =
   | "featured"
   | "pattern"
   | "shape"
+  | "icon"
   | `copy:${string}`
   | `featured:${string}`
-  | `shape:${string}`;
+  | `shape:${string}`
+  | `icon:${string}`;
 
 export const CANVAS_SELECTION_LABELS: Record<string, string> = {
   copy: "Content",
@@ -17,15 +20,17 @@ export const CANVAS_SELECTION_LABELS: Record<string, string> = {
   featured: "Featured image",
   pattern: "Pattern",
   shape: "Shape",
+  icon: "Icon",
 };
 
 export function canvasSelectionKind(
   id: CanvasSelectionId | null,
-): "copy" | "logo" | "featured" | "pattern" | "shape" | null {
+): "copy" | "logo" | "featured" | "pattern" | "shape" | "icon" | null {
   if (!id) return null;
   if (id === "copy" || id.startsWith("copy:")) return "copy";
   if (id === "featured" || id.startsWith("featured:")) return "featured";
   if (id === "shape" || id.startsWith("shape:")) return "shape";
+  if (id === "icon" || id.startsWith("icon:")) return "icon";
   if (id === "logo") return "logo";
   if (id === "pattern") return "pattern";
   return null;
@@ -48,9 +53,11 @@ export function isCanvasSelectableTarget(target: EventTarget | null): boolean {
     target.closest("[data-canvas-select]") ||
       target.closest(".canvas-preview-toolbar") ||
       target.closest(".canvas-stage-chrome") ||
+      target.closest(".canvas-bottom-chrome") ||
       target.closest(".social-featured-drag-handle") ||
       target.closest(".social-fi-chrome") ||
       target.closest(".canvas-shape") ||
+      target.closest(".canvas-icon-layer__item") ||
       target.closest(".spacing-handle") ||
       target.closest(".canvas-property-pills") ||
       target.closest(".canvas-copy-editor") ||
@@ -73,5 +80,24 @@ export function shapeIdFromSelection(
   if (!selection) return null;
   if (selection.startsWith("shape:")) return selection.slice("shape:".length);
   if (selection === "shape") return null;
+  return null;
+}
+
+export function iconIdFromSelection(
+  selection: CanvasSelectionId | null,
+): string | null {
+  if (!selection) return null;
+  if (selection.startsWith("icon:")) return selection.slice("icon:".length);
+  if (selection === "icon") return null;
+  return null;
+}
+
+export function copySlotIdFromSelection(
+  selection: CanvasSelectionId | null,
+): string | null {
+  if (!selection) return null;
+  if (selection.startsWith("copy:")) {
+    return copySlotIdFromSelectionId(selection);
+  }
   return null;
 }

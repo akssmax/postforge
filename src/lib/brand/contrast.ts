@@ -36,12 +36,14 @@ export type ContrastResult = {
 
 import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
+import type { PostLayoutSpacing } from "@/lib/social-tool/layoutSpacing";
 import {
   evaluateAccentContrast,
   evaluateFeaturedVisualContrast,
   evaluatePatternInterference,
   evaluateVisualBalance,
 } from "@/lib/brand/designQuality";
+import { evaluateSvgGraphicContrast } from "@/lib/brand/logoContrastFix";
 
 const HEX_RE = /#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b/g;
 
@@ -236,6 +238,7 @@ export type ContrastCheckInput = {
   layoutId?: PostLayoutId;
   typeScale?: number;
   brandAccent?: string;
+  layoutSpacing?: PostLayoutSpacing;
 };
 
 function textIssue(
@@ -280,12 +283,17 @@ export function evaluateCanvasContrast(
   const results: ContrastResult[] = [];
 
   if (input.showLogo && input.logoSvgMarkup) {
-    const logoColors = extractSvgFills(input.logoSvgMarkup);
-    const { ratio, foreground } = worstLogoContrast(
-      logoColors,
-      logoBg,
-      input.logoInvert,
+    const logoEval = evaluateSvgGraphicContrast(
+      input.logoSvgMarkup,
+      input.backgroundCss,
+      {
+        logoBackdrop: input.logoBackdrop,
+        invert: input.logoInvert,
+      },
     );
+    const ratio = logoEval?.ratio ?? 1;
+    const foreground = logoEval?.foreground ?? "#ffffff";
+    const logoBackground = logoEval?.background ?? logoBg;
     const required = requiredRatio("graphic");
     const passes = passesContrast(ratio, "graphic");
     results.push(
@@ -295,7 +303,7 @@ export function evaluateCanvasContrast(
         required,
         level: "graphic",
         foreground,
-        background: logoBg,
+        background: logoBackground,
         label: "Logo",
         alert: passes
           ? ""
@@ -305,45 +313,47 @@ export function evaluateCanvasContrast(
     );
   }
 
-  const headingFg = resolveForegroundHex(input.textColor, bg);
-  const headingRatio = contrastRatio(headingFg, bg);
-  const headingRequired = requiredRatio("aaLarge");
-  const headingPasses = passesContrast(headingRatio, "aaLarge");
-  results.push(
-    textIssue("headline", {
-      ratio: headingRatio,
-      passes: headingPasses,
-      required: headingRequired,
-      level: "aaLarge",
-      foreground: headingFg,
-      background: bg,
-      label: "Heading",
-      alert: headingPasses
-        ? ""
-        : "Headline contrast is too low for this background — boost text contrast or lighten the backdrop.",
-      severity: headingRatio < 3 ? "error" : "warning",
-    }),
-  );
+  if (input.showContent !== false) {
+    const headingFg = resolveForegroundHex(input.textColor, bg);
+    const headingRatio = contrastRatio(headingFg, bg);
+    const headingRequired = requiredRatio("aaLarge");
+    const headingPasses = passesContrast(headingRatio, "aaLarge");
+    results.push(
+      textIssue("headline", {
+        ratio: headingRatio,
+        passes: headingPasses,
+        required: headingRequired,
+        level: "aaLarge",
+        foreground: headingFg,
+        background: bg,
+        label: "Heading",
+        alert: headingPasses
+          ? ""
+          : "Headline contrast is too low for this background — boost text contrast or lighten the backdrop.",
+        severity: headingRatio < 3 ? "error" : "warning",
+      }),
+    );
 
-  const subFg = resolveForegroundHex(input.subTextColor, bg);
-  const subRatio = contrastRatio(subFg, bg);
-  const subRequired = requiredRatio("aa");
-  const subPasses = passesContrast(subRatio, "aa");
-  results.push(
-    textIssue("subheading", {
-      ratio: subRatio,
-      passes: subPasses,
-      required: subRequired,
-      level: "aa",
-      foreground: subFg,
-      background: bg,
-      label: "Subheading",
-      alert: subPasses
-        ? ""
-        : "Subheading is hard to read against this background — increase contrast or reduce background noise.",
-      severity: subRatio < 3 ? "error" : "warning",
-    }),
-  );
+    const subFg = resolveForegroundHex(input.subTextColor, bg);
+    const subRatio = contrastRatio(subFg, bg);
+    const subRequired = requiredRatio("aa");
+    const subPasses = passesContrast(subRatio, "aa");
+    results.push(
+      textIssue("subheading", {
+        ratio: subRatio,
+        passes: subPasses,
+        required: subRequired,
+        level: "aa",
+        foreground: subFg,
+        background: bg,
+        label: "Subheading",
+        alert: subPasses
+          ? ""
+          : "Subheading is hard to read against this background — increase contrast or reduce background noise.",
+        severity: subRatio < 3 ? "error" : "warning",
+      }),
+    );
+  }
 
   const accent = evaluateAccentContrast({
     backgroundCss: input.backgroundCss,
@@ -382,6 +392,7 @@ export function evaluateCanvasContrast(
     layoutId: input.layoutId,
     typeScale: input.typeScale,
     brandAccent: input.brandAccent,
+    layoutSpacing: input.layoutSpacing,
   });
   if (balance) results.push(balance);
 

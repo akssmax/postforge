@@ -156,6 +156,30 @@ export const designSnapshotSchema = z.object({
     )
     .max(3)
     .optional(),
+  canvasIcons: z
+    .array(
+      z.object({
+        id: z.string(),
+        iconName: z.string(),
+        label: z.string(),
+        category: z.enum(["arrows", "business", "communication", "social", "ui"]),
+        svgMarkup: z.string().optional(),
+        transform: z.object({
+          x: z.number(),
+          y: z.number(),
+          scale: z.number(),
+          rotateZ: z.number(),
+        }),
+        color: z.string(),
+        strokeWidth: z.number(),
+        opacity: z.number().min(0).max(1).optional(),
+        zIndex: z.number().int().min(0).max(10),
+        locked: z.boolean().optional(),
+        createdAt: z.number(),
+      }),
+    )
+    .max(5)
+    .optional(),
   allowedLayouts: z.array(z.string()),
   allowedProductPages: z.array(z.string()),
   allowedPatternRefs: z.array(z.string()),
@@ -213,6 +237,7 @@ export type DesignSnapshotInput = {
   };
   layoutSpacing: PostLayoutSpacing;
   canvasShapes?: DesignSnapshot["canvasShapes"];
+  canvasIcons?: DesignSnapshot["canvasIcons"];
   selection?: CanvasSelectionId | null;
   artifactId?: string;
   artifactCategory?: string;

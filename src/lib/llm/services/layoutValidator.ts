@@ -19,7 +19,7 @@ import { getLayoutStatePatch } from "@/lib/social-tool/postLayouts";
 import { resolvePatternRef } from "@/lib/social-tool/engine/visualPolicy";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
-import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
+import { DEFAULT_FEATURED_TRANSFORM } from "@/lib/social-tool/featuredTransform";
 
 export type ValidatedDesignPlan = Omit<DesignPlan, "layoutRef"> & {
   layoutRef: LayoutRef;

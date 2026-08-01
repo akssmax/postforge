@@ -13,7 +13,6 @@ import {
   editorHtmlToAccentMarkup,
   stripAccentMarkup,
 } from "@/lib/social-tool/presets";
-
 type Props = {
   anchor: HTMLElement;
   value: string;
@@ -28,6 +27,8 @@ type Props = {
   onCommit: () => void;
   onCancel: () => void;
 };
+
+export type CopyEditMetrics = OverlayBox;
 
 type OverlayBox = {
   top: number;
@@ -111,6 +112,11 @@ function selectAllContents(el: HTMLElement) {
   selection.addRange(range);
 }
 
+/** Measure overlay box from a visible canvas copy element. */
+export function measureCopyAnchor(anchor: HTMLElement): CopyEditMetrics {
+  return measure(anchor);
+}
+
 /**
  * Screen-space overlay for live canvas copy edits.
  * Accent-rich mode keeps [[accent]] as colored spans so click-out preserves them.
@@ -124,7 +130,8 @@ export function CanvasCopyEditor({
   onCommit,
   onCancel,
 }: Props) {
-  const [box, setBox] = useState<OverlayBox>(() => measure(anchor));
+  const typographyRef = useRef<CopyEditMetrics | null>(null);
+  const [box, setBox] = useState<CopyEditMetrics>(() => measure(anchor));
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const richRef = useRef<HTMLDivElement>(null);
   const valueRef = useRef(value);
@@ -136,6 +143,17 @@ export function CanvasCopyEditor({
   onChangeRef.current = onChange;
   onCommitRef.current = onCommit;
   onCancelRef.current = onCancel;
+
+  function updatePosition() {
+    const measured = measure(anchor);
+    const typography = typographyRef.current ?? measured;
+    typographyRef.current = typography;
+    setBox({
+      ...measured,
+      accentColor: typography.accentColor,
+      style: typography.style,
+    });
+  }
 
   function flushLatest(): string {
     if (accentRich) {
@@ -171,10 +189,13 @@ export function CanvasCopyEditor({
   }
 
   useLayoutEffect(() => {
-    setBox(measure(anchor));
-    const ro = new ResizeObserver(() => setBox(measure(anchor)));
+    if (!typographyRef.current) {
+      typographyRef.current = measure(anchor);
+    }
+    updatePosition();
+    const ro = new ResizeObserver(() => updatePosition());
     ro.observe(anchor);
-    const onWin = () => setBox(measure(anchor));
+    const onWin = () => updatePosition();
     window.addEventListener("resize", onWin);
     window.addEventListener("scroll", onWin, true);
     return () => {
@@ -185,7 +206,7 @@ export function CanvasCopyEditor({
   }, [anchor]);
 
   useLayoutEffect(() => {
-    setBox(measure(anchor));
+    updatePosition();
   }, [anchor, value]);
 
   useLayoutEffect(() => {

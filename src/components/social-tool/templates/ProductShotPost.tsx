@@ -1,6 +1,14 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { Move, Plus } from "lucide-react";
 import { Button, Tooltip } from "@heroui/react";
 import { BrandLogoSlot } from "@/components/social-tool/BrandLogoSlot";
@@ -20,7 +28,9 @@ import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 import type { BackgroundPreset } from "@/lib/brand/types";
 import type { DesignBlockId } from "@/lib/brand/contrast";
 import { CanvasShapeLayer } from "@/components/social-tool/shapes/CanvasShapeLayer";
+import { CanvasIconLayer } from "@/components/social-tool/icons/CanvasIconLayer";
 import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
+import type { CanvasIconRecord } from "@/lib/social-tool/icons/types";
 import type {
   DynamicLayout,
   FeaturedSlotContent,
@@ -30,6 +40,7 @@ import type {
 import { dynamicLayoutAsPostLayout } from "@/lib/social-tool/layoutRegistry";
 import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
 import { textSlotsForLayout } from "@/lib/social-tool/dynamicLayout";
+import { ctaBlockWithText } from "@/lib/social-tool/visualBlocks/library/ctaButtons";
 import {
   FEATURED_PRIMARY_SLOT_ID,
   MAX_FEATURED_SLOTS,
@@ -40,7 +51,10 @@ import {
   DEFAULT_POST_LAYOUT_ID,
   getLayoutTextSide,
   getPostLayout,
+  layoutUsesCtaButton,
   layoutUsesSplit,
+  layoutUsesCornerFeatured,
+  layoutUsesPortraitFeatured,
   resolveFeaturedLayoutZones,
   resolveFooterBlocks,
   layoutHasFooterStrip,
@@ -50,8 +64,12 @@ import {
   type PostLayoutId,
 } from "@/lib/social-tool/postLayouts";
 import { CanvasPropertyPills } from "@/components/social-tool/CanvasPropertyPills";
+import { AccentText } from "@/components/social-tool/AccentText";
 import { CanvasCopyEditor } from "@/components/social-tool/CanvasCopyEditor";
 import {
+  copySelectionId,
+  copySelectionIdFromSlotId,
+  copySlotIdFromSelectionId,
   editingCopyFieldsEqual,
   type EditingCopyField,
 } from "@/lib/social-tool/copyEdit";
@@ -65,6 +83,8 @@ import {
   DEFAULT_POST_LAYOUT_SPACING,
   canvasScaleFactor,
   resolveSplitTextColumnShare,
+  socialPostCopyFieldStyle,
+  socialPostTypographyVars,
   spacingToCssVars,
   spacingTokenToPx,
   type PostLayoutSpacing,
@@ -74,7 +94,11 @@ import {
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import {
   getSocialFont,
+  hasAccentMarkup,
   parseAccentMarkup,
+  stripAccentMarkup,
+  listItemExtraFields,
+  footerAuthorField,
   type LogoAlign,
   type LogoPlacement,
   type PostCopy,
@@ -83,27 +107,14 @@ import {
   type TextAlign,
 } from "@/lib/social-tool/presets";
 
-export type FeaturedImageTransform = {
-  x: number;
-  y: number;
-  z: number;
-  rotateX: number;
-  rotateY: number;
-  rotateZ: number;
-  scale: number;
-  perspective: number;
-};
+import {
+  DEFAULT_FEATURED_TRANSFORM,
+  type FeaturedImageTransform,
+} from "@/lib/social-tool/featuredTransform";
+import { useLiveSliderValue } from "@/lib/social-tool/useLiveSliderValue";
 
-export const DEFAULT_FEATURED_TRANSFORM: FeaturedImageTransform = {
-  x: 0,
-  y: 0,
-  z: 0,
-  rotateX: 0,
-  rotateY: 0,
-  rotateZ: 0,
-  scale: 1,
-  perspective: 1400,
-};
+export type { FeaturedImageTransform } from "@/lib/social-tool/featuredTransform";
+export { DEFAULT_FEATURED_TRANSFORM } from "@/lib/social-tool/featuredTransform";
 
 type Props = {
   width: number;
@@ -128,6 +139,9 @@ type Props = {
   logoPlacement?: LogoPlacement;
   textAlign?: TextAlign;
   onTextAlignChange?: (value: TextAlign) => void;
+  copyVariantIndex?: number;
+  copyVariantCount?: number;
+  onCycleCopyVariant?: (delta: 1 | -1) => void;
   headingFont?: SocialFontId;
   subFont?: SocialFontId;
   showLogo?: boolean;
@@ -139,8 +153,8 @@ type Props = {
     slotId?: string,
   ) => void;
   /** Coalesce pointer-drag edits into one undo step */
-  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing" | "copy" | "shapes") => void;
-  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing" | "copy" | "shapes") => void;
+  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing" | "copy" | "shapes" | "icons" | "typeScale" | "logoScale") => void;
+  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing" | "copy" | "shapes" | "icons" | "typeScale" | "logoScale") => void;
   /** Live canvas text edit (double-click) */
   editingCopyField?: import("@/lib/social-tool/copyEdit").EditingCopyField | null;
   onCopyFieldEditStart?: (
@@ -205,6 +219,8 @@ type Props = {
   featuredSlots?: FeaturedSlotContent[];
   canvasShapes?: CanvasShapeRecord[];
   onCanvasShapesChange?: (shapes: CanvasShapeRecord[]) => void;
+  canvasIcons?: CanvasIconRecord[];
+  onCanvasIconsChange?: (icons: CanvasIconRecord[]) => void;
 };
 
 function scale(base: number, width: number, height: number) {
@@ -285,6 +301,9 @@ export function ProductShotPost({
   logoPlacement = "top",
   textAlign = "center",
   onTextAlignChange,
+  copyVariantIndex = 0,
+  copyVariantCount = 0,
+  onCycleCopyVariant,
   headingFont = "sans",
   subFont = "sans",
   showLogo = true,
@@ -344,7 +363,25 @@ export function ProductShotPost({
   onUploadFeaturedImage,
   canvasShapes = [],
   onCanvasShapesChange,
+  canvasIcons = [],
+  onCanvasIconsChange,
 }: Props) {
+  const typeScaleSlider = useLiveSliderValue(
+    typeScale,
+    (value) => onTypeScaleChange?.(value),
+    () => onHistoryCoalesceBegin?.("typeScale"),
+    () => onHistoryCoalesceEnd?.("typeScale"),
+  );
+  const effectiveTypeScale = typeScaleSlider.display;
+
+  const logoScaleSlider = useLiveSliderValue(
+    logoScale,
+    (value) => onLogoScaleChange?.(value),
+    () => onHistoryCoalesceBegin?.("logoScale"),
+    () => onHistoryCoalesceEnd?.("logoScale"),
+  );
+  const effectiveLogoScale = logoScaleSlider.display;
+
   const layout = dynamicLayout
     ? dynamicLayoutAsPostLayout(dynamicLayout)
     : getPostLayout(layoutId);
@@ -373,7 +410,7 @@ export function ProductShotPost({
   );
   const pad = layoutPadPx;
   const radius = scale(12, width, height);
-  const logoH = Math.max(12, Math.round(34 * canvasScale * logoScale));
+  const logoH = Math.max(12, Math.round(34 * canvasScale * effectiveLogoScale));
   const showSpacingHandles =
     showSpacingControls && interactive && !!onSpacingChange;
   const selectionKind = canvasSelectionKind(canvasSelection);
@@ -398,6 +435,28 @@ export function ProductShotPost({
       ? () => onHistoryCoalesceEnd("spacing")
       : undefined,
   };
+  const shapesHistoryCoalesce = useMemo(
+    () => ({
+      onHistoryCoalesceBegin: onHistoryCoalesceBegin
+        ? () => onHistoryCoalesceBegin("shapes")
+        : undefined,
+      onHistoryCoalesceEnd: onHistoryCoalesceEnd
+        ? () => onHistoryCoalesceEnd("shapes")
+        : undefined,
+    }),
+    [onHistoryCoalesceBegin, onHistoryCoalesceEnd],
+  );
+  const iconsHistoryCoalesce = useMemo(
+    () => ({
+      onHistoryCoalesceBegin: onHistoryCoalesceBegin
+        ? () => onHistoryCoalesceBegin("icons")
+        : undefined,
+      onHistoryCoalesceEnd: onHistoryCoalesceEnd
+        ? () => onHistoryCoalesceEnd("icons")
+        : undefined,
+    }),
+    [onHistoryCoalesceBegin, onHistoryCoalesceEnd],
+  );
 
   function setSpacingToken(key: SpacingTokenKey, token: SpacingToken) {
     onSpacingChange?.({ ...spacing, [key]: token });
@@ -471,10 +530,10 @@ export function ProductShotPost({
     layout,
     showFeaturedImage: showFeaturedImage && !isSplit,
     isTallPrint,
-    typeScale,
+    typeScale: effectiveTypeScale,
     showTopLogo: showLogo && logoPlacement === "top",
     spacing,
-    logoScale,
+    logoScale: effectiveLogoScale,
     copy,
   });
 
@@ -488,7 +547,7 @@ export function ProductShotPost({
         isTallPrint,
         showTopLogo: showLogo && logoPlacement === "top",
         spacing,
-        logoScale,
+        logoScale: effectiveLogoScale,
       })
     : null;
 
@@ -501,6 +560,16 @@ export function ProductShotPost({
   const hasSubheading = !isEmptyCopyField(copy.subheading);
   const headingFamily = getSocialFont(headingFont).family;
   const subFamily = getSocialFont(subFont).family;
+  const headlineProfile =
+    layout.headlineScaleProfile === "display"
+      ? "display"
+      : layout.headlineScaleProfile === "poster"
+        ? "poster"
+        : "default";
+  const copyFonts = useMemo(
+    () => ({ heading: headingFamily, sub: subFamily }),
+    [headingFamily, subFamily],
+  );
 
   const [hoveredSlotId, setHoveredSlotId] = useState<string | null>(null);
   const [draggingSlotId, setDraggingSlotId] = useState<string | null>(null);
@@ -524,6 +593,78 @@ export function ProductShotPost({
     setCopyEditAnchor(el);
   }, [editingCopyField, copy.heading, copy.subheading, copy.extraFields]);
 
+  useLayoutEffect(() => {
+    if (!editingCopyField || !postRootRef.current) return;
+    const key =
+      editingCopyField.kind === "extra"
+        ? `extra:${editingCopyField.id}`
+        : editingCopyField.kind;
+    const el = postRootRef.current.querySelector(
+      `[data-copy-field="${key}"]`,
+    ) as HTMLElement | null;
+    if (!el) return;
+    el.classList.add("is-copy-editing");
+    return () => {
+      el.classList.remove("is-copy-editing");
+    };
+  }, [editingCopyField, copy.heading, copy.subheading, copy.extraFields]);
+
+  function copyFieldDataAttr(field: EditingCopyField): string {
+    if (field.kind === "extra") return `extra:${field.id}`;
+    return field.kind;
+  }
+
+  function copyFieldFromSlot(slotId: string, role: TextSlotRole): EditingCopyField {
+    if (role === "headline" || slotId === "headline") return { kind: "heading" };
+    if (role === "subheading" || slotId === "subheading") return { kind: "subheading" };
+    return { kind: "extra", id: slotId };
+  }
+
+  function handleCopyFieldPointerDown(
+    slotId: string,
+    ev: React.PointerEvent,
+  ) {
+    if (!interactive || exporting || !onCanvasSelect) return;
+    ev.stopPropagation();
+    onCanvasSelect(copySelectionIdFromSlotId(slotId));
+  }
+
+  function normalizeRenderedCopyText(text: string): string {
+    return stripAccentMarkup(text).trim().replace(/\s+/g, " ");
+  }
+
+  function isDuplicateCopyText(
+    text: string,
+    rendered?: ReadonlySet<string>,
+  ): boolean {
+    if (!rendered) return false;
+    const key = normalizeRenderedCopyText(text);
+    return key.length > 0 && rendered.has(key);
+  }
+
+  function renderInteractiveCopyParagraph(options: {
+    key: string;
+    slotId: string;
+    field: EditingCopyField;
+    className: string;
+    style?: React.CSSProperties;
+    text: string;
+  }) {
+    const editing = isEditingField(options.field);
+    return (
+      <p
+        key={options.key}
+        className={`${options.className}${editing ? " is-copy-editing" : ""}${selectableClassForCopyField(options.slotId)}`}
+        data-copy-field={copyFieldDataAttr(options.field)}
+        style={options.style}
+        onPointerDown={(ev) => handleCopyFieldPointerDown(options.slotId, ev)}
+        onDoubleClick={(ev) => startCopyFieldEdit(options.field, ev)}
+      >
+        <AccentText text={options.text} />
+      </p>
+    );
+  }
+
   function startCopyFieldEdit(
     field: EditingCopyField,
     ev: React.MouseEvent,
@@ -531,12 +672,28 @@ export function ProductShotPost({
     if (!interactive || exporting || !onCopyFieldEditStart) return;
     ev.preventDefault();
     ev.stopPropagation();
-    onCanvasSelect?.("copy");
+    onCanvasSelect?.(copySelectionId(field));
     onCopyFieldEditStart(field);
   }
 
   function isEditingField(field: EditingCopyField) {
     return editingCopyFieldsEqual(editingCopyField, field);
+  }
+
+  function headlineScaleClassName(): string {
+    if (layout.headlineScaleProfile === "display") {
+      return " social-post-headline--display";
+    }
+    if (layout.headlineScaleProfile === "poster") {
+      return " social-post-headline--poster";
+    }
+    return "";
+  }
+
+  function copyTypographyClassForRole(role: TextSlotRole): string {
+    if (role === "headline") return "social-post-headline";
+    if (role === "subheading") return "social-post-sub";
+    return "social-post-extra";
   }
 
   const dragRef = useRef<{
@@ -606,7 +763,25 @@ export function ProductShotPost({
     if (role === "headline") return copy.heading;
     if (role === "subheading") return copy.subheading;
     const extra = copy.extraFields.find((f) => f.id === slotId);
-    return extra?.value ?? copy.extraFields[0]?.value ?? "";
+    if (extra) return extra.value;
+    if (slotId === "extras-footer" || role === "caption") {
+      const footerExtra = copy.extraFields.find(
+        (f) => f.id === "extras-footer" || !f.id.startsWith("cta"),
+      );
+      return footerExtra?.value ?? "";
+    }
+    return copy.extraFields[0]?.value ?? "";
+  }
+
+  function isCopyFieldSelected(slotId: string): boolean {
+    if (!canvasSelection?.startsWith("copy:")) return false;
+    const selected = copySlotIdFromSelectionId(canvasSelection);
+    return selected === slotId;
+  }
+
+  function selectableClassForCopyField(slotId: string) {
+    if (!interactive || !onCanvasSelect) return "";
+    return `canvas-selectable${isCopyFieldSelected(slotId) ? " is-canvas-selected" : ""}`;
   }
 
   function selectableClass(id: CanvasSelectionId) {
@@ -722,18 +897,23 @@ export function ProductShotPost({
       className={`${logoBackdrop ? "brand-logo-backdrop inline-flex" : "inline-flex"} ${selectableClass("logo")}`}
       data-design-block="logo"
       data-canvas-select="logo"
+      data-figma-name="Logo"
       onPointerDown={(ev) => handleCanvasSelect("logo", ev)}
     >
       {hasPropertyPills && selectionKind === "logo" ? (
         <CanvasPropertyPills
           selection={canvasSelection}
           enabled
-          typeScale={typeScale}
-          onTypeScaleChange={onTypeScaleChange}
+          typeScale={effectiveTypeScale}
+          onTypeScaleChange={typeScaleSlider.onLiveChange}
+          onTypeScaleInteractionStart={typeScaleSlider.onInteractionStart}
+          onTypeScaleInteractionEnd={typeScaleSlider.onInteractionEnd}
           textAlign={textAlign}
           onTextAlignChange={onTextAlignChange}
-          logoScale={logoScale}
-          onLogoScaleChange={onLogoScaleChange}
+          logoScale={effectiveLogoScale}
+          onLogoScaleChange={logoScaleSlider.onLiveChange}
+          onLogoScaleInteractionStart={logoScaleSlider.onInteractionStart}
+          onLogoScaleInteractionEnd={logoScaleSlider.onInteractionEnd}
         />
       ) : null}
       <BrandLogoSlot
@@ -748,13 +928,54 @@ export function ProductShotPost({
     </div>
   ) : null;
 
-  const headlineStyle = textColorOverride
-    ? { color: textColorOverride }
-    : undefined;
-  const subStyle = {
-    maxWidth: isTallPrint ? "min(22em, 100%)" : "min(28em, 100%)",
-    ...(subTextColorOverride ? { color: subTextColorOverride } : {}),
-  };
+  const headlineStyle = useMemo(
+    () => ({
+      ...socialPostCopyFieldStyle(
+        width,
+        height,
+        effectiveTypeScale,
+        "headline",
+        copyFonts,
+        { headlineProfile },
+      ),
+      ...(textColorOverride ? { color: textColorOverride } : {}),
+    }),
+    [
+      width,
+      height,
+      effectiveTypeScale,
+      copyFonts,
+      headlineProfile,
+      textColorOverride,
+    ],
+  );
+  const subStyle = useMemo(
+    () => ({
+      ...socialPostCopyFieldStyle(
+        width,
+        height,
+        effectiveTypeScale,
+        "subheading",
+        copyFonts,
+      ),
+      maxWidth: isTallPrint ? "min(22em, 100%)" : "min(28em, 100%)",
+      ...(subTextColorOverride ? { color: subTextColorOverride } : {}),
+    }),
+    [width, height, effectiveTypeScale, copyFonts, isTallPrint, subTextColorOverride],
+  );
+  const extraCopyStyle = useMemo(
+    () => ({
+      ...socialPostCopyFieldStyle(
+        width,
+        height,
+        effectiveTypeScale,
+        "extra",
+        copyFonts,
+      ),
+      maxWidth: isTallPrint ? "min(22em, 100%)" : "min(28em, 100%)",
+    }),
+    [width, height, effectiveTypeScale, copyFonts, isTallPrint],
+  );
 
   const headlineSlotStyle = {
     width: scale(isTallPrint ? 480 : 560, width, height),
@@ -790,32 +1011,138 @@ export function ProductShotPost({
     );
   }
 
-  function renderExtras(zone: "main" | "footer") {
+  function renderNumberedList() {
+    const rawItems = listItemExtraFields(copy.extraFields);
+    const items =
+      rawItems.length > 0
+        ? rawItems
+        : emptyStatePreview
+          ? [
+              { id: "list-item-1", label: "", value: "" },
+              { id: "list-item-2", label: "", value: "" },
+            ]
+          : [];
+    if (items.length === 0) return null;
+    const itemCount = items.length;
+
+    return (
+      <div
+        key="numbered-list"
+        className="social-post-numbered-list"
+        style={{ gap: `${Math.round(10 * effectiveTypeScale)}px` }}
+      >
+        {items.map((field, index) => {
+          const pendingLabel = isEditingField({ kind: "extra", id: field.id });
+          const editingLabel = isEditingField({ kind: "extra", id: field.id });
+          const number = String(index + 1).padStart(2, "0");
+          return (
+            <Fragment key={field.id}>
+              {index > 0 ? (
+                <div className="social-post-list-divider" aria-hidden />
+              ) : null}
+              <div className="social-post-list-item">
+                <span className="social-post-list-number">{number}</span>
+                <div className="social-post-list-copy">
+                  {field.label.trim() || pendingLabel ? (
+                    <p
+                      className={`social-post-list-title${editingLabel ? " is-copy-editing" : ""}${selectableClassForCopyField(field.id)}`}
+                      data-copy-field={`extra:${field.id}:label`}
+                      onPointerDown={(ev) => handleCopyFieldPointerDown(field.id, ev)}
+                      onDoubleClick={(ev) =>
+                        startCopyFieldEdit({ kind: "extra", id: field.id }, ev)
+                      }
+                    >
+                      <AccentText text={field.label.trim() || "Item title"} />
+                    </p>
+                  ) : null}
+                  {field.value.trim() || pendingLabel ? (
+                    <p
+                      className={`social-post-list-body${editingLabel ? " is-copy-editing" : ""}${selectableClassForCopyField(field.id)}`}
+                      data-copy-field={`extra:${field.id}`}
+                      onPointerDown={(ev) => handleCopyFieldPointerDown(field.id, ev)}
+                      onDoubleClick={(ev) =>
+                        startCopyFieldEdit({ kind: "extra", id: field.id }, ev)
+                      }
+                    >
+                      <AccentText text={field.value} />
+                    </p>
+                  ) : (
+                    renderEmptyTextSlot(`${field.id}-body`, "extra", extraSlotStyle)
+                  )}
+                </div>
+              </div>
+            </Fragment>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderExtras(zone: "main" | "footer", renderedCopyText?: Set<string>) {
+    const registerRendered = (text: string) => {
+      if (!renderedCopyText) return;
+      const key = normalizeRenderedCopyText(text);
+      if (key) renderedCopyText.add(key);
+    };
+    if (layout.listStyle === "numbered" && zone === "main") {
+      return renderNumberedList();
+    }
+
+    if (layout.listStyle === "numbered" && zone === "footer") {
+      const author = footerAuthorField(copy.extraFields);
+      if (!author?.value.trim() && !emptyStatePreview) return null;
+      return author?.value.trim() ? (
+        <p
+          key={author.id}
+          className="social-post-list-footer"
+          data-copy-field={`extra:${author.id}`}
+          onDoubleClick={(ev) =>
+            startCopyFieldEdit({ kind: "extra", id: author.id }, ev)
+          }
+        >
+          {author.value}
+        </p>
+      ) : (
+        renderEmptyTextSlot("footer-author", "extra", extraSlotStyle, {
+          className: "social-post-list-footer",
+        })
+      );
+    }
+
     const fields =
       zone === "footer"
-        ? copy.extraFields
+        ? copy.extraFields.filter((field) => field.id !== "footer-author")
         : copy.extraFields.filter((field) => field.value.trim());
 
     const nodes = fields
       .map((field) => {
+        if (renderedCopyText && isDuplicateCopyText(field.value, renderedCopyText)) {
+          return null;
+        }
+        const pendingEdit = isEditingField({ kind: "extra", id: field.id });
         const editing = isEditingField({ kind: "extra", id: field.id });
-        return field.value.trim() || editing ? (
+        if (!field.value.trim() && !pendingEdit) {
+          return renderEmptyTextSlot(field.id, "extra", extraSlotStyle, {
+            className: zone === "footer" ? "social-post-extra--footer" : undefined,
+          });
+        }
+        registerRendered(field.value);
+        return field.value.trim() || pendingEdit ? (
           <p
             key={field.id}
-            className={`social-post-extra${zone === "footer" ? " social-post-extra--footer" : ""}${editing ? " is-copy-editing" : ""}`}
+            className={`social-post-extra${zone === "footer" ? " social-post-extra--footer" : ""}${editing ? " is-copy-editing" : ""}${selectableClassForCopyField(field.id)}`}
             data-copy-field={`extra:${field.id}`}
-            style={{ maxWidth: isTallPrint ? "min(22em, 100%)" : "min(28em, 100%)" }}
+            style={{
+              maxWidth: isTallPrint ? "min(22em, 100%)" : "min(28em, 100%)",
+            }}
+            onPointerDown={(ev) => handleCopyFieldPointerDown(field.id, ev)}
             onDoubleClick={(ev) =>
               startCopyFieldEdit({ kind: "extra", id: field.id }, ev)
             }
           >
-            {field.value}
+            <AccentText text={field.value} />
           </p>
-        ) : (
-          renderEmptyTextSlot(field.id, "extra", extraSlotStyle, {
-            className: zone === "footer" ? "social-post-extra--footer" : undefined,
-          })
-        );
+        ) : null;
       })
       .filter(Boolean);
 
@@ -830,17 +1157,22 @@ export function ProductShotPost({
     return null;
   }
 
-  function renderMainBlock(block: PostContentBlock) {
+  function renderMainBlock(
+    block: PostContentBlock,
+    renderedCopyText?: Set<string>,
+  ) {
     switch (block) {
       case "headline": {
         const editing = isEditingField({ kind: "heading" });
-        return hasHeading || editing ? (
+        return hasHeading || isEditingField({ kind: "heading" }) ? (
           <h1
             key="headline"
-            className={`social-post-headline${editing ? " is-copy-editing" : ""}`}
+            className={`social-post-headline${headlineScaleClassName()}${editing ? " is-copy-editing" : ""}${selectableClassForCopyField("headline")}`}
             data-design-block="headline"
             data-copy-field="heading"
+            data-figma-name="Headline"
             style={headlineStyle}
+            onPointerDown={(ev) => handleCopyFieldPointerDown("headline", ev)}
             onDoubleClick={(ev) => startCopyFieldEdit({ kind: "heading" }, ev)}
           >
             {headingParts.map((part, i) => {
@@ -866,15 +1198,17 @@ export function ProductShotPost({
         return hasSubheading || editing ? (
           <p
             key="subheading"
-            className={`social-post-sub${editing ? " is-copy-editing" : ""}`}
+            className={`social-post-sub${editing ? " is-copy-editing" : ""}${selectableClassForCopyField("subheading")}`}
             data-design-block="subheading"
             data-copy-field="subheading"
+            data-figma-name="Subheading"
             style={subStyle}
+            onPointerDown={(ev) => handleCopyFieldPointerDown("subheading", ev)}
             onDoubleClick={(ev) =>
               startCopyFieldEdit({ kind: "subheading" }, ev)
             }
           >
-            {copy.subheading}
+            <AccentText text={copy.subheading} />
           </p>
         ) : (
           renderEmptyTextSlot("subheading-slot", "subheading", subheadingSlotStyle, {
@@ -885,7 +1219,7 @@ export function ProductShotPost({
       case "extras":
         if (layout.extrasPlacement !== "main") return null;
         {
-          const extras = renderExtras("main");
+          const extras = renderExtras("main", renderedCopyText);
           if (!extras) return null;
           return (
             <div key="extras-main" className="social-post-extras-main">
@@ -953,8 +1287,21 @@ export function ProductShotPost({
   }
 
   function renderCopyStack() {
+    const renderedCopyText = new Set<string>();
+    const registerRenderedCopy = (text: string) => {
+      const key = normalizeRenderedCopyText(text);
+      if (key) renderedCopyText.add(key);
+    };
+
+    if (layout.mainBlocks.includes("headline") && hasHeading) {
+      registerRenderedCopy(copy.heading);
+    }
+    if (layout.mainBlocks.includes("subheading") && hasSubheading) {
+      registerRenderedCopy(copy.subheading);
+    }
+
     const entries = layout.mainBlocks
-      .map((block) => ({ block, node: renderMainBlock(block) }))
+      .map((block) => ({ block, node: renderMainBlock(block, renderedCopyText) }))
       .filter((entry) => entry.node != null);
 
     const layoutHasMainExtras =
@@ -969,20 +1316,33 @@ export function ProductShotPost({
             !entries.some(
               (entry) => entry.block === "headline" && slot.role === "headline",
             ) &&
-            !(layoutHasFooterExtras && slot.role === "caption"),
+            !(
+              layoutHasFooterExtras &&
+              (slot.role === "caption" ||
+                slot.role === "body" ||
+                copy.extraFields.some((field) => field.id === slot.slotId))
+            ),
         ) ?? []);
 
     const bodyNodes = dynamicBodySlots
       .map((slot) => {
         const text = textForRole(slot.role, slot.slotId);
-        if (isEmptyCopyField(text)) {
+        if (isDuplicateCopyText(text, renderedCopyText)) {
+          return null;
+        }
+        const field = copyFieldFromSlot(slot.slotId, slot.role);
+        if (isEmptyCopyField(text) && !isEditingField(field)) {
           return renderEmptyTextSlot(slot.slotId, "extra", subheadingSlotStyle);
         }
-        return (
-          <p key={slot.slotId} className="social-post-sub" style={subStyle}>
-            {text}
-          </p>
-        );
+        registerRenderedCopy(text);
+        return renderInteractiveCopyParagraph({
+          key: slot.slotId,
+          slotId: slot.slotId,
+          field,
+          className: copyTypographyClassForRole(slot.role),
+          style: slot.role === "subheading" ? subStyle : extraCopyStyle,
+          text,
+        });
       })
       .filter(Boolean);
 
@@ -1039,12 +1399,41 @@ export function ProductShotPost({
         });
       }
       return (
-        <p key="contact-footer" className="social-post-extra social-post-extra--footer" style={subStyle}>
-          {text}
-        </p>
+        renderInteractiveCopyParagraph({
+          key: "contact-footer",
+          slotId: contactSlot?.slotId ?? "contact-footer",
+          field: copyFieldFromSlot(
+            contactSlot?.slotId ?? "contact-footer",
+            contactSlot?.role ?? "contact",
+          ),
+          className: "social-post-extra social-post-extra--footer",
+          style: subStyle,
+          text,
+        })
       );
     }
     if (block === "extras" && showFooterExtrasStrip) {
+      if (layout.listStyle === "numbered") {
+        const extras = renderExtras("footer");
+        if (!extras) return null;
+        return (
+          <div key="footer-extras" className="social-post-footer-extras">
+            {extras}
+          </div>
+        );
+      }
+
+      const slotNodes = renderFooterTextSlots({
+        roles: ["cta", "caption", "name", "title"],
+      });
+      if (slotNodes) {
+        return (
+          <div key="footer-extras" className="social-post-footer-extras">
+            {slotNodes}
+          </div>
+        );
+      }
+
       const extras = renderExtras("footer");
       if (!extras) return null;
       return (
@@ -1056,34 +1445,61 @@ export function ProductShotPost({
     return null;
   }
 
-  function renderFooterTextSlots() {
-    const footerRoles = new Set(["cta", "contact", "caption", "name", "title"]);
+  function renderFooterTextSlots(options?: {
+    roles?: ReadonlyArray<"cta" | "contact" | "caption" | "name" | "title">;
+  }) {
+    const roleFilter = new Set<string>(
+      options?.roles ?? ["cta", "contact", "caption", "name", "title"],
+    );
     const slots =
-      textSlots?.filter((slot) => footerRoles.has(slot.role)) ??
+      textSlots?.filter((slot) => roleFilter.has(slot.role)) ??
       [];
     if (slots.length === 0) return null;
 
     return slots.map((slot) => {
       const text = textForRole(slot.role, slot.slotId);
-      if (isEmptyCopyField(text)) {
+      const field = copyFieldFromSlot(slot.slotId, slot.role);
+      if (isEmptyCopyField(text) && !isEditingField(field)) {
         return renderEmptyTextSlot(slot.slotId, "extra", extraSlotStyle, {
           className: "social-post-extra--footer",
         });
       }
       const isCta = slot.role === "cta";
-      return (
-        <p
-          key={slot.slotId}
-          className={
-            isCta
-              ? "social-post-extra social-post-extra--footer font-semibold text-[var(--sp-accent,var(--brand-accent))]"
-              : "social-post-extra social-post-extra--footer"
-          }
-          style={isCta ? undefined : subStyle}
-        >
-          {text}
-        </p>
-      );
+      if (
+        isCta &&
+        layoutUsesCtaButton(layout) &&
+        slot.ctaBlockId &&
+        brandColors
+      ) {
+        const block = visualBlocks.find((entry) => entry.id === slot.ctaBlockId);
+        if (block) {
+          return (
+            <div
+              key={slot.slotId}
+              className="social-post-cta-button-slot"
+              data-canvas-select={`cta:${slot.slotId}`}
+              data-figma-name="CTA"
+            >
+              <VisualBlockRenderer
+                block={ctaBlockWithText(block, text, brandColors)}
+                brandColors={brandColors}
+                compact
+                density="compact"
+              />
+            </div>
+          );
+        }
+      }
+      return renderInteractiveCopyParagraph({
+        key: slot.slotId,
+        slotId: slot.slotId,
+        field,
+        className: isCta
+          ? "social-post-extra social-post-extra--footer font-semibold text-[var(--sp-accent,var(--brand-accent))]"
+          : "social-post-extra social-post-extra--footer",
+        style: isCta ? undefined : subStyle,
+        text,
+      });
     });
   }
 
@@ -1092,8 +1508,7 @@ export function ProductShotPost({
     height,
     "--sp-pad": `${layoutPadPx}px`,
     "--canvas-preview-scale": previewScale,
-    "--sp-type-scale": typeScale,
-    "--sp-canvas-ratio": canvasScale,
+    ...socialPostTypographyVars(width, height, effectiveTypeScale),
     "--sp-heading-font": headingFamily,
     "--sp-sub-font": subFamily,
     ...spacingToCssVars(spacing, width, height),
@@ -1130,7 +1545,8 @@ export function ProductShotPost({
     const { bandWidth, bandHeight, split = false } = opts;
     return (
       <div
-        className={`social-post-text-zone${isTallPrint ? " social-post-text-zone--tall" : ""}${split ? " social-post-text-zone--split" : ""}`}
+        className={`social-post-text-zone${isTallPrint ? " social-post-text-zone--tall" : ""}${split ? " social-post-text-zone--split" : ""}${!split ? ` ${textZoneJustify}` : ""}`}
+        data-figma-name="Copy zone"
         style={{
           ...(bandWidth != null ? { width: bandWidth, flexShrink: 0 } : {}),
           height: split
@@ -1162,21 +1578,29 @@ export function ProductShotPost({
             className={`social-post-copy-stack flex w-full flex-col ${selectableClass("copy")} ${
               isTallPrint || split
                 ? "max-w-none shrink-0 justify-start"
-                : `max-w-[920px] flex-1 ${textZoneJustify} ${textColumnSelf(textAlign)}`
-            } ${split && layout.textVerticalAlign === "center" ? "justify-center flex-1" : ""} ${alignClass(textAlign)}`}
+                : `max-w-[920px] shrink-0 ${textColumnSelf(textAlign)}`
+            } ${split && layout.textVerticalAlign === "center" ? "justify-center" : "justify-start"} ${alignClass(textAlign)}`}
             data-canvas-select="copy"
+            data-figma-name="Copy stack"
             onPointerDown={(ev) => handleCanvasSelect("copy", ev)}
           >
             {hasPropertyPills && selectionKind === "copy" ? (
               <CanvasPropertyPills
                 selection={canvasSelection}
                 enabled
-                typeScale={typeScale}
-                onTypeScaleChange={onTypeScaleChange}
+                typeScale={effectiveTypeScale}
+                onTypeScaleChange={typeScaleSlider.onLiveChange}
+                onTypeScaleInteractionStart={typeScaleSlider.onInteractionStart}
+                onTypeScaleInteractionEnd={typeScaleSlider.onInteractionEnd}
                 textAlign={textAlign}
                 onTextAlignChange={onTextAlignChange}
-                logoScale={logoScale}
-                onLogoScaleChange={onLogoScaleChange}
+                copyVariantIndex={copyVariantIndex}
+                copyVariantCount={copyVariantCount}
+                onCycleCopyVariant={onCycleCopyVariant}
+                logoScale={effectiveLogoScale}
+                onLogoScaleChange={logoScaleSlider.onLiveChange}
+                onLogoScaleInteractionStart={logoScaleSlider.onInteractionStart}
+                onLogoScaleInteractionEnd={logoScaleSlider.onInteractionEnd}
               />
             ) : null}
             {renderCopyStack()}
@@ -1263,7 +1687,7 @@ export function ProductShotPost({
 
     return (
       <div
-        className={`social-post-product-viewport${viewportEditable ? " is-editable" : ""}${isGenuiFeatured ? " social-post-product-viewport--genui" : ""} ${selectableClassForFeatured(slot.slotId)}${viewportWidth != null ? " social-post-product-viewport--split" : ""}${slotSelected && hasPropertyPills ? " has-property-pills" : ""}${draggingSlotId === slot.slotId ? " is-dragging-featured" : ""}${dropTargetSlotId === slot.slotId ? " is-drop-target" : ""}`}
+        className={`social-post-product-viewport${viewportEditable ? " is-editable" : ""}${isGenuiFeatured ? " social-post-product-viewport--genui" : ""}${layoutUsesPortraitFeatured(layout) ? " social-post-product-viewport--portrait-strip" : ""}${layoutUsesCornerFeatured(layout) ? " social-post-product-viewport--corner" : ""} ${selectableClassForFeatured(slot.slotId)}${viewportWidth != null ? " social-post-product-viewport--split" : ""}${slotSelected && hasPropertyPills ? " has-property-pills" : ""}${draggingSlotId === slot.slotId ? " is-dragging-featured" : ""}${dropTargetSlotId === slot.slotId ? " is-drop-target" : ""}`}
         data-canvas-select={selectId}
         onPointerDown={(ev) => handleCanvasSelect(selectId, ev)}
         onPointerEnter={() => {
@@ -1389,6 +1813,7 @@ export function ProductShotPost({
               style={featuredFrameRadius}
               data-design-block={slot.slotId === "featured-primary" ? "featured" : undefined}
               data-canvas-select={slot.slotId === "featured-primary" ? "featured" : undefined}
+              data-figma-name={slot.slotId === "featured-primary" ? "Featured" : undefined}
             >
               <div
                 className={`social-post-product-inner social-post-product-inner--composed${draggingSlotId === slot.slotId ? " is-dragging" : ""}`}
@@ -1414,6 +1839,7 @@ export function ProductShotPost({
               style={featuredFrameRadius}
               data-design-block={slot.slotId === "featured-primary" ? "featured" : undefined}
               data-canvas-select={slot.slotId === "featured-primary" ? "featured" : undefined}
+              data-figma-name={slot.slotId === "featured-primary" ? "Featured" : undefined}
             >
               <ProductPreview page={slotProductPage} frameWidth={slotNativeWidth} />
             </div>
@@ -1423,6 +1849,7 @@ export function ProductShotPost({
               style={featuredFrameRadius}
               data-design-block={slot.slotId === "featured-primary" ? "featured" : undefined}
               data-canvas-select={slot.slotId === "featured-primary" ? "featured" : undefined}
+              data-figma-name={slot.slotId === "featured-primary" ? "Featured" : undefined}
             >
               <div className="social-post-product-inner social-post-product-inner--image">
                 <FeaturedImageContent
@@ -1619,24 +2046,34 @@ export function ProductShotPost({
                     ?.value ?? "")
           }
           multiline={editingCopyField.kind !== "heading"}
-          accentRich={editingCopyField.kind === "heading"}
+          accentRich={
+            editingCopyField.kind === "heading" ||
+            hasAccentMarkup(
+              editingCopyField.kind === "subheading"
+                ? copy.subheading
+                : (copy.extraFields.find((f) => f.id === editingCopyField.id)
+                    ?.value ?? ""),
+            )
+          }
           onChange={(next) => onCopyFieldChange(editingCopyField, next)}
           onCommit={onCopyFieldCommit}
           onCancel={onCopyFieldCancel}
         />
       ) : null}
       {showPattern ? (
-        <PostPattern
-          pattern={pattern}
-          designId={designId}
-          logoSvgMarkup={patternLogoSvgMarkup ?? logoSvgMarkup}
-          theme="dark"
-          opacity={patternOpacity}
-          scale={patternScale}
-          animated={patternAnimated}
-          patternTint={backgroundPreset?.patternTint}
-          footerPatternTint={backgroundPreset?.footerPatternTint}
-        />
+        <div data-figma-name="Pattern">
+          <PostPattern
+            pattern={pattern}
+            designId={designId}
+            logoSvgMarkup={patternLogoSvgMarkup ?? logoSvgMarkup}
+            theme="dark"
+            opacity={patternOpacity}
+            scale={patternScale}
+            animated={patternAnimated}
+            patternTint={backgroundPreset?.patternTint}
+            footerPatternTint={backgroundPreset?.footerPatternTint}
+          />
+        </div>
       ) : null}
 
       <CanvasShapeLayer
@@ -1649,19 +2086,14 @@ export function ProductShotPost({
         canvasSelection={canvasSelection}
         onCanvasSelect={onCanvasSelect}
         onShapesChange={onCanvasShapesChange}
-        onHistoryCoalesceBegin={
-          onHistoryCoalesceBegin
-            ? () => onHistoryCoalesceBegin("shapes")
-            : undefined
-        }
-        onHistoryCoalesceEnd={
-          onHistoryCoalesceEnd ? () => onHistoryCoalesceEnd("shapes") : undefined
-        }
+        onHistoryCoalesceBegin={shapesHistoryCoalesce.onHistoryCoalesceBegin}
+        onHistoryCoalesceEnd={shapesHistoryCoalesce.onHistoryCoalesceEnd}
         tier="back"
       />
 
       <div
         className={`social-post-product-layout${layoutStackClass}${layoutCompositionClass}${showSpacingHandles ? " has-spacing-handles" : ""}`}
+        data-figma-name="Layout"
       >
         {showSpacingHandles ? (
           <>
@@ -1753,9 +2185,20 @@ export function ProductShotPost({
           <>
             {renderTextBand({ bandHeight: textZone - layoutPadPx })}
 
-            {showFeaturedImage ? renderAllFeaturedViewports(productZone) : null}
+            {showFeaturedImage && !layoutUsesCornerFeatured(layout)
+              ? renderAllFeaturedViewports(productZone)
+              : null}
           </>
         )}
+
+        {showFeaturedImage && layoutUsesCornerFeatured(layout) ? (
+          <div className="social-post-corner-featured">
+            {renderAllFeaturedViewports(
+              Math.round(Math.min(width, height) * 0.36),
+              Math.round(Math.min(width, height) * 0.36),
+            )}
+          </div>
+        ) : null}
 
         {hasFooterStrip ? (
           <div
@@ -1808,7 +2251,6 @@ export function ProductShotPost({
               );
               return items;
             })}
-            {renderFooterTextSlots()}
           </div>
         ) : null}
       </div>
@@ -1823,15 +2265,23 @@ export function ProductShotPost({
         canvasSelection={canvasSelection}
         onCanvasSelect={onCanvasSelect}
         onShapesChange={onCanvasShapesChange}
-        onHistoryCoalesceBegin={
-          onHistoryCoalesceBegin
-            ? () => onHistoryCoalesceBegin("shapes")
-            : undefined
-        }
-        onHistoryCoalesceEnd={
-          onHistoryCoalesceEnd ? () => onHistoryCoalesceEnd("shapes") : undefined
-        }
+        onHistoryCoalesceBegin={shapesHistoryCoalesce.onHistoryCoalesceBegin}
+        onHistoryCoalesceEnd={shapesHistoryCoalesce.onHistoryCoalesceEnd}
         tier="front"
+      />
+
+      <CanvasIconLayer
+        icons={canvasIcons}
+        canvasWidth={width}
+        canvasHeight={height}
+        previewScale={previewScale}
+        interactive={interactive}
+        exporting={exporting}
+        canvasSelection={canvasSelection}
+        onCanvasSelect={onCanvasSelect}
+        onIconsChange={onCanvasIconsChange}
+        onHistoryCoalesceBegin={iconsHistoryCoalesce.onHistoryCoalesceBegin}
+        onHistoryCoalesceEnd={iconsHistoryCoalesce.onHistoryCoalesceEnd}
       />
     </div>
   );

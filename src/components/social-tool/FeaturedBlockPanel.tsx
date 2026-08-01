@@ -62,6 +62,7 @@ type Props = {
       url: string;
       photographer: string;
       attribution: string;
+      downloadUrl?: string;
     },
     slotId?: string,
   ) => void;
@@ -70,10 +71,11 @@ type Props = {
   onFeaturedTransformChange: (next: FeaturedImageTransform) => void;
 };
 
-const KIND_OPTIONS: { id: FeaturedVisualKind; label: string }[] = [
+const KIND_OPTIONS: { id: FeaturedVisualKind | "photo"; label: string }[] = [
   { id: "ui", label: "UI" },
   { id: "illustration", label: "Illustration" },
   { id: "3d", label: "3D" },
+  { id: "photo", label: "Photo" },
 ];
 
 export function FeaturedBlockPanel({
@@ -105,6 +107,10 @@ export function FeaturedBlockPanel({
   const [dropActive, setDropActive] = useState(false);
   const [stockQuery, setStockQuery] = useState("");
   const [stockLoading, setStockLoading] = useState(false);
+  const [stockPage, setStockPage] = useState(1);
+  const [stockOrientation, setStockOrientation] = useState<
+    "squarish" | "portrait" | "landscape"
+  >("squarish");
   const [stockResults, setStockResults] = useState<
     Array<{
       id: string;
@@ -112,10 +118,12 @@ export function FeaturedBlockPanel({
       thumbUrl: string;
       photographer: string;
       attribution: string;
+      downloadUrl?: string;
     }>
   >([]);
-  const showImageUpload = mode === "image";
-  const targetSlotId = selectedSlotId;
+  const [photoTabSelected, setPhotoTabSelected] = useState(mode === "image");
+  const photoTabActive = photoTabSelected || mode === "image";
+  const targetSlotId = selectedSlotId ?? featuredSlotIds?.[0];
 
   const activeBlock = useMemo(() => {
     if (!activeBlockId) return null;
@@ -126,14 +134,19 @@ export function FeaturedBlockPanel({
     ? activeBlock.kind
     : featuredVisualKind ?? "ui";
 
-  async function searchStockPhotos() {
+  async function searchStockPhotos(options?: { append?: boolean; page?: number }) {
     const query = stockQuery.trim();
     if (!query || !onApplyStockPhoto) return;
+    const page = options?.page ?? (options?.append ? stockPage + 1 : 1);
     setStockLoading(true);
     try {
-      const response = await fetch(
-        `/api/stock/unsplash/search?q=${encodeURIComponent(query)}&limit=8`,
-      );
+      const params = new URLSearchParams({
+        q: query,
+        limit: "8",
+        page: String(page),
+        orientation: stockOrientation,
+      });
+      const response = await fetch(`/api/stock/unsplash/search?${params.toString()}`);
       if (!response.ok) return;
       const payload = (await response.json()) as {
         results?: Array<{
@@ -142,15 +155,23 @@ export function FeaturedBlockPanel({
           thumbUrl: string;
           photographer: string;
           attribution: string;
+          downloadUrl?: string;
         }>;
       };
-      setStockResults(payload.results ?? []);
+      const next = payload.results ?? [];
+      setStockResults((current) => (options?.append ? [...current, ...next] : next));
+      setStockPage(page);
     } finally {
       setStockLoading(false);
     }
   }
 
-  function switchKind(nextKind: FeaturedVisualKind) {
+  function switchKind(nextKind: FeaturedVisualKind | "photo") {
+    if (nextKind === "photo") {
+      setPhotoTabSelected(true);
+      return;
+    }
+    setPhotoTabSelected(false);
     if (nextKind === activeKind && activeBlock) return;
     const existing =
       visualBlocks.find(
@@ -215,11 +236,11 @@ export function FeaturedBlockPanel({
                 key={option.id}
                 type="button"
                 className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                  activeKind === option.id
+                  (option.id === "photo" ? photoTabActive : activeKind === option.id)
                     ? "bg-surface-secondary text-text-primary shadow-sm"
                     : "text-text-tertiary hover:text-text-secondary"
                 }`}
-                disabled={generatingVisualBlocks}
+                disabled={generatingVisualBlocks && option.id !== "photo"}
                 onClick={() => switchKind(option.id)}
               >
                 {option.label}
@@ -227,6 +248,161 @@ export function FeaturedBlockPanel({
             ))}
           </div>
 
+          {photoTabActive ? (
+            <>
+              <div
+                className={`featured-image-upload-actions flex flex-wrap gap-2${dropActive ? " is-drop-active" : ""}`}
+                onDragOver={(ev) => {
+                  if (![...ev.dataTransfer.types].includes("Files")) return;
+                  ev.preventDefault();
+                  ev.dataTransfer.dropEffect = "copy";
+                  setDropActive(true);
+                }}
+                onDragLeave={(ev) => {
+                  if (ev.currentTarget.contains(ev.relatedTarget as Node)) return;
+                  setDropActive(false);
+                }}
+                onDrop={(ev) => {
+                  ev.preventDefault();
+                  setDropActive(false);
+                  const file = imageFileFromDataTransfer(ev.dataTransfer);
+                  if (file) void onUploadImage(file, targetSlotId);
+                }}
+              >
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept=".svg,.png,.jpg,.jpeg,.webp,image/svg+xml,image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void onUploadImage(file, targetSlotId);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  isDisabled={uploading}
+                  onPress={() => inputRef.current?.click()}
+                >
+                  <ImagePlus className="size-4" />
+                  {image ? "Replace upload" : "Upload photo"}
+                </Button>
+                {image ? (
+                  <Button variant="outline" size="sm" onPress={() => void onRemoveImage(targetSlotId)}>
+                    <Trash2 className="size-3.5" />
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+
+              {onApplyStockPhoto ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-text-secondary">Unsplash</p>
+                  <div className="flex gap-2">
+                    <select
+                      value={stockOrientation}
+                      onChange={(e) =>
+                        setStockOrientation(
+                          e.target.value as "squarish" | "portrait" | "landscape",
+                        )
+                      }
+                      className="rounded-md border border-leap-line bg-surface px-2 py-1.5 text-xs"
+                      aria-label="Photo orientation"
+                    >
+                      <option value="squarish">Square</option>
+                      <option value="portrait">Portrait</option>
+                      <option value="landscape">Landscape</option>
+                    </select>
+                    <input
+                      type="search"
+                      value={stockQuery}
+                      onChange={(e) => setStockQuery(e.target.value)}
+                      placeholder="Search Unsplash…"
+                      className="min-w-0 flex-1 rounded-md border border-leap-line bg-surface px-2 py-1.5 text-xs"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void searchStockPhotos();
+                      }}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      isDisabled={stockLoading || !stockQuery.trim()}
+                      onPress={() => void searchStockPhotos()}
+                      aria-label="Search stock photos"
+                    >
+                      {stockLoading ? (
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                      ) : (
+                        <Search className="size-3.5" aria-hidden />
+                      )}
+                    </Button>
+                  </div>
+                  {stockResults.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {stockResults.map((photo) => (
+                        <button
+                          key={photo.id}
+                          type="button"
+                          className="aspect-square overflow-hidden rounded-md border border-leap-line"
+                          onClick={() =>
+                            onApplyStockPhoto(
+                              {
+                                id: photo.id,
+                                url: photo.url,
+                                photographer: photo.photographer,
+                                attribution: photo.attribution,
+                                downloadUrl: photo.downloadUrl,
+                              },
+                              targetSlotId,
+                            )
+                          }
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={photo.thumbUrl}
+                            alt=""
+                            className="size-full object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {stockResults.length > 0 ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      isDisabled={stockLoading || !stockQuery.trim()}
+                      onPress={() => void searchStockPhotos({ append: true })}
+                    >
+                      Load more
+                    </Button>
+                  ) : null}
+                  {stockAttribution ? (
+                    <p className="text-[10px] leading-snug text-text-tertiary">{stockAttribution}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {mode === "image" && image ? (
+                <div className="featured-image-upload-preview">
+                  {image.svgMarkup ? (
+                    <div
+                      className="featured-image-upload-thumb"
+                      dangerouslySetInnerHTML={{ __html: image.svgMarkup }}
+                    />
+                  ) : imageSrc ? (
+                    <div className="featured-image-upload-thumb">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={imageSrc} alt="" className="featured-image-upload-thumb-img" />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <>
           <div className="flex items-center gap-2">
             <p className="min-w-0 flex-1 truncate text-xs text-text-tertiary">
               {activeBlock
@@ -296,8 +472,8 @@ export function FeaturedBlockPanel({
           </div>
 
           {onApplyStockPhoto ? (
-            <div className="mt-3 space-y-2 border-t border-leap-line pt-3">
-              <p className="text-xs font-medium text-text-secondary">Stock photos</p>
+            <div className="mt-1 space-y-2 border-t border-leap-line pt-3">
+              <p className="text-xs font-medium text-text-secondary">Quick stock search</p>
               <div className="flex gap-2">
                 <input
                   type="search"
@@ -313,7 +489,10 @@ export function FeaturedBlockPanel({
                   variant="secondary"
                   size="sm"
                   isDisabled={stockLoading || !stockQuery.trim()}
-                  onPress={() => void searchStockPhotos()}
+                  onPress={() => {
+                    setPhotoTabSelected(true);
+                    void searchStockPhotos();
+                  }}
                   aria-label="Search stock photos"
                 >
                   {stockLoading ? (
@@ -323,56 +502,10 @@ export function FeaturedBlockPanel({
                   )}
                 </Button>
               </div>
-              {stockResults.length > 0 ? (
-                <div className="grid grid-cols-4 gap-1.5">
-                  {stockResults.map((photo) => (
-                    <button
-                      key={photo.id}
-                      type="button"
-                      className="aspect-square overflow-hidden rounded-md border border-leap-line"
-                      onClick={() =>
-                        onApplyStockPhoto(
-                          {
-                            id: photo.id,
-                            url: photo.url,
-                            photographer: photo.photographer,
-                            attribution: photo.attribution,
-                          },
-                          targetSlotId,
-                        )
-                      }
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={photo.thumbUrl}
-                        alt=""
-                        className="size-full object-cover"
-                      />
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              {stockAttribution ? (
-                <p className="text-[10px] leading-snug text-text-tertiary">{stockAttribution}</p>
-              ) : null}
             </div>
           ) : null}
-
-          {showImageUpload && image ? (
-            <div className="featured-image-upload-preview">
-              {image.svgMarkup ? (
-                <div
-                  className="featured-image-upload-thumb"
-                  dangerouslySetInnerHTML={{ __html: image.svgMarkup }}
-                />
-              ) : imageSrc ? (
-                <div className="featured-image-upload-thumb">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imageSrc} alt="" className="featured-image-upload-thumb-img" />
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+            </>
+          )}
 
           {error ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -432,18 +565,20 @@ export function FeaturedBlockPanel({
                   action={
                     <Tooltip delay={500}>
                       <Tooltip.Trigger>
-                        <button
-                          type="button"
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          isIconOnly
                           className="social-transform-reset"
                           aria-label="Reset transform"
-                          onClick={() =>
+                          onPress={() =>
                             onFeaturedTransformChange({
                               ...DEFAULT_FEATURED_TRANSFORM,
                             })
                           }
                         >
                           <RotateCcw className="size-3.5" aria-hidden />
-                        </button>
+                        </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content placement="bottom" offset={8}>
                         <p className="layout-shuffle-tooltip-title">

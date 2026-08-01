@@ -1,11 +1,17 @@
 import type { PlatformId, ProductPageId, PostCopy } from "@/lib/social-tool/presets";
 import { getPlatform, platformAllowsHorizontalSplit } from "@/lib/social-tool/presets";
+import {
+  createNumberedListPlaceholders,
+  detectListItemCountFromBrief,
+} from "@/lib/social-tool/presets";
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
 import {
   getLayoutStatePatch,
   getPostLayout,
   layoutUsesSplit,
   seedCopyForLayout,
+  defaultListItemCount,
+  layoutUsesCtaButton,
   type PostLayout,
   type PostLayoutId,
 } from "@/lib/social-tool/postLayouts";
@@ -177,6 +183,42 @@ function scoreLayout(
   if (layout.logoPlacement === "footer" && brief.includes("footer")) score += 3;
   if (layout.textZoneRatio <= 0.36 && brief.includes("product")) score += 2;
   if (layout.textZoneRatio >= 0.5 && brief.includes("headline")) score += 2;
+
+  if (layout.id === "bold-statement-corner") {
+    if (
+      brief.includes("statement") ||
+      brief.includes("thought") ||
+      brief.includes("bold") ||
+      brief.includes("text-heavy")
+    ) {
+      score += 10;
+    }
+  }
+  if (layout.id === "editorial-portrait") {
+    if (brief.includes("founder") || brief.includes("team")) score += 10;
+  }
+  if (layout.id === "display-quote" && brief.includes("quote")) score += 10;
+  if (
+    layout.id === "numbered-list" &&
+    /\b(tips|steps|things|ways|reasons|list)\b/.test(brief)
+  ) {
+    score += 10;
+  }
+  if (
+    layout.id === "promotion-hero" &&
+    (brief.includes("promotion") ||
+      brief.includes("travel") ||
+      brief.includes("book") ||
+      brief.includes("stay") ||
+      brief.includes("destination") ||
+      brief.includes("hero image") ||
+      brief.includes("lifestyle"))
+  ) {
+    score += 12;
+  }
+  if (layout.id === "social-ad" && (brief.includes("ad") || brief.includes("cta"))) {
+    score += 6;
+  }
 
   if (layout.composition === "split") {
     if (
@@ -418,6 +460,21 @@ function generateCopyFromBrief(brief: string, layout: PostLayout): PostCopy {
   } else if (layout.id === "copy-statement") {
     heading = trimmed.length <= 72 ? capitalize(trimmed) : `${topic}.`;
     subheading = "A message worth sharing — refine the copy in the Content panel.";
+  } else if (layout.id === "bold-statement-corner") {
+    heading = "Your team deserves\nbetter [[tools]]";
+    subheading = "Thought leadership — refine the caption in Content.";
+  } else if (layout.id === "display-quote") {
+    heading = trimmed.length <= 100 ? capitalize(trimmed) : `${topic}.`;
+    subheading = "Attribution or context line.";
+  } else if (layout.listStyle === "numbered") {
+    heading = topic;
+    subheading = "Numbered insights — edit list items in Content.";
+  } else if (layout.id === "promotion-hero" || layout.id === "social-ad") {
+    heading = topic;
+    subheading =
+      trimmed.length <= 120
+        ? trimmed
+        : "Stay somewhere unforgettable — refine the copy in Content.";
   } else if (layout.id === "product-focus") {
     heading = `See ${topic} in Action`;
     subheading = "Explore the workflow your team will use every day.";
@@ -430,7 +487,31 @@ function generateCopyFromBrief(brief: string, layout: PostLayout): PostCopy {
   }
 
   const seeded = seedCopyForLayout(
-    { ...EMPTY_POST_COPY, heading, subheading, extraFields: [] },
+    {
+      ...EMPTY_POST_COPY,
+      heading,
+      subheading,
+      extraFields:
+        layout.listStyle === "numbered"
+          ? createNumberedListPlaceholders(
+              detectListItemCountFromBrief(brief) ??
+                defaultListItemCount(layout.listItemCount),
+            )
+          : layoutUsesCtaButton(layout)
+            ? [
+                {
+                  id: "cta-primary",
+                  label: "CTA",
+                  value:
+                    lower.includes("book") || lower.includes("stay")
+                      ? "Book your next stay"
+                      : lower.includes("register") || lower.includes("webinar")
+                        ? "Register now"
+                        : "Get started",
+                },
+              ]
+            : [],
+    },
     layout,
   );
 

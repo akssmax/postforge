@@ -144,6 +144,44 @@ export type ExtraField = {
   value: string;
 };
 
+export function listItemExtraFields(extraFields: ExtraField[]): ExtraField[] {
+  return extraFields.filter((field) => field.id !== "footer-author");
+}
+
+export function footerAuthorField(
+  extraFields: ExtraField[],
+): ExtraField | undefined {
+  return extraFields.find((field) => field.id === "footer-author");
+}
+
+export function createNumberedListPlaceholders(count = 4): ExtraField[] {
+  const items = Array.from({ length: count }, (_, i) => ({
+    id: `list-item-${i + 1}`,
+    label: "Item title",
+    value: "Description",
+  }));
+  return [
+    ...items,
+    { id: "footer-author", label: "Author", value: "Your name" },
+  ];
+}
+
+/** Parse \"four things\" / \"5 tips\" from brief text for list layouts. */
+export function detectListItemCountFromBrief(brief: string): number | null {
+  const lower = brief.toLowerCase();
+  const wordMatch = lower.match(
+    /\b(one|two|three|four|five|six|1|2|3|4|5|6)\s+(?:things|tips|steps|ways|reasons|items)/,
+  );
+  if (!wordMatch) return null;
+  const map: Record<string, number> = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+    "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6,
+  };
+  const n = map[wordMatch[1]] ?? null;
+  if (n == null) return null;
+  return Math.min(6, Math.max(2, n));
+}
+
 export type PostCopy = {
   heading: string;
   subheading: string;
@@ -258,6 +296,11 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
 export function platformOptionLabel(p: PlatformPreset): string {
   if (p.sizeLabel) return `${p.label} (${p.sizeLabel})`;
   return `${p.label} (${p.width}×${p.height})`;
+}
+
+/** Compact label for header / canvas chrome pills — name only, no dimensions. */
+export function platformPillLabel(p: PlatformPreset): string {
+  return p.label;
 }
 
 export const PATTERN_OPTIONS: PatternOption[] = [
@@ -429,6 +472,11 @@ export function parseAccentMarkup(text: string): Array<
     if (lineIdx < lines.length - 1) parts.push({ type: "br" });
   });
   return parts;
+}
+
+/** True when copy uses [[highlight]] accent markup. */
+export function hasAccentMarkup(text: string): boolean {
+  return /\[\[(.+?)\]\]/.test(text);
 }
 
 /** Visible text with [[accent]] brackets removed. */

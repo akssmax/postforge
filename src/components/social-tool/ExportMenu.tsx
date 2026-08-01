@@ -4,11 +4,14 @@ import { useEffect, useMemo } from "react";
 import { Checkbox, Label } from "@heroui/react";
 import { Download } from "lucide-react";
 import type { ArtboardSwitcherItem } from "@/components/social-tool/CanvasArtboardSwitcher";
+import { FigmaLogoIcon } from "@/components/social-tool/FigmaLogoIcon";
 import type { ExportFormat } from "@/lib/social-tool/exportPost";
 import {
   exportTargetCountLabel,
   type ExportScope,
 } from "@/lib/social-tool/exportArtboards";
+
+export type ExportMenuBusyFormat = ExportFormat | "figma";
 
 type Props = {
   open: boolean;
@@ -20,9 +23,10 @@ type Props = {
   exportScale: 1 | 2;
   onExportScaleChange: (scale: 1 | 2) => void;
   platformLabel: string;
-  exporting: ExportFormat | null;
+  exporting: ExportMenuBusyFormat | null;
   disabled?: boolean;
   onExport: (format: ExportFormat) => void;
+  onCopyToFigma: () => void;
 };
 
 const FORMATS: ExportFormat[] = ["png", "jpg", "pdf"];
@@ -40,6 +44,7 @@ export function ExportMenu({
   exporting,
   disabled = false,
   onExport,
+  onCopyToFigma,
 }: Props) {
   const multiBoard = boards.length > 1;
 
@@ -172,6 +177,21 @@ export function ExportMenu({
           </button>
         ))}
       </div>
+
+      <p className="px-2 py-1 text-[11px] font-medium tracking-wide text-text-tertiary uppercase">
+        Figma
+      </p>
+      <button
+        type="button"
+        role="menuitem"
+        disabled={disabled || !!exporting || (scope === "selected" && targetCount === 0)}
+        onClick={onCopyToFigma}
+        className="mb-2 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-text-primary transition hover:bg-surface-secondary disabled:opacity-60"
+      >
+        <FigmaLogoIcon />
+        Copy to Figma
+        {targetCount > 1 ? ` (${targetCount} frames)` : ""}
+      </button>
 
       <p className="px-2 py-1 text-[11px] font-medium tracking-wide text-text-tertiary uppercase">
         Format

@@ -42,6 +42,8 @@ import { useBrandToolTheme } from "@/lib/brand/useBrandToolTheme";
 import { LayoutShuffleButton } from "@/components/social-tool/LayoutShuffleButton";
 import { LayoutSpacingToggle } from "@/components/social-tool/LayoutSpacingToggle";
 import { CanvasZoomControls } from "@/components/social-tool/CanvasZoomControls";
+import { CanvasBottomChrome } from "@/components/social-tool/CanvasBottomChrome";
+import { CanvasZoomToolbar } from "@/components/social-tool/CanvasZoomToolbar";
 import { useCanvasPreviewViewport } from "@/lib/social-tool/useCanvasPreviewViewport";
 import {
   DEFAULT_POST_LAYOUT_SPACING,
@@ -411,6 +413,7 @@ function ToolSocialWorkspace() {
         layoutId,
         typeScale,
         brandAccent: brand.kit.colors.accent,
+        layoutSpacing,
       }),
     [
       contrastEnabled,
@@ -469,6 +472,14 @@ function ToolSocialWorkspace() {
         ...current,
         scale: fix.featuredTransformScale!,
       }));
+    }
+    if (fix.accentColor) {
+      const accentFix = buildAccentContrastFix(
+        bgHex,
+        brand.activeBackground.css.accentDot,
+        brand.kit.colors,
+      );
+      brand.setColor(accentFix.role, fix.accentColor);
     }
   }
 
@@ -780,13 +791,19 @@ function ToolSocialWorkspace() {
           {...stagePanProps}
         >
           <CanvasZoomControls
-            zoomPercent={zoomPercent}
             handActive={handActive}
             handMode={handMode}
             onToggleHand={toggleHandMode}
-            onZoomIn={zoomIn}
-            onZoomOut={zoomOut}
-            onReset={resetZoom}
+          />
+          <CanvasBottomChrome
+            zoom={
+              <CanvasZoomToolbar
+                zoomPercent={zoomPercent}
+                onZoomIn={zoomIn}
+                onZoomOut={zoomOut}
+                onReset={resetZoom}
+              />
+            }
           />
           <div
             ref={panLayerRef}
@@ -850,6 +867,14 @@ function ToolSocialWorkspace() {
                       }}
                       onFixPatternOpacity={() => {
                         setPatternOpacity((value) => Math.min(value, 0.16));
+                      }}
+                      onFixFeaturedVisual={() => {
+                        brand.setBackgroundPreset(suggestHighContrastBackgroundId());
+                        setLogoBackdrop(false);
+                        setFeaturedTransform((current) => ({
+                          ...current,
+                          scale: Math.max(0.72, current.scale * 0.88),
+                        }));
                       }}
                       onFixVisualBalance={handleFixVisualBalance}
                     />

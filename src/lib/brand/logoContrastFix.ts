@@ -5,8 +5,15 @@ import {
   passesContrast,
   readableTextOnBackground,
   resolveLogoBackground,
+  worstLogoContrast,
 } from "@/lib/brand/contrast";
-import { normalizeHex } from "@/lib/brand/colorUtils";
+import {
+  hexToRgb,
+  invertHex,
+  normalizeHex,
+  relativeLuminance,
+  withLightness,
+} from "@/lib/brand/colorUtils";
 import type { BrandLogoRecord } from "@/lib/brand/types";
 
 const PAINT_ATTRS = ["fill", "stroke"] as const;
@@ -21,6 +28,8 @@ export type LogoSvgContrastFix = {
 };
 
 type PaintRef = "currentColor" | string;
+
+type PaintFix = LogoSvgContrastFix & { target: string };
 
 function parsePaintValue(raw: string | null): PaintRef | null {
   if (!raw) return null;
@@ -51,6 +60,38 @@ function paintKey(value: PaintRef): string {
   return value === "currentColor" ? "currentColor" : value;
 }
 
+/** Shift a paint toward readable contrast while preserving hue when possible. */
+export function suggestReadableSvgPaint(originalHex: string, bgHex: string): string {
+  if (passesContrast(contrastRatio(originalHex, bgHex), "graphic")) {
+    return originalHex;
+  }
+
+  const bgL = relativeLuminance(hexToRgb(bgHex) ?? { r: 0, g: 0, b: 0 });
+  const steps =
+    bgL > 0.45
+      ? [12, 22, 32, 42, 52, 62]
+      : [88, 78, 68, 58, 48, 92];
+  const fallbacks =
+    bgL > 0.45
+      ? ["#0a1b25", "#1a2b35"]
+      : ["#f4f4f4", "#ffffff"];
+
+  for (const step of steps) {
+    const candidate = withLightness(originalHex, step);
+    if (passesContrast(contrastRatio(candidate, bgHex), "graphic")) {
+      return candidate;
+    }
+  }
+
+  for (const candidate of fallbacks) {
+    if (passesContrast(contrastRatio(candidate, bgHex), "graphic")) {
+      return candidate;
+    }
+  }
+
+  return readableTextOnBackground(bgHex);
+}
+
 function setStylePaint(style: string, prop: "fill" | "stroke", next: string): string {
   const re = new RegExp(`((?:^|;)\\s*${prop}\\s*:\\s*)([^;]+)`, "i");
   if (re.test(style)) {
@@ -60,32 +101,22 @@ function setStylePaint(style: string, prop: "fill" | "stroke", next: string): st
   return `${trimmed}${trimmed ? "; " : ""}${prop}: ${next}`;
 }
 
-function collectFailingPaints(
+function collectEffectivePaints(
   root: Element,
-  bgHex: string,
   inherited: string,
-  target: string,
-): Map<string, LogoSvgContrastFix> {
-  const fixes = new Map<string, LogoSvgContrastFix>();
+): Map<string, string> {
+  const paints = new Map<string, string>();
   let usesCurrentColor = false;
 
   const register = (paint: PaintRef) => {
     const hex = effectivePaintHex(paint, inherited);
-    if (!shouldRecolorPaint(hex, bgHex)) return;
-    const key = paintKey(paint);
-    if (fixes.has(key)) return;
-    fixes.set(key, {
-      from: key,
-      to: target,
-      ratioBefore: contrastRatio(hex, bgHex),
-      ratioAfter: contrastRatio(target, bgHex),
-    });
+    paints.set(paintKey(paint), hex);
+    if (paint === "currentColor") usesCurrentColor = true;
   };
 
   const walk = (el: Element) => {
     for (const attr of PAINT_ATTRS) {
       const parsed = parsePaintValue(el.getAttribute(attr));
-      if (parsed === "currentColor") usesCurrentColor = true;
       if (parsed) register(parsed);
     }
 
@@ -93,7 +124,6 @@ function collectFailingPaints(
     if (style) {
       for (const prop of PAINT_ATTRS) {
         const parsed = parseStylePaint(style, prop);
-        if (parsed === "currentColor") usesCurrentColor = true;
         if (parsed) register(parsed);
       }
     }
@@ -103,11 +133,34 @@ function collectFailingPaints(
 
   walk(root);
 
-  if (
-    usesCurrentColor &&
-    shouldRecolorPaint(effectivePaintHex("currentColor", inherited), bgHex)
-  ) {
-    register("currentColor");
+  if (usesCurrentColor) {
+    paints.set(
+      "currentColor",
+      effectivePaintHex("currentColor", inherited),
+    );
+  }
+
+  return paints;
+}
+
+function collectFailingPaints(
+  root: Element,
+  bgHex: string,
+  inherited: string,
+): Map<string, PaintFix> {
+  const fixes = new Map<string, PaintFix>();
+  const paints = collectEffectivePaints(root, inherited);
+
+  for (const [key, hex] of paints) {
+    if (!shouldRecolorPaint(hex, bgHex)) continue;
+    const target = suggestReadableSvgPaint(hex, bgHex);
+    fixes.set(key, {
+      from: key,
+      to: target,
+      target,
+      ratioBefore: contrastRatio(hex, bgHex),
+      ratioAfter: contrastRatio(target, bgHex),
+    });
   }
 
   return fixes;
@@ -117,22 +170,20 @@ function applyFailingPaintFixes(
   root: Element,
   bgHex: string,
   inherited: string,
-  target: string,
 ): LogoSvgContrastFix[] {
-  const fixes = collectFailingPaints(root, bgHex, inherited, target);
+  const fixes = collectFailingPaints(root, bgHex, inherited);
   if (fixes.size === 0) return [];
 
-  const shouldRecolor = (paint: PaintRef | null): paint is PaintRef => {
-    if (!paint) return false;
-    return fixes.has(paintKey(paint));
+  const targetFor = (paint: PaintRef | null): string | null => {
+    if (!paint) return null;
+    return fixes.get(paintKey(paint))?.target ?? null;
   };
 
   const walk = (el: Element) => {
     for (const attr of PAINT_ATTRS) {
       const parsed = parsePaintValue(el.getAttribute(attr));
-      if (shouldRecolor(parsed)) {
-        el.setAttribute(attr, target);
-      }
+      const target = targetFor(parsed);
+      if (target) el.setAttribute(attr, target);
     }
 
     const style = el.getAttribute("style");
@@ -140,9 +191,8 @@ function applyFailingPaintFixes(
       let nextStyle = style;
       for (const prop of PAINT_ATTRS) {
         const parsed = parseStylePaint(style, prop);
-        if (shouldRecolor(parsed)) {
-          nextStyle = setStylePaint(nextStyle, prop, target);
-        }
+        const target = targetFor(parsed);
+        if (target) nextStyle = setStylePaint(nextStyle, prop, target);
       }
       if (nextStyle !== style) el.setAttribute("style", nextStyle);
     }
@@ -151,13 +201,44 @@ function applyFailingPaintFixes(
   };
 
   walk(root);
-  return [...fixes.values()];
+  return [...fixes.values()].map(({ from, to, ratioBefore, ratioAfter }) => ({
+    from,
+    to,
+    ratioBefore,
+    ratioAfter,
+  }));
 }
 
 function parseSvgRoot(svgMarkup: string): Element | null {
   const doc = new DOMParser().parseFromString(svgMarkup, "image/svg+xml");
   const root = doc.documentElement;
   return root.tagName.toLowerCase() === "svg" ? root : null;
+}
+
+export function evaluateSvgGraphicContrast(
+  svgMarkup: string,
+  backgroundCss: string,
+  options?: {
+    logoBackdrop?: boolean;
+    inheritedColor?: string;
+    invert?: boolean;
+  },
+): { ratio: number; foreground: string; background: string } | null {
+  const root = parseSvgRoot(svgMarkup);
+  if (!root) return null;
+
+  const bgHex = resolveLogoBackground(
+    backgroundCss,
+    options?.logoBackdrop ?? false,
+  );
+  const inherited = options?.inheritedColor ?? INHERITED_LOGO_COLOR;
+  const paints = collectEffectivePaints(root, inherited);
+  const colors = [...paints.values()].map((hex) =>
+    options?.invert ? invertHex(hex) : hex,
+  );
+
+  const { ratio, foreground } = worstLogoContrast(colors, bgHex);
+  return { ratio, foreground, background: bgHex };
 }
 
 export function previewLogoSvgContrastFixes(
@@ -173,8 +254,14 @@ export function previewLogoSvgContrastFixes(
     options?.logoBackdrop ?? false,
   );
   const inherited = options?.inheritedColor ?? INHERITED_LOGO_COLOR;
-  const target = readableTextOnBackground(bgHex);
-  return [...collectFailingPaints(root, bgHex, inherited, target).values()];
+  return [...collectFailingPaints(root, bgHex, inherited).values()].map(
+    ({ from, to, ratioBefore, ratioAfter }) => ({
+      from,
+      to,
+      ratioBefore,
+      ratioAfter,
+    }),
+  );
 }
 
 export function canFixLogoSvgContrast(
@@ -200,8 +287,7 @@ export function fixLogoSvgContrast(
     options?.logoBackdrop ?? false,
   );
   const inherited = options?.inheritedColor ?? INHERITED_LOGO_COLOR;
-  const target = readableTextOnBackground(bgHex);
-  const fixes = applyFailingPaintFixes(root, bgHex, inherited, target);
+  const fixes = applyFailingPaintFixes(root, bgHex, inherited);
 
   if (fixes.length === 0) {
     return { markup: svgMarkup, fixes: [], usesExplicitColors: false };

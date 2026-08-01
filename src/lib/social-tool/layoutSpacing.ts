@@ -106,6 +106,80 @@ export function canvasScaleFactor(
   return Math.min(canvasWidth, canvasHeight) / 1080;
 }
 
+/** Resolved typography CSS vars for `.social-post` (inline overrides sheet defaults). */
+export function socialPostTypographyVars(
+  canvasWidth: number,
+  canvasHeight: number,
+  typeScale: number,
+): Record<string, string | number> {
+  const canvasRatio = canvasScaleFactor(canvasWidth, canvasHeight);
+  const scale = Number.isFinite(typeScale) && typeScale > 0 ? typeScale : 1;
+  const unit = canvasRatio * scale;
+  return {
+    "--sp-type-scale": scale,
+    "--sp-canvas-ratio": canvasRatio,
+    "--sp-unit": `${unit}px`,
+    "--sp-fs-display": `${52 * unit}px`,
+    "--sp-fs-sub": `${22 * unit}px`,
+    "--sp-fs-extra": `${18 * unit}px`,
+    "--sp-gap-text": `${16 * unit}px`,
+    "--sp-gap-extra": `${10 * unit}px`,
+  };
+}
+
+/** Pixel font sizes for canvas copy (inline on nodes — avoids var() lag/miss on scaled artboards). */
+export function socialPostCopyFontSizes(
+  canvasWidth: number,
+  canvasHeight: number,
+  typeScale: number,
+): { display: string; sub: string; extra: string } {
+  const vars = socialPostTypographyVars(canvasWidth, canvasHeight, typeScale);
+  return {
+    display: String(vars["--sp-fs-display"]),
+    sub: String(vars["--sp-fs-sub"]),
+    extra: String(vars["--sp-fs-extra"]),
+  };
+}
+
+export type SocialPostCopyFieldRole = "headline" | "subheading" | "extra";
+
+/** Full inline typography for canvas copy fields (matches sheet + survives preview transform). */
+export function socialPostCopyFieldStyle(
+  canvasWidth: number,
+  canvasHeight: number,
+  typeScale: number,
+  role: SocialPostCopyFieldRole,
+  fonts: { heading: string; sub: string },
+  options?: { headlineProfile?: "default" | "display" | "poster" },
+): Record<string, string | number> {
+  const sizes = socialPostCopyFontSizes(canvasWidth, canvasHeight, typeScale);
+  if (role === "headline") {
+    const profile = options?.headlineProfile ?? "default";
+    return {
+      fontSize: sizes.display,
+      fontFamily: fonts.heading,
+      fontWeight: 700,
+      letterSpacing: profile === "poster" ? "-0.05em" : profile === "display" ? "-0.045em" : "-0.04em",
+      lineHeight: profile === "poster" ? 0.98 : profile === "display" ? 1.02 : 1.08,
+    };
+  }
+  if (role === "subheading") {
+    return {
+      fontSize: sizes.sub,
+      fontFamily: fonts.sub,
+      fontWeight: 400,
+      letterSpacing: "-0.01em",
+      lineHeight: 1.4,
+    };
+  }
+  return {
+    fontSize: sizes.extra,
+    fontFamily: fonts.sub,
+    fontWeight: 400,
+    lineHeight: 1.45,
+  };
+}
+
 export function spacingTokenToPx(
   token: SpacingToken,
   canvasWidth = 1080,

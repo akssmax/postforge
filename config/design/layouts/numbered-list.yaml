@@ -1,0 +1,26 @@
+id: numbered-list
+platforms: [all]
+campaigns:
+  - thought_leadership
+  - promotion
+recipes:
+  - checklist
+  - tips_list
+visualPriority: none
+contentDensity: high
+readingPattern: left
+visualWeight: none
+densityClass: copyHeavy
+supports:
+  - logo
+  - headline
+  - subheading
+  - body
+score:
+  thought_leadership: 0.92
+  promotion: 0.78
+  hiring: 0.7
+artifactSupports:
+  - checklist
+  - carousel_slide
+  - infographic

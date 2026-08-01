@@ -5,7 +5,7 @@ import type {
   RendererId,
 } from "@/lib/design-config/schemas";
 import type { DesignDocument } from "@/lib/design/types";
-import { getPlatform, platformOptionLabel, type PlatformId } from "@/lib/social-tool/presets";
+import { getPlatform, platformOptionLabel, platformPillLabel, type PlatformId } from "@/lib/social-tool/presets";
 
 /** Parse "16:9", "1:1", "3.5:2" into pixel dimensions (base width 1080). */
 export function aspectRatioToCanvasSpec(
@@ -97,6 +97,13 @@ export function resolveArtboardLabel(input: {
     return `${platform.label} (${width}×${height})`;
   }
   return platformOptionLabel(platform);
+}
+
+/** Compact artboard name for toolbar pills — dimensions live in tooltip / menu meta. */
+export function resolveArtboardPillLabel(input: {
+  platformId: PlatformId;
+}): string {
+  return platformPillLabel(getPlatform(input.platformId));
 }
 
 export const ARTIFACT_CATEGORIES: ReadonlyArray<{

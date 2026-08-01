@@ -23,6 +23,7 @@ import type { FeaturedImageTransform } from "@/components/social-tool/templates/
 import type { ArtifactCategoryId } from "@/lib/design-config/schemas";
 import type { RendererId } from "@/lib/design-config/schemas";
 import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
+import type { CanvasIconRecord } from "@/lib/social-tool/icons/types";
 
 export type CanvasSpec = {
   width: number;
@@ -86,6 +87,8 @@ export type DesignDocument = {
   platformReason?: string;
   /** Decorative shapes with absolute canvas positioning (max 3). */
   canvasShapes?: CanvasShapeRecord[];
+  /** Lucide icons with absolute canvas positioning (max 5). */
+  canvasIcons?: CanvasIconRecord[];
   /** Last decoration level from campaign / pipeline for shape re-placement. */
   decorationLevel?: "minimal" | "offer" | "mesh" | "brand";
 };

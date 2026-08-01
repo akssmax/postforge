@@ -1,5 +1,5 @@
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
-import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
+import { DEFAULT_FEATURED_TRANSFORM } from "@/lib/social-tool/featuredTransform";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
 import {
   canvasScaleFactor,
@@ -10,6 +10,7 @@ import {
 import {
   getPostLayout,
   layoutUsesSplit,
+  layoutFeaturedZoneMode,
   resolveFeaturedLayoutZones,
   resolveSplitLayoutZones,
   estimateTextBandMinHeight,
@@ -84,8 +85,33 @@ function plainHeadingText(heading: string): string {
 function headingLineCharCount(heading: string): number {
   const plain = plainHeadingText(heading);
   const lines = plain.split("\n").map((line) => line.trim()).filter(Boolean);
-  if (lines.length === 0) return 1;
+  if (lines.length === 0) return 0;
   return Math.max(...lines.map((line) => line.length));
+}
+
+function longestLineCharCount(text: string): number {
+  const plain = plainHeadingText(text);
+  const lines = plain.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) return 0;
+  return Math.max(...lines.map((line) => line.length));
+}
+
+/** Prefer headline length; fall back to subheading / first body line when headline is empty. */
+function primaryCopyLineCharCount(
+  copy: Pick<PostCopy, "heading" | "subheading" | "extraFields">,
+): number {
+  const headlineChars = headingLineCharCount(copy.heading);
+  if (headlineChars > 0) return headlineChars;
+
+  const subChars = longestLineCharCount(copy.subheading);
+  if (subChars > 0) return subChars;
+
+  for (const field of copy.extraFields) {
+    const chars = longestLineCharCount(field.value);
+    if (chars > 0) return chars;
+  }
+
+  return 1;
 }
 
 function estimateFooterHeight(opts: {
@@ -177,6 +203,15 @@ function resolveSlotDimensions(
     platformId: input.platformId,
   });
 
+  if (layoutFeaturedZoneMode(layout) === "corner") {
+    const corner = Math.round(Math.min(width, height) * 0.36);
+    return {
+      textWidth: width - 2 * layoutPad,
+      featuredSlotWidth: corner,
+      featuredSlotHeight: corner,
+    };
+  }
+
   return {
     textWidth: width - 2 * layoutPad,
     featuredSlotWidth: width - 2 * layoutPad,
@@ -198,7 +233,7 @@ function computeTypeScale(
 ): number {
   const { width, height, layout, copy, platformId } = input;
   const canvasScale = canvasScaleFactor(width, height);
-  const charCount = headingLineCharCount(copy.heading);
+  const charCount = primaryCopyLineCharCount(copy);
   const isTallPrint = height / width >= 1.8;
   const linkedInAd = isLinkedInAdPlatform(platformId);
   const effectiveTextWidth = resolveEffectiveCopyWidth(input, textWidth);
@@ -209,12 +244,20 @@ function computeTypeScale(
   let typeScale = (effectiveTextWidth * fillRatio) / Math.max(estimatedWidthAtOne, 1);
 
   let maxScale = TYPE_SCALE_MAX;
-  if (layout.textZoneRatio >= 0.5 || layout.id === "copy-statement") {
+  const profile = layout.headlineScaleProfile ?? "default";
+  if (profile === "display") {
+    maxScale = linkedInAd ? 3.8 : 3.2;
+  } else if (profile === "poster") {
+    maxScale = linkedInAd ? 4 : 3.6;
+  } else if (layout.textZoneRatio >= 0.5 || layout.id === "copy-statement") {
     maxScale = linkedInAd ? 3.4 : 2.4;
   }
-  if (charCount > 28) {
+  if (layout.listStyle === "numbered") {
+    maxScale = Math.min(maxScale, linkedInAd ? 2.15 : 1.85);
+  }
+  if (charCount > 28 && profile === "default") {
     maxScale = Math.min(maxScale, linkedInAd ? 3.2 : 2.6);
-  } else if (charCount > 20) {
+  } else if (charCount > 20 && profile === "default") {
     maxScale = Math.min(maxScale, linkedInAd ? 3.8 : 3);
   }
 
@@ -310,6 +353,26 @@ function computeFeaturedTransform(
     };
   }
 
+  if (input.featuredMode === "image") {
+    const zoneMode = layoutFeaturedZoneMode(input.layout);
+    if (zoneMode === "corner") {
+      return {
+        ...base,
+        scale: roundScale(0.68),
+        x: 34,
+        y: -22,
+        rotateZ: 0,
+      };
+    }
+    if (zoneMode === "portrait-strip") {
+      return {
+        ...base,
+        scale: roundScale(1.08),
+        y: 0,
+      };
+    }
+  }
+
   return base;
 }
 
@@ -319,6 +382,7 @@ function stackedCopyFits(
   logoScale: number,
 ): boolean {
   if (layoutUsesSplit(input.layout) || !input.showFeaturedImage) return true;
+  if (layoutFeaturedZoneMode(input.layout) === "corner") return true;
 
   const isTallPrint = input.height / input.width >= 1.8;
   const footerH = estimateFooterHeight({

@@ -15,6 +15,7 @@ export type ContrastFixHandlers = {
   onFixAccentContrast?: () => void;
   onFixPatternOpacity?: () => void;
   onFixVisualBalance?: () => void;
+  onFixFeaturedVisual?: () => void;
   logoBackdrop: boolean;
   canFixLogoSvg: boolean;
 };
@@ -35,7 +36,9 @@ export function primaryFixLabel(
     case "pattern":
       return "Reduce pattern";
     case "featured":
-      return "Lighten background";
+      return handlers.onFixFeaturedVisual
+        ? "Improve visual"
+        : "Lighten background";
     case "balance":
       return "Rebalance layout";
     case "headline":
@@ -82,6 +85,10 @@ export function applyPrimaryContrastFix(
       handlers.onFixTextContrast();
       return true;
     case "featured":
+      if (handlers.onFixFeaturedVisual) {
+        handlers.onFixFeaturedVisual();
+        return true;
+      }
       handlers.onFixBackground();
       return true;
     case "balance":
@@ -101,6 +108,7 @@ export function contrastFixHandlersFromProps(props: {
   onFixAccentContrast?: () => void;
   onFixPatternOpacity?: () => void;
   onFixVisualBalance?: () => void;
+  onFixFeaturedVisual?: () => void;
   logoBackdrop: boolean;
   canFixLogoSvg: boolean;
 }): ContrastFixHandlers {
@@ -112,6 +120,7 @@ export function contrastFixHandlersFromProps(props: {
     onFixAccentContrast: props.onFixAccentContrast,
     onFixPatternOpacity: props.onFixPatternOpacity,
     onFixVisualBalance: props.onFixVisualBalance,
+    onFixFeaturedVisual: props.onFixFeaturedVisual,
     logoBackdrop: props.logoBackdrop,
     canFixLogoSvg: props.canFixLogoSvg,
   };

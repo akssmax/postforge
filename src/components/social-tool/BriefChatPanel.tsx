@@ -747,14 +747,16 @@ export function BriefChatPanel({
             </p>
             <Tooltip delay={500}>
               <Tooltip.Trigger>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  isIconOnly
                   className="brief-chat-section__error-dismiss"
                   aria-label="Dismiss error"
-                  onClick={() => clearError()}
+                  onPress={() => clearError()}
                 >
                   <X className="size-3.5" aria-hidden />
-                </button>
+                </Button>
               </Tooltip.Trigger>
               <Tooltip.Content placement="top" offset={8}>
                 Dismiss

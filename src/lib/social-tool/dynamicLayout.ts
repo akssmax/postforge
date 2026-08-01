@@ -79,6 +79,8 @@ export type TextSlotContent = {
   slotId: string;
   text: string;
   role: TextSlotRole;
+  /** When set, footer CTA renders as a UI button block from visualBlocks. */
+  ctaBlockId?: string | null;
 };
 
 export type FeaturedSlotContent = {

@@ -1,4 +1,4 @@
-import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
+import { DEFAULT_FEATURED_TRANSFORM } from "@/lib/social-tool/featuredTransform";
 import type {
   DynamicLayout,
   FeaturedSlotContent,
@@ -78,6 +78,17 @@ export function patchTextSlot(
     return [...textSlots, { slotId, text, role }];
   }
   return textSlots;
+}
+
+/** Resolve the layout slot id for headline / subheading roles. */
+export function textSlotIdForRole(
+  layout: DynamicLayout,
+  role: "headline" | "subheading",
+): string {
+  return (
+    layout.slots.find((slot) => slot.kind === "text" && slot.textRole === role)
+      ?.id ?? role
+  );
 }
 
 export function syncDocumentTextSlots(
@@ -201,9 +212,13 @@ export function catalogLayoutToDynamic(layout: PostLayout): DynamicLayout {
         layout.id === "event-poster" ||
         layout.id === "invite-card" ||
         layout.id === "hiring-post" ||
-        layout.id === "social-ad";
+        layout.id === "social-ad" ||
+        layout.id === "promotion-hero" ||
+        layout.ctaRenderMode === "button";
+      const slotId =
+        layout.ctaRenderMode === "button" ? "cta-primary" : "extras-footer";
       slots.push({
-        id: "extras-footer",
+        id: slotId,
         kind: "text",
         zone: "footer",
         order: order++,
@@ -332,13 +347,23 @@ export function textSlotsFromCopy(
       role === "contact" ||
       role === "cta"
     ) {
+      const byId = copy.extraFields.find((f) => f.id === slot.id);
       const extraIndex = copy.extraFields.findIndex(
         (_, i) => slot.id === `extra-${i}` || slot.id === `section-${i}`,
       );
-      const byId = copy.extraFields.find((f) => f.id === slot.id);
+      const legacyFooterExtra =
+        slot.id === "extras-footer"
+          ? copy.extraFields.find(
+              (f) =>
+                f.id === "extras-footer" ||
+                (f.id.startsWith("extra-") && !f.id.startsWith("cta")),
+            )
+          : undefined;
       const value =
         byId?.value ??
-        (extraIndex >= 0 ? copy.extraFields[extraIndex]?.value ?? "" : "");
+        (extraIndex >= 0 ? copy.extraFields[extraIndex]?.value ?? "" : "") ??
+        legacyFooterExtra?.value ??
+        "";
       result.push({ slotId: slot.id, text: value, role });
     }
   }

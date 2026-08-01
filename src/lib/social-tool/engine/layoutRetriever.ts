@@ -116,6 +116,61 @@ function scoreDensityRouting(
   return delta;
 }
 
+function scoreTextHeavyLayouts(layout: PostLayout, brief?: string): number {
+  const lower = (brief ?? "").toLowerCase();
+  let delta = 0;
+
+  if (
+    layout.id === "bold-statement-corner" &&
+    (lower.includes("statement") ||
+      lower.includes("thought") ||
+      lower.includes("bold") ||
+      lower.includes("headline"))
+  ) {
+    delta += 14;
+  }
+  if (
+    layout.id === "editorial-portrait" &&
+    (lower.includes("founder") ||
+      lower.includes("team") ||
+      lower.includes("portrait"))
+  ) {
+    delta += 14;
+  }
+  if (layout.id === "display-quote" && lower.includes("quote")) {
+    delta += 12;
+  }
+  if (
+    layout.id === "numbered-list" &&
+    /\b(tips|steps|things|ways|reasons|list)\b/.test(lower)
+  ) {
+    delta += 12;
+  }
+  if (
+    layout.id === "promotion-hero" &&
+    (lower.includes("promotion") ||
+      lower.includes("travel") ||
+      lower.includes("destination") ||
+      lower.includes("book") ||
+      lower.includes("stay") ||
+      lower.includes("hero"))
+  ) {
+    delta += 16;
+  }
+  if (layout.id === "social-ad" && lower.includes("ad")) {
+    delta += 8;
+  }
+  if (
+    (layout.headlineScaleProfile === "display" ||
+      layout.headlineScaleProfile === "poster") &&
+    (lower.includes("bold") || lower.includes("statement"))
+  ) {
+    delta += 6;
+  }
+
+  return delta;
+}
+
 function scoreLayoutForPlan(
   layout: PostLayout,
   meta: LayoutRetrievalMeta,
@@ -172,6 +227,8 @@ function scoreLayoutForPlan(
   if (rulesProfile) {
     score += scoreDensityRouting(meta, rulesProfile, brief);
   }
+
+  score += scoreTextHeavyLayouts(layout, brief);
 
   const haystack = [
     ...layout.promptHints,

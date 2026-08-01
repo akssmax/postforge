@@ -39,6 +39,7 @@
   --brand-800: #5c2114;
   --brand-900: #2a120c;
   --brand-950: #0c0705;
+  --brand-on-primary: var(--accent-foreground);
 
   /* Aliases used across existing UI */
   --neutral-25: var(--gray-25);

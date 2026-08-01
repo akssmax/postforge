@@ -1,7 +1,7 @@
 import type { DesignDocument, DesignSessionPersisted } from "@/lib/design/types";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
-import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
-import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
+import { DEFAULT_FEATURED_TRANSFORM } from "@/lib/social-tool/featuredTransform";
+import type { FeaturedImageTransform } from "@/lib/social-tool/featuredTransform";
 import type { FeaturedSlotContent } from "@/lib/social-tool/dynamicLayout";
 import { mergeCanvasShapeArrays } from "@/lib/social-tool/shapes/storage";
 import { getPlatform } from "@/lib/social-tool/presets";

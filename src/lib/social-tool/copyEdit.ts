@@ -18,3 +18,31 @@ export function editingCopyFieldsEqual(
   if (a.kind === "extra" && b.kind === "extra") return a.id === b.id;
   return true;
 }
+
+/** Layout / canvas slot id for a copy field (matches `getEditableTextSlots`). */
+export function copySlotIdFromField(field: EditingCopyField): string {
+  if (field.kind === "heading") return "headline";
+  if (field.kind === "subheading") return "subheading";
+  return field.id;
+}
+
+export function copySelectionId(field: EditingCopyField): `copy:${string}` {
+  return `copy:${copySlotIdFromField(field)}`;
+}
+
+export function copySelectionIdFromSlotId(slotId: string): `copy:${string}` {
+  return `copy:${slotId}`;
+}
+
+/** Resolve `copy:…` selection to a layout slot id (`headline`, `subheading`, extra id). */
+export function copySlotIdFromSelectionId(
+  selection: string | null | undefined,
+): string | null {
+  if (!selection) return null;
+  if (selection.startsWith("copy:")) {
+    const slotId = selection.slice("copy:".length);
+    return slotId === "heading" ? "headline" : slotId;
+  }
+  if (selection === "copy") return null;
+  return null;
+}

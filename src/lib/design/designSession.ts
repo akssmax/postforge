@@ -1,7 +1,7 @@
 import type { UIMessage } from "ai";
 import { defaultKit } from "@/lib/brand/storage";
 import { normalizeBrandKit } from "@/lib/brand/logoVariants";
-import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
+import { DEFAULT_FEATURED_TRANSFORM } from "@/lib/social-tool/featuredTransform";
 import {
   DEFAULT_POST_LAYOUT_SPACING,
 } from "@/lib/social-tool/layoutSpacing";
@@ -81,6 +81,7 @@ export function createBlankDocument(): DesignDocument {
       briefSkipped: false,
     },
     canvasShapes: [],
+    canvasIcons: [],
   });
   return base;
 }
@@ -128,6 +129,7 @@ function normalizeDocument(
       typeof raw.pattern === "string" ? raw.pattern : undefined,
     ),
     canvasShapes: Array.isArray(raw.canvasShapes) ? raw.canvasShapes : [],
+    canvasIcons: Array.isArray(raw.canvasIcons) ? raw.canvasIcons : [],
   };
   return migrateDocumentV1ToV2(merged, featured);
 }

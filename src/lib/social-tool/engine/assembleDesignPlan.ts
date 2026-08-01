@@ -9,6 +9,7 @@ import type { DesignRulesProfile } from "@/lib/llm/rules/types";
 import type { RecipeConfig } from "@/lib/design-config/registry";
 import type { CopyVariant } from "@/lib/social-tool/presets";
 import { variantNotesForLayout } from "@/lib/social-tool/engine/layoutVariants";
+import { resolvePipelineCanvasIcons } from "@/lib/social-tool/icons/placement";
 import type { VisualPolicy } from "@/lib/social-tool/engine/visualPolicy";
 import type { VisualStrategyResult } from "@/lib/social-tool/engine/visual/resolveVisualStrategy";
 import { catalogLayoutToDynamic } from "@/lib/social-tool/layoutAdapter";
@@ -47,6 +48,7 @@ export function assembleDesignPlan(input: {
   copyVariants?: CopyVariant[];
   copyVariantIndex?: number;
   recipe?: RecipeConfig;
+  brandAccent?: string;
 }): DesignPlan {
   const intent = asIntent(input.intent);
   const dynamicLayout = catalogLayoutToDynamic(input.layout);
@@ -89,6 +91,15 @@ export function assembleDesignPlan(input: {
       ...slot,
       visible: false,
     }));
+  } else if (featuredPolicy === "image") {
+    showFeaturedImage = true;
+    featuredSlots = [
+      {
+        slotId: "featured-primary",
+        mode: "image",
+        visible: true,
+      },
+    ];
   } else if (featuredSlots.length === 0) {
     featuredSlots = [
       {
@@ -135,5 +146,17 @@ export function assembleDesignPlan(input: {
     backgroundPresetId: input.visual.backgroundPresetId,
     copyVariants: input.copyVariants,
     copyVariantIndex: input.copyVariantIndex ?? 0,
+    canvasIcons: (() => {
+      const icons = resolvePipelineCanvasIcons({
+        brief: input.brief,
+        brandAccent: input.brandAccent ?? "#7C9A92",
+      });
+      if (icons.length === 0) return undefined;
+      return icons.map((icon) => ({
+        iconName: icon.iconName,
+        preset: "top-right-badge" as const,
+        color: icon.color,
+      }));
+    })(),
   };
 }

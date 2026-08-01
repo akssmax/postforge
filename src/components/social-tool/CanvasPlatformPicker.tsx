@@ -14,11 +14,12 @@ import {
 } from "@heroui/react";
 import { PlatformIcon } from "@/components/social-tool/PlatformIcon";
 import type { CanvasSpec } from "@/lib/design/types";
-import { resolveArtboardLabel } from "@/lib/design-engine/canvasSpec";
+import { resolveArtboardLabel, resolveArtboardPillLabel } from "@/lib/design-engine/canvasSpec";
 import {
   PLATFORM_PRESETS,
   getPlatform,
   platformOptionLabel,
+  platformPillLabel,
   type PlatformId,
 } from "@/lib/social-tool/presets";
 
@@ -117,6 +118,7 @@ export function CanvasPlatformBadge({
   artifactId,
 }: BadgeProps) {
   const label = resolveArtboardLabel({ platformId, canvasSpec, artifactId });
+  const pillLabel = resolveArtboardPillLabel({ platformId });
 
   return (
     <div
@@ -126,7 +128,7 @@ export function CanvasPlatformBadge({
       <span className="canvas-platform-pill-value">
         <PlatformIcon platformId={platformId} />
         <span className="canvas-platform-pill-label" title={label}>
-          {label}
+          {pillLabel}
         </span>
       </span>
     </div>
@@ -159,6 +161,7 @@ export function CanvasPlatformBadgePicker({
     canvasSpec,
     artifactId,
   });
+  const pillLabel = resolveArtboardPillLabel({ platformId: value });
   const pendingPreset = pendingPlatformId ? getPlatform(pendingPlatformId) : null;
 
   function requestPlatformChange(next: PlatformId) {
@@ -180,30 +183,31 @@ export function CanvasPlatformBadgePicker({
   return (
     <>
       <Popover isOpen={pickerOpen} onOpenChange={setPickerOpen}>
-        <Popover.Trigger>
-          <Tooltip delay={500}>
-            <Tooltip.Trigger>
-              <button
-                type="button"
-                className="canvas-platform-pill canvas-platform-pill-badge canvas-platform-pill-badge-trigger"
+        <Tooltip delay={500}>
+          <Tooltip.Trigger>
+            <Popover.Trigger>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="canvas-platform-pill canvas-platform-pill-badge canvas-platform-pill-badge-trigger h-auto min-h-0 border-0 bg-transparent p-0 shadow-none"
                 aria-label={`Artboard: ${label}. Change artboard size.`}
-                disabled={disabled}
+                isDisabled={disabled}
               >
                 <span className="canvas-platform-pill-value">
                   <PlatformIcon platformId={value} />
                   <span className="canvas-platform-pill-label" title={label}>
-                    {label}
+                    {pillLabel}
                   </span>
                   <ChevronDown className="canvas-platform-pill-chevron" aria-hidden />
                 </span>
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Content placement="bottom" offset={8}>
-              Change artboard size
-            </Tooltip.Content>
-          </Tooltip>
-        </Popover.Trigger>
-        <Popover.Content className="min-w-[16rem] p-1">
+              </Button>
+            </Popover.Trigger>
+          </Tooltip.Trigger>
+          <Tooltip.Content placement="bottom" offset={8}>
+            {label} — change artboard size
+          </Tooltip.Content>
+        </Tooltip>
+        <Popover.Content className="canvas-platform-popover min-w-[16rem] p-1">
           <div
             className="canvas-platform-menu"
             role="listbox"
@@ -273,7 +277,7 @@ export function CanvasPlatformPicker({ value, onChange }: Props) {
         <Select.Value className="canvas-platform-pill-value">
           <PlatformIcon platformId={value} />
           <span className="canvas-platform-pill-label" title={platformOptionLabel(selected)}>
-            {platformOptionLabel(selected)}
+            {platformPillLabel(selected)}
           </span>
         </Select.Value>
         <Select.Indicator />

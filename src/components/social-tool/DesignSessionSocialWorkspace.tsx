@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
-import { ChevronDown, Download, Loader2, PanelLeft } from "lucide-react";
+import { ChevronDown, Download, Loader2, MessageSquare, PanelLeft } from "lucide-react";
 import { Button, Modal, Tooltip, useOverlayState } from "@heroui/react";
 import {
   DesignInspector,
   type AsideTab,
 } from "@/components/social-tool/DesignInspector";
-import { DesignToolHeader } from "@/components/social-tool/DesignToolHeader";
-import { ExportMenu } from "@/components/social-tool/ExportMenu";
+import { CanvasTopRightChrome } from "@/components/social-tool/CanvasTopRightChrome";
+import { ExportMenu, type ExportMenuBusyFormat } from "@/components/social-tool/ExportMenu";
 import { ExportProgressOverlay } from "@/components/social-tool/ExportProgressOverlay";
 import { CanvasPlatformBadgePicker } from "@/components/social-tool/CanvasPlatformPicker";
 import { ContrastIssuesToggle } from "@/components/social-tool/ContrastIssuesToggle";
@@ -23,6 +23,7 @@ import {
   resolveLayoutRef,
   syncDocumentTextSlots,
   textSlotsFromCopy,
+  textSlotIdForRole,
 } from "@/lib/social-tool/layoutAdapter";
 import {
   getPlatform,
@@ -40,9 +41,16 @@ import {
   waitForExportPaint,
   type ExportScope,
 } from "@/lib/social-tool/exportArtboards";
+import {
+  copyArtboardsToFigma,
+  offerFigDownload,
+  type CopyToFigmaPhase,
+} from "@/lib/social-tool/exportFigma";
 import { useBrandToolTheme } from "@/lib/brand/useBrandToolTheme";
 import { LayoutPreviewEmptyState } from "@/components/social-tool/LayoutPreviewEmptyState";
 import { CanvasZoomControls } from "@/components/social-tool/CanvasZoomControls";
+import { CanvasBottomChrome } from "@/components/social-tool/CanvasBottomChrome";
+import { CanvasZoomToolbar } from "@/components/social-tool/CanvasZoomToolbar";
 import { CanvasHistoryControls } from "@/components/social-tool/CanvasHistoryControls";
 import { CanvasArtboardSwitcher } from "@/components/social-tool/CanvasArtboardSwitcher";
 import {
@@ -69,6 +77,7 @@ import { useDesignVariantGroup } from "@/lib/design/useDesignVariantGroup";
 import { loadDesignSession } from "@/lib/design/designSession";
 import {
   featuredSlotIdFromSelection,
+  copySlotIdFromSelection,
   isCanvasSelectableTarget,
   canvasSelectionKind,
   type CanvasSelectionId,
@@ -144,7 +153,10 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const doc = session.document;
 
   const [exportScale, setExportScale] = useState<1 | 2>(2);
-  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [exporting, setExporting] = useState<ExportMenuBusyFormat | null>(null);
+  const [figmaPhase, setFigmaPhase] = useState<CopyToFigmaPhase | null>(null);
+  const [figmaToast, setFigmaToast] = useState<string | null>(null);
+  const figmaToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportScope, setExportScope] = useState<ExportScope>("active");
   const [selectedBoardIds, setSelectedBoardIds] = useState<Set<string>>(
@@ -322,6 +334,16 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       if (e.key === "Enter" && selectionKind === "copy" && !editingCopyField) {
         e.preventDefault();
         handleCopyFieldEditStart({ kind: "heading" });
+        return;
+      }
+
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectionKind === "copy" &&
+        !editingCopyField
+      ) {
+        e.preventDefault();
+        handleDeleteSelectedCopyField();
         return;
       }
 
@@ -850,6 +872,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         layoutId: doc.layoutId,
         typeScale: doc.typeScale,
         brandAccent: session.kit.colors.accent,
+        layoutSpacing: doc.layoutSpacing,
       }),
     [
       contrastEnabled,
@@ -925,6 +948,15 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
           }
         : {}),
     });
+
+    if (fix.accentColor) {
+      const accentFix = buildAccentContrastFix(
+        bgHex,
+        session.activeBackground.css.accentDot,
+        session.kit.colors,
+      );
+      session.setColor(accentFix.role, fix.accentColor);
+    }
   }
 
   const canFixLogoSvg = useMemo(
@@ -985,6 +1017,104 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   function exportBackgroundForBoard(board: DesignSessionPersisted): string | undefined {
     if (!board.document.showBackground) return undefined;
     return board.document.theme === "light" ? "#f8faf9" : "#040c0b";
+  }
+
+  function showFigmaToast(message: string) {
+    if (figmaToastTimerRef.current) clearTimeout(figmaToastTimerRef.current);
+    setFigmaToast(message);
+    figmaToastTimerRef.current = setTimeout(() => {
+      setFigmaToast(null);
+      figmaToastTimerRef.current = null;
+    }, 4200);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (figmaToastTimerRef.current) clearTimeout(figmaToastTimerRef.current);
+    };
+  }, []);
+
+  async function handleCopyToFigma() {
+    if (!stageEl || exporting) return;
+
+    if (session.session) {
+      variantGroup.syncBoard(session.session);
+    }
+
+    const allBoardIds = exportBoardTargets.map((target) => target.boardId);
+    const targetIds = resolveExportTargetIds({
+      scope: exportScope,
+      activeBoardId: variantGroup.activeDesignId,
+      allBoardIds,
+      selectedBoardIds,
+    });
+
+    if (targetIds.length === 0) {
+      alert("Select at least one artboard to export.");
+      return;
+    }
+
+    const targets = resolveArtboardExportTargets(exportBoardTargets, targetIds);
+    const originBoard =
+      variantGroup.boards.find((board) => board.designId === originDesignId) ??
+      variantGroup.boards[0] ??
+      session.session;
+    const campaignSlug = buildCampaignSlug(
+      originBoard?.document.copy.heading,
+      originDesignId,
+    );
+
+    const controller = new AbortController();
+    exportAbortRef.current = controller;
+    setExportTargetIds(new Set(targetIds));
+    setExporting("figma");
+    setFigmaPhase("preparing");
+    setExportOpen(false);
+    setExportProgress({ current: 0, total: targets.length });
+
+    await waitForExportPaint();
+
+    try {
+      const result = await copyArtboardsToFigma({
+        stageEl,
+        targets,
+        campaignSlug,
+        onProgress: (progress) => {
+          setExportProgress({
+            current: progress.current,
+            total: progress.total,
+          });
+        },
+        onPhase: setFigmaPhase,
+        signal: controller.signal,
+      });
+
+      if (result.ok) {
+        const frameLabel =
+          result.frameCount === 1 ? "frame" : `${result.frameCount} frames`;
+        showFigmaToast(`Copied ${frameLabel} — paste in Figma with ⌘V`);
+        return;
+      }
+
+      if (result.reason === "cancelled") return;
+
+      if (result.reason === "clipboard_denied") {
+        offerFigDownload(result);
+        showFigmaToast("Downloaded .fig — open in Figma Desktop (File → Open)");
+        return;
+      }
+
+      alert(result.message);
+    } catch (err) {
+      console.error(err);
+      alert("Copy to Figma failed. Try again or use PNG export.");
+    } finally {
+      setExporting(null);
+      setFigmaPhase(null);
+      setExportProgress(null);
+      setExportTargetIds(new Set());
+      exportAbortRef.current = null;
+    }
   }
 
   async function handleExport(format: ExportFormat) {
@@ -1063,8 +1193,26 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   }
 
   function updateField<K extends keyof PostCopy>(key: K, value: PostCopy[K]) {
+    const layout = resolveLayoutRef(
+      doc.layoutRef ?? catalogLayoutRef(doc.layoutId),
+    );
+    if (key === "heading") {
+      const slotId = textSlotIdForRole(layout, "headline");
+      const synced = syncDocumentTextSlots(doc, (slots) =>
+        patchTextSlot(slots, slotId, value as string, "headline"),
+      );
+      patchDocument(synced);
+      return;
+    }
+    if (key === "subheading") {
+      const slotId = textSlotIdForRole(layout, "subheading");
+      const synced = syncDocumentTextSlots(doc, (slots) =>
+        patchTextSlot(slots, slotId, value as string, "subheading"),
+      );
+      patchDocument(synced);
+      return;
+    }
     const nextCopy = { ...doc.copy, [key]: value };
-    const layout = resolveLayoutRef(doc.layoutRef ?? catalogLayoutRef(doc.layoutId));
     patchDocument({
       copy: nextCopy,
       textSlots: textSlotsFromCopy(nextCopy, layout),
@@ -1096,6 +1244,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   function cycleCopyVariant(delta: 1 | -1) {
     const layout = getPostLayout(doc.layoutId);
+    const dynamicLayout = resolveLayoutRef(
+      doc.layoutRef ?? catalogLayoutRef(doc.layoutId),
+    );
     const next = pickCopyVariantByDelta(
       doc.copy,
       layout,
@@ -1107,6 +1258,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       copy: next.copy,
       copyVariantIndex: next.nextIndex,
       copyVariants: doc.copyVariants?.length ? doc.copyVariants : next.pool,
+      textSlots: textSlotsFromCopy(next.copy, dynamicLayout),
     });
   }
 
@@ -1158,6 +1310,30 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     }
     session.endHistoryCoalesce("copy");
     setEditingCopyField(null);
+  }
+
+  function handleDeleteSelectedCopyField() {
+    const slotId = copySlotIdFromSelection(canvasSelection);
+    if (!slotId) return;
+
+    if (slotId === "headline") {
+      updateField("heading", "");
+      setCanvasSelection(null);
+      return;
+    }
+    if (slotId === "subheading") {
+      updateField("subheading", "");
+      setCanvasSelection(null);
+      return;
+    }
+
+    const isLayoutSlot = doc.textSlots?.some((slot) => slot.slotId === slotId);
+    if (isLayoutSlot) {
+      updateTextSlot(slotId, "");
+    } else {
+      removeExtraField(slotId);
+    }
+    setCanvasSelection(null);
   }
 
   function updateExtraField(id: string, value: string) {
@@ -1374,54 +1550,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   }
 
   return (
-    <div ref={toolThemeRef} className="social-tool flex flex-col">
-      <DesignToolHeader
-        center={
-          isReady ? (
-            <CanvasPlatformBadgePicker
-              value={doc.platformId}
-              canvasSpec={doc.canvasSpec}
-              artifactId={doc.artifactId}
-              onChange={handlePlatformChange}
-            />
-          ) : null
-        }
-      >
-        <div ref={exportMenuRef} className="relative">
-          <Button
-            variant="primary"
-            isDisabled={!!exporting || !isReady}
-            onPress={() => setExportOpen((o) => !o)}
-            aria-expanded={exportOpen}
-            aria-haspopup="menu"
-          >
-            {exporting ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Download className="size-3.5" />
-            )}
-            Export
-            <ChevronDown className="size-3.5 opacity-70" />
-          </Button>
-          {exportOpen ? (
-            <ExportMenu
-              open={exportOpen}
-              boards={artboardSwitcherItems}
-              scope={exportScope}
-              onScopeChange={setExportScope}
-              selectedBoardIds={selectedBoardIds}
-              onSelectedBoardIdsChange={setSelectedBoardIds}
-              exportScale={exportScale}
-              onExportScaleChange={setExportScale}
-              platformLabel={`${canvasSize.width}×${canvasSize.height}`}
-              exporting={exporting}
-              disabled={!isReady}
-              onExport={handleExport}
-            />
-          ) : null}
-        </div>
-      </DesignToolHeader>
-
+    <div ref={toolThemeRef} className="social-tool flex min-h-0 flex-1 flex-col">
       <LayoutGroup id="design-aside-panel">
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
         <AnimatePresence initial={false} mode="sync">
@@ -1448,7 +1577,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             isNeedsBrief || isReady ? " social-tool-aside--brief" : ""
           }`}
         >
-          <div className="social-tool-aside__inner flex min-h-0 w-full min-w-[min(100%,360px)] flex-1 flex-col overflow-y-auto overscroll-contain lg:w-[360px]">
+          <div className="social-tool-aside__inner flex min-h-0 w-full min-w-[min(100%,360px)] flex-1 flex-col overflow-hidden lg:w-[360px]">
           <DesignInspector
             phase={doc.onboarding.phase}
             platformId={doc.platformId}
@@ -1605,6 +1734,18 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                 handleCanvasSelect(null);
               }
             }}
+            canvasIcons={doc.canvasIcons ?? []}
+            onAddCanvasIcon={(iconName) => {
+              const iconId = session.addCanvasIcon(iconName);
+              if (iconId) handleCanvasSelect(`icon:${iconId}`);
+            }}
+            onUpdateCanvasIcon={(id, patch) => session.updateCanvasIcon(id, patch)}
+            onRemoveCanvasIcon={(id) => {
+              session.removeCanvasIcon(id);
+              if (canvasSelection === `icon:${id}`) {
+                handleCanvasSelect(null);
+              }
+            }}
           />
           </div>
         </motion.aside>
@@ -1623,15 +1764,68 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             total={exportProgress?.total ?? 0}
             onCancel={handleCancelExport}
             container={stageEl}
+            mode={exporting === "figma" ? "figma" : "raster"}
+            figmaPhase={figmaPhase}
+          />
+          {figmaToast ? (
+            <div className="figma-export-toast is-visible" aria-live="polite">
+              {figmaToast}
+            </div>
+          ) : null}
+          <CanvasTopRightChrome
+            platform={
+              isReady ? (
+                <CanvasPlatformBadgePicker
+                  value={doc.platformId}
+                  canvasSpec={doc.canvasSpec}
+                  artifactId={doc.artifactId}
+                  onChange={handlePlatformChange}
+                />
+              ) : null
+            }
+            exportControl={
+              <div ref={exportMenuRef} className="relative">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="canvas-tool-pill-btn canvas-export-btn"
+                  isDisabled={!!exporting || !isReady}
+                  onPress={() => setExportOpen((o) => !o)}
+                  aria-expanded={exportOpen}
+                  aria-haspopup="menu"
+                >
+                  {exporting ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Download className="size-3.5" />
+                  )}
+                  <span className="canvas-export-btn-label">Export</span>
+                  <ChevronDown className="size-3.5 opacity-70" />
+                </Button>
+                {exportOpen ? (
+                  <ExportMenu
+                    open={exportOpen}
+                    boards={artboardSwitcherItems}
+                    scope={exportScope}
+                    onScopeChange={setExportScope}
+                    selectedBoardIds={selectedBoardIds}
+                    onSelectedBoardIdsChange={setSelectedBoardIds}
+                    exportScale={exportScale}
+                    onExportScaleChange={setExportScale}
+                    platformLabel={`${canvasSize.width}×${canvasSize.height}`}
+                    exporting={exporting}
+                    disabled={!isReady}
+                    onExport={handleExport}
+                    onCopyToFigma={handleCopyToFigma}
+                  />
+                ) : null}
+              </div>
+            }
           />
           <CanvasZoomControls
-            zoomPercent={zoomPercent}
             handActive={handActive}
             handMode={handMode}
             onToggleHand={toggleHandMode}
-            onZoomIn={zoomIn}
-            onZoomOut={zoomOut}
-            onReset={resetZoom}
             leading={
               asideCollapsed ? (
                 <Tooltip delay={500}>
@@ -1656,21 +1850,60 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                 </Tooltip>
               ) : null
             }
+            leadingExtra={
+              asideCollapsed && isReady ? (
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      isIconOnly
+                      aria-label="Open chat"
+                      className="canvas-tool-pill-btn canvas-zoom-icon-btn"
+                      onPress={() => {
+                        setAsideTab("chat");
+                        setAsideCollapsed(false);
+                      }}
+                    >
+                      <MessageSquare className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    <p className="layout-shuffle-tooltip-title">Chat</p>
+                    <p className="layout-shuffle-tooltip-body">
+                      Open the brief chat sidebar
+                    </p>
+                  </Tooltip.Content>
+                </Tooltip>
+              ) : null
+            }
           />
-          <CanvasHistoryControls
-            canUndo={session.canUndo}
-            canRedo={session.canRedo}
-            onUndo={() => {
-              session.undo();
-            }}
-            onRedo={() => {
-              session.redo();
-            }}
-            historyLimitToast={session.historyLimitToast}
-            trailing={
-              <EditorShortcutsPopover
-                isOpen={shortcutsOpen}
-                onOpenChange={setShortcutsOpen}
+          <CanvasBottomChrome
+            zoom={
+              <CanvasZoomToolbar
+                zoomPercent={zoomPercent}
+                onZoomIn={zoomIn}
+                onZoomOut={zoomOut}
+                onReset={resetZoom}
+              />
+            }
+            history={
+              <CanvasHistoryControls
+                canUndo={session.canUndo}
+                canRedo={session.canRedo}
+                onUndo={() => {
+                  session.undo();
+                }}
+                onRedo={() => {
+                  session.redo();
+                }}
+                historyLimitToast={session.historyLimitToast}
+                trailing={
+                  <EditorShortcutsPopover
+                    isOpen={shortcutsOpen}
+                    onOpenChange={setShortcutsOpen}
+                  />
+                }
               />
             }
           />
@@ -1782,6 +2015,17 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       onTypeScaleChange={(v) => patchDocument({ typeScale: v })}
                       onLogoScaleChange={(v) => patchDocument({ logoScale: v })}
                       onTextAlignChange={(v) => patchDocument({ textAlign: v })}
+                      copyVariantIndex={doc.copyVariantIndex ?? 0}
+                      copyVariantCount={
+                        doc.copyVariants && doc.copyVariants.length > 0
+                          ? doc.copyVariants.length
+                          : 0
+                      }
+                      onCycleCopyVariant={
+                        doc.copyVariants && doc.copyVariants.length > 1
+                          ? cycleCopyVariant
+                          : undefined
+                      }
                       showPropertyPills={
                         !asideCollapsed && asideTab === "design"
                       }
@@ -1798,6 +2042,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       }
                       onCanvasShapesChange={(shapes) =>
                         session.setCanvasShapes(shapes)
+                      }
+                      onCanvasIconsChange={(icons) =>
+                        session.setCanvasIcons(icons)
                       }
                       onSelectVisualBlock={(blockId, slotId) =>
                         session.selectVisualBlock(
@@ -1894,6 +2141,29 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                             onFixPatternOpacity={() => {
                               patchDocument({
                                 patternOpacity: Math.min(doc.patternOpacity, 0.16),
+                              });
+                            }}
+                            onFixFeaturedVisual={() => {
+                              session.setBackgroundPreset(
+                                suggestHighContrastBackgroundId(),
+                              );
+                              const nextScale = Math.max(
+                                0.72,
+                                doc.featuredTransform.scale * 0.88,
+                              );
+                              patchDocument({
+                                logoBackdrop: false,
+                                featuredTransform: {
+                                  ...doc.featuredTransform,
+                                  scale: nextScale,
+                                },
+                                featuredSlots: doc.featuredSlots?.map((slot) => ({
+                                  ...slot,
+                                  transform: {
+                                    ...(slot.transform ?? doc.featuredTransform),
+                                    scale: nextScale,
+                                  },
+                                })),
                               });
                             }}
                             onFixVisualBalance={handleFixVisualBalance}

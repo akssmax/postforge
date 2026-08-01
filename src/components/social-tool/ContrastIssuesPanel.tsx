@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertTriangle, MessageCircle } from "lucide-react";
-import { Button } from "@heroui/react";
+import { AlertTriangle } from "lucide-react";
+import { Button, Tabs } from "@heroui/react";
+import type { Key } from "@heroui/react";
 import {
   formatContrastRatio,
   type ContrastResult,
@@ -26,6 +27,7 @@ type Props = {
   onFixAccentContrast?: () => void;
   onFixPatternOpacity?: () => void;
   onFixVisualBalance?: () => void;
+  onFixFeaturedVisual?: () => void;
   onExplainInChat?: (result: ContrastResult) => void;
   logoBackdrop: boolean;
   hasSvgLogo: boolean;
@@ -33,16 +35,16 @@ type Props = {
   hasLogoSvgFix: boolean;
 };
 
-function chipKindClass(kind: ContrastResult["kind"]): string {
-  if (kind === "balance") return " contrast-issue-chip--balance";
-  if (kind === "visual") return " contrast-issue-chip--visual";
-  return "";
-}
-
 function kindLabel(kind: ContrastResult["kind"]): string {
   if (kind === "visual") return "Visual";
   if (kind === "balance") return "Balance";
   return "Text";
+}
+
+function kindToneClass(kind: ContrastResult["kind"]): string {
+  if (kind === "balance") return " contrast-issues-detail-kind--balance";
+  if (kind === "visual") return " contrast-issues-detail-kind--visual";
+  return " contrast-issues-detail-kind--text";
 }
 
 export function ContrastIssuesPanel({
@@ -57,6 +59,7 @@ export function ContrastIssuesPanel({
   onFixAccentContrast,
   onFixPatternOpacity,
   onFixVisualBalance,
+  onFixFeaturedVisual,
   onExplainInChat,
   logoBackdrop,
   hasSvgLogo,
@@ -74,6 +77,7 @@ export function ContrastIssuesPanel({
     onFixAccentContrast,
     onFixPatternOpacity,
     onFixVisualBalance,
+    onFixFeaturedVisual,
     logoBackdrop,
     canFixLogoSvg,
   });
@@ -93,9 +97,22 @@ export function ContrastIssuesPanel({
       ? "contrast-issues-summary contrast-issues-summary--balance"
       : "contrast-issues-summary";
 
-  function handleChipClick(result: ContrastResult) {
-    onSelectBlock(result.blockId);
-    applyPrimaryContrastFix(result, fixHandlers);
+  function handleIssueSelect(key: Key) {
+    if (key == null) return;
+    onSelectBlock(String(key) as DesignBlockId);
+  }
+
+  function fixButton(label: string, onPress: () => void, primary = false) {
+    return (
+      <Button
+        size="sm"
+        variant={primary ? "primary" : "secondary"}
+        className={`contrast-fix-pill${primary ? " contrast-fix-pill--primary" : ""}`}
+        onPress={onPress}
+      >
+        {label}
+      </Button>
+    );
   }
 
   return (
@@ -114,112 +131,102 @@ export function ContrastIssuesPanel({
           </span>
         </div>
         <p className="contrast-issues-panel-hint">
-          Click an issue to fix it automatically. Details and alternate fixes appear
-          below.
+          Select an issue to review it. Apply a fix with the action buttons below.
         </p>
       </div>
 
-      <div className="contrast-issues-chips">
+      <Tabs
+        selectedKey={activeBlock ?? undefined}
+        onSelectionChange={handleIssueSelect}
+        className="social-tool-segment social-tool-segment--text contrast-issues-tabs"
+        aria-label="Contrast issues"
+      >
+        <Tabs.ListContainer>
+          <Tabs.List aria-label="Contrast issues">
+            {failing.map((result) => (
+              <Tabs.Tab key={result.blockId} id={result.blockId}>
+                <span
+                  className="contrast-issues-tab-label"
+                  title={
+                    result.ratio != null && result.required != null
+                      ? `${kindLabel(result.kind)} · ${formatContrastRatio(result.ratio)} (needs ${result.required}:1)`
+                      : kindLabel(result.kind)
+                  }
+                >
+                  <span className="contrast-issues-tab-name">{result.label}</span>
+                  {result.ratio != null ? (
+                    <span className="contrast-issues-tab-ratio">
+                      {formatContrastRatio(result.ratio)}
+                    </span>
+                  ) : null}
+                </span>
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs.ListContainer>
         {failing.map((result) => (
-          <button
-            key={result.blockId}
-            type="button"
-            className={`contrast-issue-chip${chipKindClass(result.kind)}${activeBlock === result.blockId ? " is-active" : ""}${result.severity === "error" && result.kind === "text" ? " is-critical" : ""}`}
-            title={`${primaryFixLabel(result, fixHandlers)} — click to apply`}
-            onClick={() => handleChipClick(result)}
-          >
-            <span className="contrast-issue-chip-kind">{kindLabel(result.kind)}</span>
+          <Tabs.Panel key={result.blockId} id={result.blockId} className="sr-only">
             {result.label}
-            {result.ratio != null ? (
-              <span className="contrast-issue-chip-ratio">
-                {formatContrastRatio(result.ratio)}
-              </span>
-            ) : null}
-          </button>
+          </Tabs.Panel>
         ))}
-      </div>
+      </Tabs>
 
       {selected ? (
         <div className="contrast-issues-detail">
           <div className="contrast-issues-detail-head">
-            <span>
-              {selected.label}
-              {selected.ratio != null && selected.required != null ? (
-                <>
-                  {" "}
-                  · {formatContrastRatio(selected.ratio)}{" "}
-                  <span className="opacity-70">(needs {selected.required}:1)</span>
-                </>
-              ) : null}
-            </span>
+            <div className="contrast-issues-detail-title-row">
+              <span
+                className={`contrast-issues-detail-kind${kindToneClass(selected.kind)}`}
+              >
+                {kindLabel(selected.kind)}
+              </span>
+              <span className="contrast-issues-detail-title">{selected.label}</span>
+            </div>
+            {selected.ratio != null && selected.required != null ? (
+              <p className="contrast-issues-detail-ratio">
+                {formatContrastRatio(selected.ratio)} measured · needs{" "}
+                {selected.required}:1
+              </p>
+            ) : null}
           </div>
           <p className="contrast-issues-alert">{selected.alert}</p>
           <div className="contrast-issues-detail-actions">
-            <Button
-              size="sm"
-              variant="primary"
-              onPress={() => {
-                const issue = resolveIssueByBlockId(results, selected.blockId);
-                if (issue) applyPrimaryContrastFix(issue, fixHandlers);
-              }}
-            >
-              {primaryFixLabel(selected, fixHandlers)}
-            </Button>
-            {onExplainInChat ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onPress={() => onExplainInChat(selected)}
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <MessageCircle className="size-3.5 shrink-0" aria-hidden />
-                  Explain in chat
-                </span>
-              </Button>
-            ) : null}
+            {fixButton(primaryFixLabel(selected, fixHandlers), () => {
+              const issue = resolveIssueByBlockId(results, selected.blockId);
+              if (issue) applyPrimaryContrastFix(issue, fixHandlers);
+            }, true)}
+            {onExplainInChat
+              ? fixButton("Explain in chat", () => onExplainInChat(selected))
+              : null}
             {selected.blockId === "logo" ? (
               <>
-                {hasSvgLogo && hasLogoSvgFix ? (
-                  <Button size="sm" variant="outline" onPress={onRestoreLogoSvg}>
-                    Restore original logo
-                  </Button>
-                ) : null}
-                {!logoBackdrop && canFixLogoSvg ? (
-                  <Button size="sm" variant="outline" onPress={onFixLogoBackdrop}>
-                    Add backdrop
-                  </Button>
-                ) : null}
-                <Button size="sm" variant="outline" onPress={onFixBackground}>
-                  Lighter background
-                </Button>
+                {hasSvgLogo && hasLogoSvgFix
+                  ? fixButton("Restore original logo", onRestoreLogoSvg)
+                  : null}
+                {!logoBackdrop && canFixLogoSvg
+                  ? fixButton("Add backdrop", onFixLogoBackdrop)
+                  : null}
+                {fixButton("Lighter background", onFixBackground)}
               </>
             ) : selected.blockId === "accent" ? (
               <>
-                <Button size="sm" variant="outline" onPress={onFixTextContrast}>
-                  Boost text contrast
-                </Button>
-                <Button size="sm" variant="outline" onPress={onFixBackground}>
-                  Lighter background
-                </Button>
+                {fixButton("Boost text contrast", onFixTextContrast)}
+                {fixButton("Lighter background", onFixBackground)}
               </>
             ) : selected.blockId === "pattern" ? (
-              <Button size="sm" variant="outline" onPress={onFixTextContrast}>
-                Boost text contrast
-              </Button>
+              fixButton("Boost text contrast", onFixTextContrast)
             ) : selected.blockId === "featured" ? (
-              <Button size="sm" variant="outline" onPress={onFixTextContrast}>
-                Boost text contrast
-              </Button>
+              <>
+                {fixButton("Boost text contrast", onFixTextContrast)}
+                {fixButton("Lighter background", onFixBackground)}
+              </>
             ) : selected.blockId === "balance" ? (
-              onFixPatternOpacity ? (
-                <Button size="sm" variant="outline" onPress={onFixPatternOpacity}>
-                  Reduce pattern opacity
-                </Button>
-              ) : null
+              onFixPatternOpacity
+                ? fixButton("Reduce pattern opacity", onFixPatternOpacity)
+                : null
             ) : (
-              <Button size="sm" variant="outline" onPress={onFixBackground}>
-                Lighter background
-              </Button>
+              fixButton("Lighter background", onFixBackground)
             )}
           </div>
         </div>

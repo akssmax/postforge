@@ -144,6 +144,7 @@ export function buildDesignSnapshotInput(input: {
     },
     layoutSpacing: doc.layoutSpacing,
     canvasShapes: doc.canvasShapes ?? [],
+    canvasIcons: doc.canvasIcons ?? [],
     selection: selection ?? null,
     artifactId: doc.artifactId,
     artifactCategory: doc.artifactCategory,

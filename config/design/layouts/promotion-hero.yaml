@@ -1,0 +1,24 @@
+id: promotion-hero
+platforms: [all]
+campaigns:
+  - promotion
+  - advertisement
+  - product_launch
+visualPriority: high
+contentDensity: low
+readingPattern: F
+visualWeight: heavy
+densityClass: visualFirst
+supports:
+  - logo
+  - headline
+  - subheading
+  - cta
+  - product_image
+score:
+  promotion: 0.96
+  advertisement: 0.9
+  product_launch: 0.86
+artifactSupports:
+  - instagram_post
+  - linkedin_ad

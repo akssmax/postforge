@@ -47,6 +47,7 @@ import { resolveStockPhotoForArtifact } from "@/lib/llm/stages/stockPhotoResolve
 import type { ArtifactCategoryId } from "@/lib/design-config/schemas";
 import type { PlatformId } from "@/lib/social-tool/presets";
 import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
+import { layoutFeaturedZoneMode } from "@/lib/social-tool/postLayouts";
 import {
   campaignPlanToIntent,
   type CampaignPlan,
@@ -205,6 +206,11 @@ async function runPipelineAttempt(input: {
   const stockPhoto = await resolveStockPhotoForArtifact({
     artifact,
     brief: input.userMessage,
+    platformId: input.platformId,
+    featuredZoneMode: layoutFeaturedZoneMode(layout),
+    allowTextPrimaryPhoto:
+      layoutFeaturedZoneMode(layout) === "corner" ||
+      layoutFeaturedZoneMode(layout) === "portrait-strip",
     offline: input.offline,
   });
 
@@ -271,6 +277,7 @@ async function runPipelineAttempt(input: {
     copyVariants,
     copyVariantIndex: 0,
     recipe,
+    brandAccent: input.brandSummary?.accent,
   });
 
   let validated = validateDesignPlan(planInput, input.platformId, effectiveRules);
@@ -295,6 +302,7 @@ async function runPipelineAttempt(input: {
       copyVariants,
       copyVariantIndex: 0,
       recipe,
+      brandAccent: input.brandSummary?.accent,
     });
     validated = validateDesignPlan(planInput, input.platformId, effectiveRules);
   }

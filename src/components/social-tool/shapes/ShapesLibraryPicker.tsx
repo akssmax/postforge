@@ -88,9 +88,9 @@ export function ShapesLibraryPicker({
       </div>
 
       <Popover>
-        <Popover.Trigger>
-          <Tooltip delay={500}>
-            <Tooltip.Trigger>
+        <Tooltip delay={500}>
+          <Tooltip.Trigger>
+            <Popover.Trigger>
               <Button
                 size={compact ? "sm" : "md"}
                 variant="secondary"
@@ -100,15 +100,15 @@ export function ShapesLibraryPicker({
                 <Shapes className="size-4 shrink-0" aria-hidden />
                 {atLimit ? "Shape limit reached" : "Add shape"}
               </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content placement="bottom" offset={8}>
-              <p className="layout-shuffle-tooltip-title">Decorative shapes</p>
-              <p className="layout-shuffle-tooltip-body">
-                Add up to {MAX_CANVAS_SHAPES} shapes with absolute positioning on the canvas.
-              </p>
-            </Tooltip.Content>
-          </Tooltip>
-        </Popover.Trigger>
+            </Popover.Trigger>
+          </Tooltip.Trigger>
+          <Tooltip.Content placement="bottom" offset={8}>
+            <p className="layout-shuffle-tooltip-title">Decorative shapes</p>
+            <p className="layout-shuffle-tooltip-body">
+              Add up to {MAX_CANVAS_SHAPES} shapes with absolute positioning on the canvas.
+            </p>
+          </Tooltip.Content>
+        </Tooltip>
         <Popover.Content className="shapes-picker-popover" placement="left top">
           <div className="shapes-picker-popover__header">
             <p className="shapes-picker-popover__title">Shape library</p>

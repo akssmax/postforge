@@ -23,11 +23,7 @@ export function CanvasHistoryControls({
   trailing,
 }: Props) {
   return (
-    <div
-      className="canvas-history-chrome"
-      role="toolbar"
-      aria-label="Undo and redo"
-    >
+    <div className="canvas-history-controls" role="group" aria-label="Undo and redo">
       <div className="canvas-zoom-toolbar" role="group" aria-label="History">
         <Tooltip delay={500}>
           <Tooltip.Trigger>

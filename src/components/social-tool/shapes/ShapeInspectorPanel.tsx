@@ -74,11 +74,13 @@ export function ShapeInspectorPanel({
           action={
             <Tooltip delay={500}>
               <Tooltip.Trigger>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  isIconOnly
                   className="social-transform-reset"
                   aria-label="Reset shape transform"
-                  onClick={() =>
+                  onPress={() =>
                     onChange({
                       ...shape,
                       transform: {
@@ -89,7 +91,7 @@ export function ShapeInspectorPanel({
                   }
                 >
                   <RotateCcw className="size-3.5" aria-hidden />
-                </button>
+                </Button>
               </Tooltip.Trigger>
               <Tooltip.Content placement="bottom" offset={8}>
                 <p className="layout-shuffle-tooltip-title">Reset position</p>

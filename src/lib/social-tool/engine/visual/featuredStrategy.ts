@@ -4,6 +4,8 @@ import type { RecipeConfig } from "@/lib/design-config/registry";
 import type { ArtifactDefinition } from "@/lib/design-config/schemas";
 import { getVisualsStrategy } from "@/lib/design-config/registry";
 import type { FeaturedPolicy } from "@/lib/llm/rules/types";
+import type { PostLayout } from "@/lib/social-tool/postLayouts";
+import { layoutFeaturedZoneMode } from "@/lib/social-tool/postLayouts";
 
 export type FeaturedStrategyResult = {
   featuredPolicy: FeaturedPolicy;
@@ -66,24 +68,41 @@ export function resolveFeaturedStrategy(input: {
   rulesProfile: DesignRulesProfile;
   recipe?: RecipeConfig;
   artifact?: ArtifactDefinition;
+  layout?: PostLayout;
 }): FeaturedStrategyResult {
   const table = getVisualsStrategy().featured;
   const campaignHint = table[input.plan.campaign.type];
   const planKind =
     input.plan.visual.featuredKind ?? campaignHintToFeaturedKind(campaignHint);
 
-  const featuredPolicy = input.artifact
+  let featuredPolicy = input.artifact
     ? artifactFeaturedPolicy(input.artifact, input.rulesProfile.featuredPolicy)
     : input.rulesProfile.featuredPolicy;
   const featuredKind = input.artifact
     ? artifactFeaturedKind(input.artifact, planKind)
     : planKind;
 
+  const zoneMode = input.layout ? layoutFeaturedZoneMode(input.layout) : "hero";
+  if (zoneMode === "corner" || zoneMode === "portrait-strip") {
+    featuredPolicy = "image";
+  } else if (input.layout?.featuredContentPolicy === "image") {
+    featuredPolicy = "image";
+  } else if (
+    input.layout?.featuredContentPolicy === "library" &&
+    featuredPolicy !== "hidden"
+  ) {
+    featuredPolicy = "library";
+  }
+
   return {
     featuredPolicy,
     featuredKind,
     reason: input.artifact
       ? `Featured ${featuredKind} for ${input.artifact.label} (${featuredPolicy})`
-      : `Featured ${featuredKind} via ${featuredPolicy} (${campaignHint ?? input.plan.visual.focus})`,
+      : zoneMode !== "hero"
+        ? `Featured accent photo (${zoneMode}, ${featuredPolicy})`
+        : input.layout?.featuredContentPolicy === "image"
+          ? `Hero photo (${featuredPolicy})`
+          : `Featured ${featuredKind} via ${featuredPolicy} (${campaignHint ?? input.plan.visual.focus})`,
   };
 }

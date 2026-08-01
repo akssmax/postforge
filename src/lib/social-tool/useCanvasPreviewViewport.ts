@@ -64,7 +64,7 @@ function isChromeTarget(target: EventTarget | null) {
     target instanceof Element &&
     Boolean(
       target.closest(
-        ".canvas-stage-chrome, .canvas-preview-toolbar, .canvas-artboard-label-btn, .canvas-artboard-label-input",
+        ".canvas-stage-chrome, .canvas-bottom-chrome, .canvas-preview-toolbar, .canvas-artboard-label-btn, .canvas-artboard-label-input",
       ),
     )
   );

@@ -33,6 +33,8 @@ export function FeaturedImageContent({
         className={cn("social-post-featured-image social-post-featured-image--svg", className)}
         role="img"
         aria-label="Featured image"
+        data-figma-name="Featured"
+        data-figma-role="image"
         dangerouslySetInnerHTML={{ __html: svgMarkup }}
       />
     );
@@ -45,6 +47,8 @@ export function FeaturedImageContent({
         src={imageSrc}
         alt="Featured"
         className={cn("social-post-featured-image", className)}
+        data-figma-name="Featured"
+        data-figma-role="image"
         draggable={false}
       />
     );

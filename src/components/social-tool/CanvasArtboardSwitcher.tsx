@@ -74,7 +74,7 @@ export function CanvasArtboardSwitcher({ boards, activeId, onSelect }: Props) {
                   <span className="canvas-tool-pill-label">{board.label}</span>
                 </Button>
               </Tooltip.Trigger>
-              <Tooltip.Content placement="bottom" offset={8}>
+              <Tooltip.Content placement="top" offset={8}>
                 <p className="layout-shuffle-tooltip-title">{title}</p>
                 <p className="layout-shuffle-tooltip-body">
                   {selected

@@ -33,6 +33,7 @@ export function resolveVisualStrategy(input: {
     rulesProfile: input.rulesProfile,
     recipe: input.recipe,
     artifact: input.artifact,
+    layout: input.layout,
   });
   const pattern = resolvePatternStrategy({
     plan: input.plan,

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Switch } from "@heroui/react";
 import { BrandPanel } from "@/components/social-tool/BrandPanel";
 import { BrandBackgroundPicker } from "@/components/social-tool/BrandBackgroundPicker";
@@ -9,22 +10,21 @@ import type { EditableTextSlot } from "@/lib/social-tool/layoutAdapter";
 import { legacyEditableSlotsFromCopy } from "@/lib/social-tool/layoutAdapter";
 import type { ArtifactCategoryId } from "@/lib/design-config/schemas";
 import { DesignEmptyState } from "@/components/social-tool/DesignEmptyState";
+import { CanvasInspectorEmptyState } from "@/components/social-tool/CanvasInspectorEmptyState";
 import { FeaturedBlockPanel } from "@/components/social-tool/FeaturedBlockPanel";
 import { ShapesLibraryPicker } from "@/components/social-tool/shapes/ShapesLibraryPicker";
 import { ShapeInspectorPanel } from "@/components/social-tool/shapes/ShapeInspectorPanel";
+import { IconsLibraryPicker } from "@/components/social-tool/icons/IconsLibraryPicker";
+import { IconInspectorPanel } from "@/components/social-tool/icons/IconInspectorPanel";
 import {
   isPatternNone,
   PatternLibraryPicker,
 } from "@/components/social-tool/PatternLibraryPicker";
 import {
   InspectorSlider,
-  InspectorTextSegment,
 } from "@/components/social-tool/InspectorControls";
-import { Button, Tooltip } from "@heroui/react";
-import { motion } from "framer-motion";
-import { PanelLeftClose } from "lucide-react";
+import { UnifiedAsideHeader } from "@/components/social-tool/UnifiedAsideHeader";
 import { getMonogramOnlyMarkup } from "@/lib/brand/logoVariants";
-import { ASIDE_PANEL_TOGGLE_LAYOUT_ID } from "@/components/social-tool/asidePanelMotion";
 import type { UseBrandKitReturn } from "@/lib/brand/useBrandKit";
 import type { UseFeaturedBlockReturn } from "@/lib/social-tool/useFeaturedBlock";
 import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
@@ -32,8 +32,9 @@ import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
 import type { BriefChatState } from "@/lib/llm/useBriefChat";
 import type { DesignOnboardingPhase } from "@/lib/design/types";
 import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
-import { canvasSelectionKind, shapeIdFromSelection } from "@/lib/social-tool/canvasSelection";
+import { canvasSelectionKind, iconIdFromSelection, shapeIdFromSelection } from "@/lib/social-tool/canvasSelection";
 import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
+import type { CanvasIconRecord } from "@/lib/social-tool/icons/types";
 import type { FeaturedImageTransform } from "@/components/social-tool/templates/ProductShotPost";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import {
@@ -100,6 +101,7 @@ type FeaturedPanelProps = {
       url: string;
       photographer: string;
       attribution: string;
+      downloadUrl?: string;
     },
     slotId?: string,
   ) => void;
@@ -183,6 +185,10 @@ type Props = {
   onAddCanvasShape?: (libraryId: string) => void;
   onUpdateCanvasShape?: (id: string, patch: Partial<CanvasShapeRecord>) => void;
   onRemoveCanvasShape?: (id: string) => void;
+  canvasIcons?: CanvasIconRecord[];
+  onAddCanvasIcon?: (iconName: string) => void;
+  onUpdateCanvasIcon?: (id: string, patch: Partial<CanvasIconRecord>) => void;
+  onRemoveCanvasIcon?: (id: string) => void;
 };
 
 function PatternSection({
@@ -365,38 +371,6 @@ function DesignInfoSection({
   );
 }
 
-function BlockPanelsOverview(props: Props) {
-  if (props.showFeaturedInspector === false) return null;
-  return (
-    <FeaturedBlockPanel
-      showFeaturedBlock={props.showFeaturedImage}
-      onShowFeaturedBlockChange={props.onShowFeaturedImageChange}
-      mode={props.featured.mode}
-      visualBlocks={props.featured.visualBlocks}
-      activeBlockId={props.featured.activeBlockId}
-      generatingVisualBlocks={props.featured.generatingVisualBlocks}
-      featuredVisualKind={props.featured.featuredVisualKind}
-      brandColors={props.featured.brandColors}
-      selectedSlotId={props.featured.selectedSlotId}
-      featuredSlotIds={props.featured.featuredSlotIds}
-      onSelectFeaturedSlot={props.featured.onSelectFeaturedSlot}
-      onGenerateVisualBlocks={props.featured.onGenerateVisualBlocks}
-      onShuffleVisualBlock={props.featured.onShuffleVisualBlock}
-      onSelectVisualBlock={props.featured.onSelectVisualBlock}
-      image={props.featured.image}
-      imageSrc={props.featured.imageSrc}
-      uploading={props.featured.uploading}
-      error={props.featured.error}
-      onUploadImage={props.featured.onUploadImage}
-      onRemoveImage={props.featured.onRemoveImage}
-      onApplyStockPhoto={props.featured.onApplyStockPhoto}
-      stockAttribution={props.featured.stockAttribution}
-      featuredTransform={props.featuredTransform}
-      onFeaturedTransformChange={props.onFeaturedTransformChange}
-    />
-  );
-}
-
 function BackgroundSection({
   brand,
   showBackground,
@@ -486,39 +460,20 @@ function BrandInspectorSection(
   );
 }
 
-function InspectorOverview(props: Props) {
-  return (
-    <>
-      <SharedContentPanel {...props} />
-      <BlockPanelsOverview {...props} />
-      {props.onAddCanvasShape ? (
-        <ShapesLibraryPicker
-          shapeCount={props.canvasShapes?.length ?? 0}
-          brandColors={{
-            primary: props.featured.brandColors?.primary,
-            accent: props.featured.brandColors?.accent,
-          }}
-          onAddShape={props.onAddCanvasShape}
-          compact
-        />
-      ) : null}
-      <BrandInspectorSection {...props} defaultExpanded={false} />
-      <FixedCanvasPanels {...props} />
-      <DesignInfoSection
-        artifactId={props.artifactId}
-        artifactCategory={props.artifactCategory}
-        layoutId={props.layoutId}
-        platformReason={props.platformReason}
-      />
-    </>
-  );
-}
-
 function ReadyDesignPanels(props: Props) {
   const { inspectorSelection, featured } = props;
 
-  if (inspectorSelection === null || inspectorSelection === "pattern") {
-    return <InspectorOverview {...props} />;
+  if (inspectorSelection === null) {
+    return <CanvasInspectorEmptyState />;
+  }
+
+  if (inspectorSelection === "pattern") {
+    return (
+      <>
+        <PatternSection {...props} />
+        <FixedCanvasPanels {...props} compact />
+      </>
+    );
   }
 
   const selectionKind = canvasSelectionKind(inspectorSelection);
@@ -610,68 +565,128 @@ function ReadyDesignPanels(props: Props) {
     );
   }
 
+  if (selectionKind === "icon") {
+    const iconId = iconIdFromSelection(inspectorSelection);
+    const icon = props.canvasIcons?.find((entry) => entry.id === iconId);
+    return (
+      <>
+        {icon && props.onUpdateCanvasIcon && props.onRemoveCanvasIcon ? (
+          <IconInspectorPanel
+            icon={icon}
+            brandAccent={featured.brandColors?.accent}
+            onChange={(next) => props.onUpdateCanvasIcon!(icon.id, next)}
+            onRemove={() => props.onRemoveCanvasIcon!(icon.id)}
+          />
+        ) : null}
+        {props.onAddCanvasIcon ? (
+          <IconsLibraryPicker
+            iconCount={props.canvasIcons?.length ?? 0}
+            brandColors={{
+              primary: featured.brandColors?.primary,
+              accent: featured.brandColors?.accent,
+            }}
+            onAddIcon={props.onAddCanvasIcon}
+            compact
+          />
+        ) : null}
+        <FixedCanvasPanels {...props} compact />
+      </>
+    );
+  }
+
   return null;
+}
+
+type AsideShellProps = {
+  children: ReactNode;
+  asideTab?: AsideTab;
+  onAsideTabChange?: (tab: AsideTab) => void;
+  showTabs?: boolean;
+  onCollapseAside?: () => void;
+  /** Chat layout: body fills height and scrolls inside the conversation. */
+  fillBody?: boolean;
+};
+
+function AsideShell({
+  children,
+  asideTab,
+  onAsideTabChange,
+  showTabs = false,
+  onCollapseAside,
+  fillBody = false,
+}: AsideShellProps) {
+  return (
+    <div className="social-tool-aside-unified flex min-h-0 flex-1 flex-col overflow-hidden">
+      <UnifiedAsideHeader
+        asideTab={asideTab}
+        onAsideTabChange={onAsideTabChange}
+        showTabs={showTabs}
+        onCollapseAside={onCollapseAside}
+      />
+      <div
+        className={`social-tool-aside-body min-h-0 flex-1 overscroll-contain${
+          fillBody
+            ? " social-tool-aside-body--fill flex flex-col overflow-hidden"
+            : " overflow-y-auto"
+        }`}
+      >
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function UnifiedAsideShell(props: Props) {
   const asideTab = props.asideTab ?? "chat";
   const onAsideTabChange = props.onAsideTabChange;
+  const designIdle =
+    asideTab === "design" && props.inspectorSelection === null;
 
   if (!props.briefChat || !onAsideTabChange) {
-    return <ReadyDesignPanels {...props} />;
+    return (
+      <AsideShell
+        onCollapseAside={props.onCollapseAside}
+        fillBody={props.inspectorSelection === null}
+      >
+        <div
+          className={`social-tool-aside-design${
+            props.inspectorSelection === null
+              ? " social-tool-aside-design--idle"
+              : ""
+          }`}
+        >
+          <ReadyDesignPanels {...props} />
+        </div>
+      </AsideShell>
+    );
   }
 
   return (
-    <div className="social-tool-aside-unified flex min-h-0 flex-1 flex-col">
-      <header className="social-tool-aside-tabs">
-        <InspectorTextSegment
-          aria-label="Sidebar mode"
-          value={asideTab}
-          onChange={(value) => onAsideTabChange(value as AsideTab)}
-          options={[
-            { id: "design", label: "Design" },
-            { id: "chat", label: "Chat" },
-          ]}
-          className="social-tool-aside-tabs__segment min-w-0 flex-1"
-        />
-        {props.onCollapseAside ? (
-          <motion.div
-            layoutId={ASIDE_PANEL_TOGGLE_LAYOUT_ID}
-            className="shrink-0"
-            transition={{ type: "spring", stiffness: 420, damping: 32 }}
-          >
-            <Tooltip delay={500}>
-              <Tooltip.Trigger>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  isIconOnly
-                  aria-label="Hide sidebar"
-                  className="social-tool-aside-collapse-btn size-9 shrink-0"
-                  onPress={props.onCollapseAside}
-                >
-                  <PanelLeftClose className="size-4" aria-hidden />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content placement="bottom" offset={8}>
-                <p className="layout-shuffle-tooltip-title">Hide sidebar</p>
-                <p className="layout-shuffle-tooltip-body">
-                  Expand the canvas to full width
-                </p>
-              </Tooltip.Content>
-            </Tooltip>
-          </motion.div>
-        ) : null}
-      </header>
+    <AsideShell
+      asideTab={asideTab}
+      onAsideTabChange={onAsideTabChange}
+      showTabs
+      onCollapseAside={props.onCollapseAside}
+      fillBody={asideTab === "chat" || designIdle}
+    >
       {asideTab === "chat" ? (
-        <BriefChatPanel {...props.briefChat} mode="follow-up" autoFocus selectedCategory={props.briefArtifactCategory} onSelectCategory={props.onBriefArtifactCategoryChange} />
+        <BriefChatPanel
+          {...props.briefChat}
+          mode="follow-up"
+          autoFocus
+          selectedCategory={props.briefArtifactCategory}
+          onSelectCategory={props.onBriefArtifactCategoryChange}
+        />
       ) : (
-        <div className="social-tool-aside-design min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div
+          className={`social-tool-aside-design${
+            designIdle ? " social-tool-aside-design--idle" : ""
+          }`}
+        >
           <ReadyDesignPanels {...props} />
         </div>
       )}
-    </div>
+    </AsideShell>
   );
 }
 
@@ -680,12 +695,14 @@ export function DesignInspector(props: Props) {
 
   if (phase === "needsLogo") {
     return (
-      <DesignEmptyState
-        onUpload={brand.uploadLogo}
-        onDescribe={props.onSkipLogo}
-        uploading={brand.uploading}
-        error={brand.error}
-      />
+      <AsideShell>
+        <DesignEmptyState
+          onUpload={brand.uploadLogo}
+          onDescribe={props.onSkipLogo}
+          uploading={brand.uploading}
+          error={brand.error}
+        />
+      </AsideShell>
     );
   }
 
@@ -693,18 +710,19 @@ export function DesignInspector(props: Props) {
     if (!props.briefChat) return null;
 
     return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <BrandInspectorSection {...props} defaultExpanded={false} />
-        <BriefChatPanel
-          {...props.briefChat}
-          mode="onboarding"
-          onSkip={props.onBriefSkip}
-          autoFocus
-          selectedCategory={props.briefArtifactCategory}
-          onSelectCategory={props.onBriefArtifactCategoryChange}
-        />
-        {/* Background, pattern, and visual slot controls appear after the brief generates. */}
-      </div>
+      <AsideShell fillBody>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <BrandInspectorSection {...props} defaultExpanded={false} />
+          <BriefChatPanel
+            {...props.briefChat}
+            mode="onboarding"
+            onSkip={props.onBriefSkip}
+            autoFocus
+            selectedCategory={props.briefArtifactCategory}
+            onSelectCategory={props.onBriefArtifactCategoryChange}
+          />
+        </div>
+      </AsideShell>
     );
   }
 

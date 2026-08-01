@@ -10,14 +10,23 @@ import {
   defaultProductPageForSlots,
 } from "@/lib/social-tool/layoutAdapter";
 import type { FeaturedBlockPersisted } from "@/lib/social-tool/featuredBlock";
-import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
+import { DEFAULT_FEATURED_TRANSFORM } from "@/lib/social-tool/featuredTransform";
+import { iconTransformForPreset } from "@/lib/social-tool/icons/placement";
+import { getIconCatalogEntry } from "@/lib/social-tool/icons/catalog";
+import { createCanvasIconRecord } from "@/lib/social-tool/icons/instantiate";
+import type { CanvasIconRecord } from "@/lib/social-tool/icons/types";
 import { resolveCanvasShapes } from "@/lib/social-tool/shapes/placement";
+import {
+  attachCtaButtonsToTextSlots,
+} from "@/lib/social-tool/visualBlocks/library/ctaButtons";
+import { getPostLayout } from "@/lib/social-tool/postLayouts";
 
 export type DesignPlanApplyResult = {
   document: Partial<DesignDocument>;
   featured: Partial<FeaturedBlockPersisted>;
   brand?: Partial<BrandKitPersisted>;
   featuredImageSrc?: string | null;
+  visualBlocks?: import("@/lib/social-tool/visualBlocks/types").VisualBlockRecord[];
 };
 
 export type DesignPlanApplyOptions = {
@@ -35,7 +44,41 @@ export type DesignPlanApplyOptions = {
   decorationLevel?: "minimal" | "offer" | "mesh" | "brand";
   designId?: string;
   brandColors?: BrandColors;
+  brief?: string;
+  existingVisualBlocks?: import("@/lib/social-tool/visualBlocks/types").VisualBlockRecord[];
 };
+
+function canvasIconsFromPlan(
+  plan: ValidatedDesignPlan,
+  brandColors?: BrandColors,
+): CanvasIconRecord[] | undefined {
+  const specs = plan.canvasIcons;
+  if (!specs?.length) return undefined;
+
+  const accent =
+    brandColors?.accent ?? optionsFallbackAccent(specs);
+
+  const icons: CanvasIconRecord[] = [];
+  for (const spec of specs) {
+    const entry = getIconCatalogEntry(spec.iconName);
+    if (!entry) continue;
+    const icon = createCanvasIconRecord({
+      iconName: spec.iconName,
+      label: entry.label,
+      category: entry.category,
+      color: spec.color ?? accent,
+      transform: spec.preset ? iconTransformForPreset(spec.preset) : undefined,
+    });
+    if (icon) icons.push(icon);
+  }
+  return icons.length > 0 ? icons : undefined;
+}
+
+function optionsFallbackAccent(
+  specs: NonNullable<ValidatedDesignPlan["canvasIcons"]>,
+): string {
+  return specs.find((spec) => spec.color)?.color ?? "#7C9A92";
+}
 
 export function applyDesignPlanToSession(
   plan: ValidatedDesignPlan,
@@ -79,11 +122,23 @@ export function applyDesignPlanToSession(
     return base;
   });
 
+  const layoutId = catalogLayoutIdFromRef(layoutRef);
+  const postLayout = getPostLayout(layoutId);
+  const ctaAttached = attachCtaButtonsToTextSlots({
+    textSlots: plan.textSlots,
+    visualBlocks: options?.existingVisualBlocks ?? [],
+    layout: postLayout,
+    brandColors: options?.brandColors,
+    brief: options?.brief,
+    headline: plan.copy.heading,
+    subheading: plan.copy.subheading,
+  });
+
   const document: Partial<DesignDocument> = {
     version: 2,
     layoutRef,
-    layoutId: catalogLayoutIdFromRef(layoutRef),
-    textSlots: plan.textSlots,
+    layoutId,
+    textSlots: ctaAttached.textSlots,
     featuredSlots: featuredSlotsWithStock,
     copy: plan.copy,
     copyVariants: plan.copyVariants,
@@ -132,6 +187,7 @@ export function applyDesignPlanToSession(
             designId: options?.designId ?? current.layoutId,
           })
         : current.canvasShapes,
+    canvasIcons: canvasIconsFromPlan(plan, options?.brandColors) ?? current.canvasIcons,
   };
 
   const featuredModeWithStock =
@@ -172,5 +228,6 @@ export function applyDesignPlanToSession(
     featured,
     brand,
     featuredImageSrc: stockPhoto?.url ?? undefined,
+    visualBlocks: ctaAttached.visualBlocks,
   };
 }

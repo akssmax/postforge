@@ -23,6 +23,7 @@ type Props = {
   onFixAccentContrast?: () => void;
   onFixPatternOpacity?: () => void;
   onFixVisualBalance?: () => void;
+  onFixFeaturedVisual?: () => void;
   onExplainInChat?: (result: ContrastResult) => void;
   logoBackdrop: boolean;
   hasSvgLogo: boolean;
@@ -44,6 +45,7 @@ export function ContrastIssuesToggle({
   onFixAccentContrast,
   onFixPatternOpacity,
   onFixVisualBalance,
+  onFixFeaturedVisual,
   onExplainInChat,
   logoBackdrop,
   hasSvgLogo,
@@ -101,6 +103,7 @@ export function ContrastIssuesToggle({
               onFixAccentContrast={onFixAccentContrast}
               onFixPatternOpacity={onFixPatternOpacity}
               onFixVisualBalance={onFixVisualBalance}
+              onFixFeaturedVisual={onFixFeaturedVisual}
               onExplainInChat={onExplainInChat}
               logoBackdrop={logoBackdrop}
               hasSvgLogo={hasSvgLogo}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   AlignCenter,
   AlignLeft,
@@ -51,6 +52,8 @@ function PillSeparator() {
 function InlineScaleSection({
   value,
   onChange,
+  onInteractionStart,
+  onInteractionEnd,
   min,
   max,
   step,
@@ -58,12 +61,31 @@ function InlineScaleSection({
 }: {
   value: number;
   onChange: (value: number) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: (value: number) => void;
   min: number;
   max: number;
   step: number;
   ariaLabel: string;
 }) {
   const safeScale = Number.isFinite(value) ? value : min;
+  const draggingRef = useRef(false);
+  const latestRef = useRef(safeScale);
+  latestRef.current = safeScale;
+
+  useEffect(() => {
+    const finish = () => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      onInteractionEnd?.(latestRef.current);
+    };
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    return () => {
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+  }, [onInteractionEnd]);
 
   return (
     <div className="canvas-property-pill-section canvas-property-pill-section--scale">
@@ -75,9 +97,14 @@ function InlineScaleSection({
         maxValue={max}
         step={step}
         value={safeScale}
+        onPointerDown={() => {
+          draggingRef.current = true;
+          onInteractionStart?.();
+        }}
         onChange={(next) => {
           const n = Array.isArray(next) ? next[0] : next;
           if (typeof n === "number" && !Number.isNaN(n)) {
+            latestRef.current = n;
             onChange(n);
           }
         }}
@@ -98,15 +125,30 @@ function InlineScaleSection({
 function CopyTypographyPills({
   typeScale,
   onTypeScaleChange,
+  onTypeScaleInteractionStart,
+  onTypeScaleInteractionEnd,
   textAlign,
   onTextAlignChange,
+  copyVariantIndex = 0,
+  copyVariantCount = 0,
+  onCycleCopyVariant,
 }: {
   typeScale: number;
   onTypeScaleChange?: (value: number) => void;
+  onTypeScaleInteractionStart?: () => void;
+  onTypeScaleInteractionEnd?: (value: number) => void;
   textAlign: TextAlign;
   onTextAlignChange?: (value: TextAlign) => void;
+  copyVariantIndex?: number;
+  copyVariantCount?: number;
+  onCycleCopyVariant?: (delta: 1 | -1) => void;
 }) {
-  if (!onTextAlignChange && !onTypeScaleChange) return null;
+  const showVariantShuffle =
+    !!onCycleCopyVariant && copyVariantCount > 1;
+
+  if (!onTextAlignChange && !onTypeScaleChange && !showVariantShuffle) {
+    return null;
+  }
 
   return (
     <div
@@ -114,6 +156,34 @@ function CopyTypographyPills({
       role="group"
       aria-label="Text style"
     >
+      {showVariantShuffle ? (
+        <>
+          <Tooltip delay={500}>
+            <Tooltip.Trigger>
+              <Button
+                variant="secondary"
+                size="sm"
+                isIconOnly
+                aria-label={`Next copy variant (${copyVariantIndex + 1} of ${copyVariantCount})`}
+                className="canvas-property-pill-btn"
+                onPress={() => onCycleCopyVariant(1)}
+              >
+                <Shuffle className="size-3.5" strokeWidth={2.25} aria-hidden />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content placement="bottom" offset={8}>
+              <p className="layout-shuffle-tooltip-title">
+                Copy variant {copyVariantIndex + 1}/{copyVariantCount}
+              </p>
+              <p className="layout-shuffle-tooltip-body">
+                Shuffle to the next headline and subheading pair
+              </p>
+            </Tooltip.Content>
+          </Tooltip>
+          {onTextAlignChange || onTypeScaleChange ? <PillSeparator /> : null}
+        </>
+      ) : null}
+
       {onTextAlignChange ? (
         <div className="canvas-property-pill-section canvas-property-pill-section--align">
           <span className="canvas-property-pill-label">Align</span>
@@ -132,6 +202,8 @@ function CopyTypographyPills({
         <InlineScaleSection
           value={typeScale}
           onChange={onTypeScaleChange}
+          onInteractionStart={onTypeScaleInteractionStart}
+          onInteractionEnd={onTypeScaleInteractionEnd}
           min={TYPE_SCALE_MIN}
           max={TYPE_SCALE_MAX}
           step={TYPE_SCALE_STEP}
@@ -332,10 +404,17 @@ export type CanvasPropertyPillsProps = {
   enabled?: boolean;
   typeScale: number;
   onTypeScaleChange?: (value: number) => void;
+  onTypeScaleInteractionStart?: () => void;
+  onTypeScaleInteractionEnd?: (value: number) => void;
   textAlign?: TextAlign;
   onTextAlignChange?: (value: TextAlign) => void;
+  copyVariantIndex?: number;
+  copyVariantCount?: number;
+  onCycleCopyVariant?: (delta: 1 | -1) => void;
   logoScale?: number;
   onLogoScaleChange?: (value: number) => void;
+  onLogoScaleInteractionStart?: () => void;
+  onLogoScaleInteractionEnd?: (value: number) => void;
   featuredScale?: number;
   onFeaturedScaleChange?: (value: number) => void;
   featuredSlotIndex?: number;
@@ -357,10 +436,17 @@ export function CanvasPropertyPills({
   enabled = true,
   typeScale,
   onTypeScaleChange,
+  onTypeScaleInteractionStart,
+  onTypeScaleInteractionEnd,
   textAlign = "center",
   onTextAlignChange,
+  copyVariantIndex = 0,
+  copyVariantCount = 0,
+  onCycleCopyVariant,
   logoScale = 1,
   onLogoScaleChange,
+  onLogoScaleInteractionStart,
+  onLogoScaleInteractionEnd,
   featuredScale = 1,
   onFeaturedScaleChange,
   featuredSlotIndex = 0,
@@ -375,7 +461,12 @@ export function CanvasPropertyPills({
   if (!enabled) return null;
 
   const kind = canvasSelectionKind(selection);
-  if (kind === "copy" && (onTypeScaleChange || onTextAlignChange)) {
+  const showCopyVariantShuffle =
+    !!onCycleCopyVariant && copyVariantCount > 1;
+  if (
+    kind === "copy" &&
+    (onTypeScaleChange || onTextAlignChange || showCopyVariantShuffle)
+  ) {
     return (
       <div
         className="canvas-property-pills"
@@ -385,8 +476,13 @@ export function CanvasPropertyPills({
         <CopyTypographyPills
           typeScale={typeScale}
           onTypeScaleChange={onTypeScaleChange}
+          onTypeScaleInteractionStart={onTypeScaleInteractionStart}
+          onTypeScaleInteractionEnd={onTypeScaleInteractionEnd}
           textAlign={textAlign}
           onTextAlignChange={onTextAlignChange}
+          copyVariantIndex={copyVariantIndex}
+          copyVariantCount={copyVariantCount}
+          onCycleCopyVariant={onCycleCopyVariant}
         />
       </div>
     );
@@ -407,6 +503,8 @@ export function CanvasPropertyPills({
           <InlineScaleSection
             value={logoScale}
             onChange={onLogoScaleChange}
+            onInteractionStart={onLogoScaleInteractionStart}
+            onInteractionEnd={onLogoScaleInteractionEnd}
             min={LOGO_SCALE_MIN}
             max={LOGO_SCALE_MAX}
             step={LOGO_SCALE_STEP}

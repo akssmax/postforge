@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
+import { DEFAULT_FEATURED_TRANSFORM } from "@/lib/social-tool/featuredTransform";
 import { POST_LAYOUTS } from "@/lib/social-tool/postLayouts";
 import type { ProductPageId } from "@/lib/social-tool/presets";
 import { normalizeProductPage } from "@/lib/social-tool/presets";
@@ -56,6 +56,7 @@ export const textSlotContentSchema = z.object({
   slotId: z.string(),
   text: z.string(),
   role: textSlotRoleSchema,
+  ctaBlockId: z.string().nullable().optional(),
 });
 
 export const featuredSlotContentSchema = z.object({
@@ -88,6 +89,12 @@ export const layoutRefSchema = z.discriminatedUnion("source", [
   }),
 ]);
 
+export const canvasIconPlanSchema = z.object({
+  iconName: z.string().min(1),
+  preset: z.enum(["top-right-badge", "footer-accent", "cta-arrow"]).optional(),
+  color: z.string().optional(),
+});
+
 export const designPlanSchema = z.object({
   rationale: z.string(),
   layoutRef: layoutRefSchema,
@@ -112,6 +119,7 @@ export const designPlanSchema = z.object({
     )
     .optional(),
   copyVariantIndex: z.number().int().min(0).optional(),
+  canvasIcons: z.array(canvasIconPlanSchema).max(5).optional(),
 });
 
 export type DesignPlan = z.infer<typeof designPlanSchema>;

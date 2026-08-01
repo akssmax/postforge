@@ -31,6 +31,8 @@ import {
   VISUAL_LIBRARY_FRAME,
 } from "@/lib/social-tool/visualBlocks/dimensions";
 import { activeVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
+import { attachCtaButtonsToTextSlots } from "@/lib/social-tool/visualBlocks/library/ctaButtons";
+import { layoutUsesCtaButton } from "@/lib/social-tool/postLayouts";
 
 export type ApplyShuffleOptions = {
   prefs: ShufflePreferences;
@@ -136,6 +138,32 @@ export function applyShuffleToSession(
     includeBrandPatterns: hasMonogramSvg(source.brand),
   });
 
+  const dynamicLayout = catalogLayoutToDynamic(nextLayout);
+  let nextTextSlots =
+    doc.textSlots ??
+    textSlotsFromCopy(doc.copy, catalogLayoutToDynamic(getPostLayout(currentLayoutId)));
+  if (prefs.layout || prefs.content) {
+    nextTextSlots = textSlotsFromCopy(nextCopy, dynamicLayout);
+  }
+
+  let nextVisualBlocks = source.featured.visualBlocks ?? [];
+  if (layoutUsesCtaButton(nextLayout) && (prefs.layout || prefs.content)) {
+    const attached = attachCtaButtonsToTextSlots({
+      textSlots: nextTextSlots,
+      visualBlocks: nextVisualBlocks,
+      layout: nextLayout,
+      brandColors: {
+        primary: source.brand.colors.primary,
+        accent: source.brand.colors.accent,
+      },
+      headline: nextCopy.heading,
+      subheading: nextCopy.subheading,
+      randomize: prefs.content,
+    });
+    nextTextSlots = attached.textSlots;
+    nextVisualBlocks = attached.visualBlocks;
+  }
+
   const nextBrand = prefs.background
     ? {
         ...source.brand,
@@ -153,12 +181,11 @@ export function applyShuffleToSession(
           logoAlign: patch.logoAlign,
           textAlign: patch.textAlign,
           layoutSpacing: nextSpacing,
-          textSlots: textSlotsFromCopy(
-            nextCopy,
-            catalogLayoutToDynamic(nextLayout),
-          ),
+          textSlots: nextTextSlots,
         }
-      : {}),
+      : prefs.content && layoutUsesCtaButton(nextLayout)
+        ? { textSlots: nextTextSlots }
+        : {}),
     copy: nextCopy,
     copyVariantIndex: nextCopyVariantIndex,
     ...(hierarchy
@@ -205,6 +232,10 @@ export function applyShuffleToSession(
     session: {
       ...source,
       brand: nextBrand,
+      featured: {
+        ...source.featured,
+        visualBlocks: nextVisualBlocks,
+      },
       document: nextDocument,
       updatedAt: Date.now(),
     },

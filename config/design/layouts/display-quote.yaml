@@ -1,0 +1,20 @@
+id: display-quote
+platforms: [all]
+campaigns:
+  - thought_leadership
+recipes:
+  - narrative_statement
+visualPriority: low
+contentDensity: high
+readingPattern: left
+visualWeight: light
+densityClass: copyHeavy
+supports:
+  - logo
+  - headline
+  - subheading
+  - quote
+score:
+  thought_leadership: 0.9
+artifactSupports:
+  - quote_card

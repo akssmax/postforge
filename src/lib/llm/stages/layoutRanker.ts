@@ -78,6 +78,8 @@ export async function rankLayout(
         rulesProfile?.layoutPolicy === "auto_by_density"
           ? "Prefer visual-first or balanced layouts when copy budget is tight."
           : "",
+        "Text-heavy briefs: bold-statement-corner for thought-leadership statements; editorial-portrait for founder/team posts; display-quote for quotes; numbered-list for tips/steps lists.",
+        "Promotion/travel/lifestyle briefs with hero imagery: promotion-hero (photo hero + button CTA) or social-ad.",
       ]
         .filter(Boolean)
         .join("\n"),

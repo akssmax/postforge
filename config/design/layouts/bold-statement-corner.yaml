@@ -1,0 +1,25 @@
+id: bold-statement-corner
+platforms: [all]
+campaigns:
+  - thought_leadership
+  - promotion
+recipes:
+  - narrative_statement
+  - statistic_hero
+visualPriority: low
+contentDensity: high
+readingPattern: left
+visualWeight: light
+densityClass: copyHeavy
+supports:
+  - logo
+  - headline
+  - subheading
+  - photo
+score:
+  thought_leadership: 0.96
+  promotion: 0.72
+  product_launch: 0.55
+artifactSupports:
+  - quote_card
+  - social_post

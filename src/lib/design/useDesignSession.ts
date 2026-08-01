@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DEFAULT_FEATURED_TRANSFORM } from "@/components/social-tool/templates/ProductShotPost";
+import { DEFAULT_FEATURED_TRANSFORM } from "@/lib/social-tool/featuredTransform";
 import {
   buildBackgroundPresets,
   buildGradientBackgroundPresets,
@@ -21,6 +21,10 @@ import {
 import { resolveLayoutHierarchy } from "@/lib/social-tool/layoutHierarchy";
 import { adaptSessionToPlatform } from "@/lib/social-tool/adaptPlatformChange";
 import { getPostLayout } from "@/lib/social-tool/postLayouts";
+import {
+  catalogLayoutToDynamic,
+  textSlotsFromCopy,
+} from "@/lib/social-tool/layoutAdapter";
 import { getPlatform } from "@/lib/social-tool/presets";
 import {
   resolveVisualBlockDimensions,
@@ -113,6 +117,11 @@ import {
   upsertCanvasShape,
 } from "@/lib/social-tool/shapes/storage";
 import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
+import type { CanvasIconRecord } from "@/lib/social-tool/icons/types";
+import { resolveLayoutHierarchyFromIds } from "@/lib/social-tool/layoutHierarchy";
+import { getIconCatalogEntry } from "@/lib/social-tool/icons/catalog";
+import { createCanvasIconRecord } from "@/lib/social-tool/icons/instantiate";
+import { MAX_CANVAS_ICONS } from "@/lib/social-tool/icons/types";
 import { buildFeaturedVisualPickInput } from "@/lib/social-tool/generateDesignVariants";
 import { pickShuffleFeaturedVisualBrowser } from "@/lib/social-tool/shuffleFeaturedVisualBrowser";
 import {
@@ -263,6 +272,7 @@ export type UseDesignSessionResult = {
       url: string;
       photographer: string;
       attribution: string;
+      downloadUrl?: string;
     },
     slotId?: string,
   ) => void;
@@ -294,6 +304,10 @@ export type UseDesignSessionResult = {
   updateCanvasShape: (id: string, patch: Partial<CanvasShapeRecord>) => void;
   removeCanvasShape: (id: string) => void;
   setCanvasShapes: (shapes: CanvasShapeRecord[]) => void;
+  addCanvasIcon: (iconName: string) => string | null;
+  updateCanvasIcon: (id: string, patch: Partial<CanvasIconRecord>) => void;
+  removeCanvasIcon: (id: string) => void;
+  setCanvasIcons: (icons: CanvasIconRecord[]) => void;
   generatingVisualBlocks: boolean;
   advanceOnboarding: (phase: DesignOnboardingPhase) => void;
   skipLogo: () => void;
@@ -1009,6 +1023,10 @@ export function useDesignSession(
           currentBackgroundPresetId: prev.brand.activeBackgroundPresetId,
           designId: options?.designId ?? prev.designId,
           brandColors: options?.brandColors ?? prev.brand.colors,
+          existingVisualBlocks: prev.featured.visualBlocks ?? [],
+          brief: [plan.copy.heading, plan.copy.subheading, plan.rationale]
+            .filter(Boolean)
+            .join(" "),
         });
         const document = withLogoAwareShowBrand(
           { ...prev.document, ...applied.document, featuredVisualKind },
@@ -1028,7 +1046,9 @@ export function useDesignSession(
             ...prev.featured,
             ...applied.featured,
             image: applied.featuredImageSrc ? null : prev.featured.image,
-            visualBlocks: needsFeaturedLibrary ? [] : prev.featured.visualBlocks,
+            visualBlocks:
+              applied.visualBlocks ??
+              (needsFeaturedLibrary ? [] : prev.featured.visualBlocks),
           },
           document,
           updatedAt: Date.now(),
@@ -1102,7 +1122,15 @@ export function useDesignSession(
       url: string;
       photographer: string;
       attribution: string;
+      downloadUrl?: string;
     }, slotId?: string) => {
+      if (photo.downloadUrl) {
+        void fetch("/api/stock/unsplash/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ downloadUrl: photo.downloadUrl }),
+        });
+      }
       revokeFeaturedBlob();
       featuredBlobUrlRef.current = photo.url;
       setFeaturedImageSrc(photo.url);
@@ -1111,6 +1139,17 @@ export function useDesignSession(
           slotId ??
           prev.document.featuredSlots?.find((s) => s.visible)?.slotId ??
           "featured-primary";
+        const hierarchy = resolveLayoutHierarchyFromIds({
+          platformId: prev.document.platformId,
+          layoutId: prev.document.layoutId,
+          copy: prev.document.copy,
+          spacing: prev.document.layoutSpacing,
+          showLogo: prev.document.showBrand,
+          showFeaturedImage: true,
+          featuredMode: "image",
+          productPage: prev.featured.productPage,
+          hasUploadedFeaturedImage: true,
+        });
         const featuredSlots = (prev.document.featuredSlots ?? []).map((slot) =>
           slot.slotId === targetSlotId
             ? {
@@ -1119,6 +1158,7 @@ export function useDesignSession(
                 visible: true,
                 imageSource: "unsplash" as const,
                 unsplash: photo,
+                transform: hierarchy.featuredTransform,
               }
             : slot,
         );
@@ -1137,6 +1177,7 @@ export function useDesignSession(
           document: {
             ...prev.document,
             showFeaturedImage: true,
+            featuredTransform: hierarchy.featuredTransform,
             featuredSlots,
           },
           updatedAt: Date.now(),
@@ -1169,47 +1210,51 @@ export function useDesignSession(
         applyDesignPlan(plan);
         return;
       }
-      updateSession((prev) => ({
-        ...prev,
-        featured: {
-          ...prev.featured,
-          mode: "genui",
-          productPage: result.productPage,
-        },
-        document: withLogoAwareShowBrand(
-          {
-            ...prev.document,
-            copy: result.copy,
-            copyVariants: buildCopyVariantsForBrief(
-              result.sourceBrief,
-              {
-                heading: result.copy.heading,
-                subheading: result.copy.subheading,
-              },
-              platformId,
-            ),
-            copyVariantIndex: 0,
-            layoutId: result.layoutId,
-            logoPlacement: result.logoPlacement,
-            logoAlign: result.logoAlign,
-            textAlign: result.textAlign,
-            showContent: result.showContent,
-            showFeaturedImage: result.showFeaturedImage,
-            showPattern: result.showPattern,
-            showBackground: result.showBackground,
-            pattern: result.pattern,
-            patternOpacity: result.patternOpacity,
-            patternScale: result.patternScale,
-            patternAnimated: result.patternAnimated,
-            typeScale: result.typeScale,
-            logoScale: result.logoScale,
-            featuredTransform: result.featuredTransform,
-            onboarding: { phase: "ready", briefSkipped: false },
+      updateSession((prev) => {
+        const layout = catalogLayoutToDynamic(getPostLayout(result.layoutId));
+        return {
+          ...prev,
+          featured: {
+            ...prev.featured,
+            mode: "genui",
+            productPage: result.productPage,
           },
-          prev.brand,
-        ),
-        updatedAt: Date.now(),
-      }));
+          document: withLogoAwareShowBrand(
+            {
+              ...prev.document,
+              copy: result.copy,
+              textSlots: textSlotsFromCopy(result.copy, layout),
+              copyVariants: buildCopyVariantsForBrief(
+                result.sourceBrief,
+                {
+                  heading: result.copy.heading,
+                  subheading: result.copy.subheading,
+                },
+                platformId,
+              ),
+              copyVariantIndex: 0,
+              layoutId: result.layoutId,
+              logoPlacement: result.logoPlacement,
+              logoAlign: result.logoAlign,
+              textAlign: result.textAlign,
+              showContent: result.showContent,
+              showFeaturedImage: result.showFeaturedImage,
+              showPattern: result.showPattern,
+              showBackground: result.showBackground,
+              pattern: result.pattern,
+              patternOpacity: result.patternOpacity,
+              patternScale: result.patternScale,
+              patternAnimated: result.patternAnimated,
+              typeScale: result.typeScale,
+              logoScale: result.logoScale,
+              featuredTransform: result.featuredTransform,
+              onboarding: { phase: "ready", briefSkipped: false },
+            },
+            prev.brand,
+          ),
+          updatedAt: Date.now(),
+        };
+      });
     },
     [applyDesignPlan, session?.document.platformId, updateSession],
   );
@@ -1580,6 +1625,82 @@ export function useDesignSession(
     [updateSession],
   );
 
+  const addCanvasIcon = useCallback(
+    (iconName: string): string | null => {
+      let createdId: string | null = null;
+      updateSession((prev) => {
+        const icons = prev.document.canvasIcons ?? [];
+        if (icons.length >= MAX_CANVAS_ICONS) return prev;
+        const entry = getIconCatalogEntry(iconName);
+        if (!entry) return prev;
+        const icon = createCanvasIconRecord({
+          iconName,
+          label: entry.label,
+          category: entry.category,
+          color: prev.brand.colors.accent,
+        });
+        if (!icon) return prev;
+        createdId = icon.id;
+        return {
+          ...prev,
+          document: {
+            ...prev.document,
+            canvasIcons: [...icons, icon],
+          },
+        };
+      });
+      return createdId;
+    },
+    [updateSession],
+  );
+
+  const updateCanvasIcon = useCallback(
+    (id: string, patch: Partial<CanvasIconRecord>) => {
+      updateSession((prev) => {
+        const icons = prev.document.canvasIcons ?? [];
+        if (!icons.some((icon) => icon.id === id)) return prev;
+        return {
+          ...prev,
+          document: {
+            ...prev.document,
+            canvasIcons: icons.map((icon) =>
+              icon.id === id ? { ...icon, ...patch } : icon,
+            ),
+          },
+        };
+      });
+    },
+    [updateSession],
+  );
+
+  const removeCanvasIcon = useCallback(
+    (id: string) => {
+      updateSession((prev) => ({
+        ...prev,
+        document: {
+          ...prev.document,
+          canvasIcons: (prev.document.canvasIcons ?? []).filter(
+            (icon) => icon.id !== id,
+          ),
+        },
+      }));
+    },
+    [updateSession],
+  );
+
+  const setCanvasIcons = useCallback(
+    (icons: CanvasIconRecord[]) => {
+      updateSession((prev) => ({
+        ...prev,
+        document: {
+          ...prev.document,
+          canvasIcons: icons,
+        },
+      }));
+    },
+    [updateSession],
+  );
+
   const shuffleFeaturedVisualBlock = useCallback(
     async (copyOverride?: {
       headline?: string;
@@ -1858,6 +1979,10 @@ export function useDesignSession(
       updateCanvasShape,
       removeCanvasShape,
       setCanvasShapes,
+      addCanvasIcon,
+      updateCanvasIcon,
+      removeCanvasIcon,
+      setCanvasIcons,
       generatingVisualBlocks,
       advanceOnboarding,
       skipLogo,
@@ -1919,6 +2044,10 @@ export function useDesignSession(
       updateCanvasShape,
       removeCanvasShape,
       setCanvasShapes,
+      addCanvasIcon,
+      updateCanvasIcon,
+      removeCanvasIcon,
+      setCanvasIcons,
       generatingVisualBlocks,
       advanceOnboarding,
       skipLogo,

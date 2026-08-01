@@ -73,13 +73,16 @@ type Props = {
   onTypeScaleChange?: (value: number) => void;
   onLogoScaleChange?: (value: number) => void;
   onTextAlignChange?: (value: TextAlign) => void;
+  copyVariantIndex?: number;
+  copyVariantCount?: number;
+  onCycleCopyVariant?: (delta: 1 | -1) => void;
   showPropertyPills?: boolean;
   onFeaturedTransformChange?: (
     t: FeaturedImageTransform,
     slotId?: string,
   ) => void;
-  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing" | "copy" | "shapes") => void;
-  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing" | "copy" | "shapes") => void;
+  onHistoryCoalesceBegin?: (key: "featuredTransform" | "spacing" | "copy" | "shapes" | "icons" | "typeScale" | "logoScale") => void;
+  onHistoryCoalesceEnd?: (key: "featuredTransform" | "spacing" | "copy" | "shapes" | "icons" | "typeScale" | "logoScale") => void;
   editingCopyField?: import("@/lib/social-tool/copyEdit").EditingCopyField | null;
   onCopyFieldEditStart?: (
     field: import("@/lib/social-tool/copyEdit").EditingCopyField,
@@ -103,6 +106,7 @@ type Props = {
   onUploadFeaturedImage?: (file: File, slotId: string) => void;
   generatingVisualBlocks?: boolean;
   onCanvasShapesChange?: (shapes: CanvasShapeRecord[]) => void;
+  onCanvasIconsChange?: (icons: import("@/lib/social-tool/icons/types").CanvasIconRecord[]) => void;
   canvasRef?: React.Ref<HTMLDivElement>;
   viewportRef?: React.Ref<HTMLDivElement>;
   reveal?: boolean;
@@ -144,6 +148,9 @@ export function CanvasVariantArtboard({
   onTypeScaleChange,
   onLogoScaleChange,
   onTextAlignChange,
+  copyVariantIndex = 0,
+  copyVariantCount = 0,
+  onCycleCopyVariant,
   showPropertyPills = true,
   onFeaturedTransformChange,
   onHistoryCoalesceBegin,
@@ -163,6 +170,7 @@ export function CanvasVariantArtboard({
   onUploadFeaturedImage,
   generatingVisualBlocks = false,
   onCanvasShapesChange,
+  onCanvasIconsChange,
   canvasRef,
   viewportRef,
   reveal = true,
@@ -546,6 +554,13 @@ export function CanvasVariantArtboard({
                 interactive={interactive && isActive}
                 textAlign={doc.textAlign}
                 onTextAlignChange={isActive ? onTextAlignChange : undefined}
+                copyVariantIndex={doc.copyVariantIndex ?? 0}
+                copyVariantCount={
+                  doc.copyVariants && doc.copyVariants.length > 0
+                    ? doc.copyVariants.length
+                    : 0
+                }
+                onCycleCopyVariant={isActive ? onCycleCopyVariant : undefined}
                 headingFont={doc.headingFont}
                 subFont={doc.subFont}
                 accentPeriod={template.accentPeriod}
@@ -572,6 +587,8 @@ export function CanvasVariantArtboard({
                 featuredSlots={doc.featuredSlots}
                 canvasShapes={doc.canvasShapes ?? []}
                 onCanvasShapesChange={isActive ? onCanvasShapesChange : undefined}
+                canvasIcons={doc.canvasIcons ?? []}
+                onCanvasIconsChange={isActive ? onCanvasIconsChange : undefined}
                 spacing={doc.layoutSpacing}
                 onSpacingChange={isActive ? onSpacingChange : undefined}
                 showSpacingControls={adjustSpacing && isActive}

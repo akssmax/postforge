@@ -1,3 +1,5 @@
+import "server-only";
+
 import { sanitizeSvgMarkupServer } from "@/lib/social-tool/visualBlocks/sanitizeSvgServer";
 import { createVisualBlockId } from "@/lib/social-tool/visualBlocks/storage";
 import { buildDefaultUiContent, isUiReactPattern } from "@/lib/social-tool/visualBlocks/content";
@@ -30,6 +32,9 @@ import {
 import type { VisualTemplateContext } from "./templateContext";
 import { composeFeaturedSemantic } from "@/lib/social-tool/visualBlocks/engine/featuredComposer";
 import { tryGetRecipe } from "@/lib/design-config/registry";
+import {
+  isCtaButtonLibraryId,
+} from "@/lib/social-tool/visualBlocks/library/ctaButtonIds";
 
 export { VISUAL_LIBRARY, VISUAL_LIBRARY_BY_ID, isAssetPattern, isParametricPattern, type VisualLibraryPattern } from "./catalog";
 export {
@@ -201,6 +206,7 @@ export function pickShuffleFeaturedVisual(
 
   let candidates = deployableLibrary.filter((pattern) => {
     if (excluded.has(pattern.id)) return false;
+    if (isCtaButtonLibraryId(pattern.id)) return false;
     if (preferredKind === "illustration") return pattern.kind === "illustration";
     if (preferredKind === "3d") return pattern.kind === "3d";
     if (preferredKind === "ui") {
