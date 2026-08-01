@@ -4569,6 +4569,14 @@ button.canvas-platform-pill-badge-trigger:disabled {
   opacity: 0.5;
 }
 
+/* Live logo scale: transform preview (no layout thrash) while dragging. */
+.brand-logo-scale-visual {
+  display: inline-flex;
+  max-width: 100%;
+  height: var(--sp-logo-h);
+  transform: scale(var(--sp-logo-preview-scale, 1));
+}
+
 .brand-logo-inline {
   display: inline-flex;
   align-items: center;

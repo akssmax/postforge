@@ -29,7 +29,7 @@ const TYPE_SCALE_STEP = 0.01;
 
 const LOGO_SCALE_MIN = 0.5;
 const LOGO_SCALE_MAX = 3;
-const LOGO_SCALE_STEP = 0.05;
+const LOGO_SCALE_STEP = 0.01;
 
 const FEATURED_SCALE_MIN = 0.12;
 const FEATURED_SCALE_MAX = 4;

@@ -142,7 +142,7 @@ export function BrandPanel({
                 onChange={onLogoScaleChange}
                 min={0.5}
                 max={3}
-                step={0.05}
+                step={0.01}
                 format={(v) =>
                   `${v.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1")}×`
                 }

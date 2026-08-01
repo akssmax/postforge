@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { CanvasSlot } from "@/components/social-tool/CanvasSlot";
 
 type Props = {
@@ -11,6 +12,19 @@ type Props = {
   usesExplicitColors?: boolean;
   colorMode?: "light" | "dark" | "inherit";
 };
+
+/**
+ * Prefer inherited `--sp-logo-h` from the logo chrome wrapper so live scale
+ * preview can update one CSS variable without fighting React inline pixels.
+ */
+function logoSizeStyle(height: number): CSSProperties {
+  const fallback = `${height}px`;
+  return {
+    height: `var(--sp-logo-h, ${fallback})`,
+    width: "auto",
+    maxWidth: "100%",
+  };
+}
 
 export function BrandLogoSlot({
   logoSrc,
@@ -25,7 +39,10 @@ export function BrandLogoSlot({
     return (
       <CanvasSlot
         variant="logo"
-        style={{ height, minWidth: Math.round(height * 2.4) }}
+        style={{
+          ...logoSizeStyle(height),
+          minWidth: `calc(var(--sp-logo-h, ${height}px) * 2.4)`,
+        }}
       />
     );
   }
@@ -42,7 +59,7 @@ export function BrandLogoSlot({
     return (
       <div
         className={`brand-logo-inline${tintClass}${invert ? " brand-logo-invert" : ""}`}
-        style={{ height }}
+        style={logoSizeStyle(height)}
         role="img"
         aria-label="Brand logo"
         dangerouslySetInnerHTML={{ __html: svgMarkup }}
@@ -57,7 +74,7 @@ export function BrandLogoSlot({
         src={logoSrc}
         alt="Brand logo"
         className={`brand-logo-img${invert ? " brand-logo-invert" : ""}`}
-        style={{ height, width: "auto" }}
+        style={logoSizeStyle(height)}
         draggable={false}
       />
     );
@@ -66,7 +83,10 @@ export function BrandLogoSlot({
   return (
     <CanvasSlot
       variant="logo"
-      style={{ height, minWidth: Math.round(height * 2.4) }}
+      style={{
+        ...logoSizeStyle(height),
+        minWidth: `calc(var(--sp-logo-h, ${height}px) * 2.4)`,
+      }}
     />
   );
 }

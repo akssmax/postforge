@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+export type LiveSliderPreviewPhase = "preview" | "commit";
+
 type LiveSliderOptions = {
   /**
    * Called RAF-throttled while dragging (DOM paint / local UI).
+   * Also called once with phase `"commit"` on pointer-up before `onCommit`.
    * When set, React `display` state is not updated during drag unless
    * `mirrorDisplay` is true — use this to avoid re-rendering heavy trees.
    */
-  onPreview?: (value: number) => void;
+  onPreview?: (value: number, phase: LiveSliderPreviewPhase) => void;
   /** Also update `display` state during drag (default: true when no onPreview). */
   mirrorDisplay?: boolean;
 };
@@ -48,7 +51,7 @@ export function useLiveSliderValue(
         rafRef.current = null;
         if (!draggingRef.current) return;
         const next = latestRef.current;
-        onPreviewRef.current?.(next);
+        onPreviewRef.current?.(next, "preview");
         if (mirrorDisplay) setLive(next);
       });
     },
@@ -64,7 +67,7 @@ export function useLiveSliderValue(
         rafRef.current = null;
       }
       setLive(null);
-      onPreviewRef.current?.(value);
+      onPreviewRef.current?.(value, "commit");
       onCommit(value);
       onCoalesceEnd?.();
     },

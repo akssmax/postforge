@@ -385,6 +385,9 @@ export function ProductShotPost({
   const selectedFeaturedSlotIdRef = useRef(selectedFeaturedSlotId);
   selectedFeaturedSlotIdRef.current = selectedFeaturedSlotId;
 
+  const logoScaleCommittedRef = useRef(logoScale);
+  logoScaleCommittedRef.current = logoScale;
+
   const previewTypeScale = useCallback((scale: number) => {
     const root = postRootRef.current;
     if (!root) return;
@@ -406,25 +409,28 @@ export function ProductShotPost({
     }
   }, []);
 
-  const previewLogoScale = useCallback((scale: number) => {
-    const root = postRootRef.current;
-    if (!root) return;
-    const { width: w, height: h } = canvasSizeRef.current;
-    const nextH = Math.max(
-      12,
-      Math.round(34 * canvasScaleFactor(w, h) * scale),
-    );
-    root
-      .querySelectorAll<HTMLElement>(
-        "[data-canvas-select='logo'] .brand-logo-inline, [data-canvas-select='logo'] .brand-logo-img, [data-canvas-select='logo'] .canvas-slot",
-      )
-      .forEach((el) => {
-        el.style.height = `${nextH}px`;
-        if (el.classList.contains("canvas-slot")) {
-          el.style.minWidth = `${Math.round(nextH * 2.4)}px`;
-        }
+  const previewLogoScale = useCallback(
+    (scale: number, phase: "preview" | "commit" = "preview") => {
+      const root = postRootRef.current;
+      if (!root) return;
+      const visuals = root.querySelectorAll<HTMLElement>("[data-logo-scale-visual]");
+      if (phase === "commit") {
+        visuals.forEach((el) => {
+          el.style.setProperty("--sp-logo-preview-scale", "1");
+          el.style.willChange = "auto";
+        });
+        return;
+      }
+      // Transform relative to committed height — compositor-friendly, no layout thrash.
+      const base = logoScaleCommittedRef.current || 1;
+      const factor = scale / base;
+      visuals.forEach((el) => {
+        el.style.willChange = "transform";
+        el.style.setProperty("--sp-logo-preview-scale", String(factor));
       });
-  }, []);
+    },
+    [],
+  );
 
   const previewFeaturedScale = useCallback((scale: number) => {
     const root = postRootRef.current;
@@ -1026,12 +1032,20 @@ export function ProductShotPost({
     );
   }
 
+  const logoPreviewOrigin =
+    logoAlign === "center" ? "center center" : logoAlign === "right" ? "right center" : "left center";
+
   const logoEl = showLogo ? (
     <div
       className={`${logoBackdrop ? "brand-logo-backdrop inline-flex" : "inline-flex"} ${selectableClass("logo")}`}
       data-design-block="logo"
       data-canvas-select="logo"
       data-figma-name="Logo"
+      style={
+        {
+          "--sp-logo-h": `${logoH}px`,
+        } as CSSProperties
+      }
       onPointerDown={(ev) => handleCanvasSelect("logo", ev)}
     >
       {hasPropertyPills && selectionKind === "logo" ? (
@@ -1050,15 +1064,26 @@ export function ProductShotPost({
           onLogoScaleInteractionEnd={logoScaleSlider.onInteractionEnd}
         />
       ) : null}
-      <BrandLogoSlot
-        logoSrc={logoSrc}
-        svgMarkup={logoSvgMarkup}
-        hasLogo={hasUploadedLogo}
-        height={logoH}
-        invert={logoInvert}
-        usesExplicitColors={logoUsesExplicitColors}
-        colorMode={logoColorMode}
-      />
+      <div
+        className="brand-logo-scale-visual"
+        data-logo-scale-visual
+        style={
+          {
+            "--sp-logo-preview-scale": 1,
+            transformOrigin: logoPreviewOrigin,
+          } as CSSProperties
+        }
+      >
+        <BrandLogoSlot
+          logoSrc={logoSrc}
+          svgMarkup={logoSvgMarkup}
+          hasLogo={hasUploadedLogo}
+          height={logoH}
+          invert={logoInvert}
+          usesExplicitColors={logoUsesExplicitColors}
+          colorMode={logoColorMode}
+        />
+      </div>
     </div>
   ) : null;
 
