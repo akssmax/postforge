@@ -1,7 +1,10 @@
 "use client";
 
 import { memo, type ComponentProps, type ReactNode } from "react";
-import { CanvasVariantArtboard } from "@/components/social-tool/CanvasVariantArtboard";
+import {
+  CanvasVariantArtboard,
+  artboardPropsAreEqual,
+} from "@/components/social-tool/CanvasVariantArtboard";
 import type { DesignDocument } from "@/lib/design/types";
 
 type CanvasProps = ComponentProps<typeof CanvasVariantArtboard>;
@@ -48,6 +51,6 @@ export const DesignRendererArtboard = memo(function DesignRendererArtboard(
       <CanvasVariantArtboard {...props} />
     </RendererFrame>
   );
-});
+}, artboardPropsAreEqual);
 
 export type { CanvasProps as DesignRendererArtboardProps };

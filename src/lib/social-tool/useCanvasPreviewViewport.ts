@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -18,6 +19,8 @@ const MAX_ZOOM_WHEEL_DELTA = 10;
 const LINE_DELTA_PX = 16;
 /** Debounce React sync after wheel gestures settle. */
 const WHEEL_SYNC_MS = 120;
+/** Debounce React fitScale sync after stage resize (e.g. sidebar open/close). */
+const FIT_SYNC_MS = 140;
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
@@ -93,6 +96,7 @@ export function useCanvasPreviewViewport({
   const panLayerRef = useRef<HTMLDivElement>(null);
   const zoomLayerRef = useRef<HTMLDivElement>(null);
   const fitScaleRef = useRef(fitScale);
+  const liveFitRef = useRef(fitScale);
   const userZoomRef = useRef(userZoom);
   const panRef = useRef(pan);
   const handModeRef = useRef(handMode);
@@ -108,6 +112,8 @@ export function useCanvasPreviewViewport({
   } | null>(null);
   const viewportRafRef = useRef<number | null>(null);
   const wheelSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fitSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fittingRef = useRef(false);
 
   fitScaleRef.current = fitScale;
   userZoomRef.current = userZoom;
@@ -120,6 +126,10 @@ export function useCanvasPreviewViewport({
   const zoomPercent = Math.round(userZoom * 100);
   const handActive = handMode || spaceDown;
 
+  /**
+   * Apply pan/zoom to DOM. While the stage is resizing (sidebar), multiply zoom by
+   * liveFit/committedFit so artboards scale via compositor instead of React fitScale.
+   */
   const applyViewportToDom = useCallback((nextPan: CanvasPan, nextZoom: number) => {
     panRef.current = nextPan;
     userZoomRef.current = nextZoom;
@@ -129,7 +139,18 @@ export function useCanvasPreviewViewport({
       panEl.style.transform = `translate3d(${nextPan.x}px, ${nextPan.y}px, 0)`;
     }
     if (zoomEl) {
-      zoomEl.style.transform = `scale(${nextZoom})`;
+      const committedFit = fitScaleRef.current || 1;
+      const liveFit = liveFitRef.current || committedFit;
+      const fitRatio =
+        fittingRef.current && committedFit > 0 ? liveFit / committedFit : 1;
+      zoomEl.style.transform = `scale(${nextZoom * fitRatio})`;
+      // Keep chrome counter-scale in sync during live zoom/fit (no React churn).
+      const screenPreview =
+        (fittingRef.current ? liveFit : committedFit) * nextZoom;
+      zoomEl.style.setProperty(
+        "--canvas-preview-scale",
+        String(screenPreview > 0 ? screenPreview : 1),
+      );
     }
   }, []);
 
@@ -164,9 +185,18 @@ export function useCanvasPreviewViewport({
     [scheduleViewportDomApply, scheduleWheelStateSync],
   );
 
-  useEffect(() => {
+  // Sync committed pan/zoom/fit to DOM. During sidebar resize, live fit is
+  // applied separately via scheduleViewportDomApply (no React fitScale churn).
+  useLayoutEffect(() => {
+    if (
+      fittingRef.current &&
+      Math.abs(fitScale - liveFitRef.current) < 0.0005
+    ) {
+      fittingRef.current = false;
+      stageElRef.current?.removeAttribute("data-canvas-fitting");
+    }
     applyViewportToDom(pan, userZoom);
-  }, [pan, userZoom, applyViewportToDom]);
+  }, [pan, userZoom, fitScale, applyViewportToDom]);
 
   useEffect(() => {
     return () => {
@@ -174,6 +204,7 @@ export function useCanvasPreviewViewport({
         cancelAnimationFrame(viewportRafRef.current);
       }
       if (wheelSyncTimerRef.current) clearTimeout(wheelSyncTimerRef.current);
+      if (fitSyncTimerRef.current) clearTimeout(fitSyncTimerRef.current);
     };
   }, []);
 
@@ -196,23 +227,52 @@ export function useCanvasPreviewViewport({
     setUserZoom(1);
     setPan({ x: 0, y: 0 });
     focusedElRef.current = null;
+    liveFitRef.current = fitScaleRef.current;
   }, [platformWidth, platformHeight]);
 
   useEffect(() => {
     const el = stageEl;
     if (!el) return;
-    let resizePanTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const settleFit = () => {
+      fitSyncTimerRef.current = null;
+      const nextFit = liveFitRef.current;
+      // Commit React fitScale once; useLayoutEffect clears fit-ratio compensation
+      // in the same frame as artboards adopt the new size.
+      setFitScale(nextFit);
+      const focused = focusedElRef.current;
+      if (!focused?.isConnected) return;
+      requestAnimationFrame(() => {
+        centerElementInStage(focused);
+        requestAnimationFrame(() => centerElementInStage(focused));
+      });
+    };
 
     const update = () => {
       const availW = Math.max(el.clientWidth - FIT_PAD, 200);
       const availH = Math.max(el.clientHeight - FIT_PAD, 200);
       const sx = availW / platformWidth;
       const sy = availH / platformHeight;
-      setFitScale(Math.min(sx, sy, 1));
-      const focused = focusedElRef.current;
-      if (!focused?.isConnected) return;
-      if (resizePanTimer) clearTimeout(resizePanTimer);
-      resizePanTimer = setTimeout(() => centerElementInStage(focused), 50);
+      const nextFit = Math.min(sx, sy, 1);
+      liveFitRef.current = nextFit;
+
+      const committed = fitScaleRef.current;
+      const diverged = Math.abs(nextFit - committed) > 0.0005;
+
+      if (diverged) {
+        fittingRef.current = true;
+        el.setAttribute("data-canvas-fitting", "true");
+        scheduleViewportDomApply();
+        if (fitSyncTimerRef.current) clearTimeout(fitSyncTimerRef.current);
+        fitSyncTimerRef.current = setTimeout(settleFit, FIT_SYNC_MS);
+        return;
+      }
+
+      // Already matched — still settle any in-flight fitting flag.
+      if (fittingRef.current) {
+        if (fitSyncTimerRef.current) clearTimeout(fitSyncTimerRef.current);
+        fitSyncTimerRef.current = setTimeout(settleFit, FIT_SYNC_MS);
+      }
     };
 
     update();
@@ -220,9 +280,17 @@ export function useCanvasPreviewViewport({
     ro.observe(el);
     return () => {
       ro.disconnect();
-      if (resizePanTimer) clearTimeout(resizePanTimer);
+      if (fitSyncTimerRef.current) clearTimeout(fitSyncTimerRef.current);
+      fittingRef.current = false;
+      el.removeAttribute("data-canvas-fitting");
     };
-  }, [stageEl, platformWidth, platformHeight, centerElementInStage]);
+  }, [
+    stageEl,
+    platformWidth,
+    platformHeight,
+    centerElementInStage,
+    scheduleViewportDomApply,
+  ]);
 
   useEffect(() => {
     const el = stageEl;
@@ -470,12 +538,10 @@ export function useCanvasPreviewViewport({
     stagePanProps: {
       onPointerDownCapture,
     },
-    panStyle: {
-      transform: `translate3d(${pan.x}px, ${pan.y}px, 0)`,
-    } as const,
-    zoomStyle: {
-      transform: `scale(${userZoom})`,
-    } as const,
+    // Transforms are applied via refs (see applyViewportToDom) so Framer
+    // re-renders during sidebar motion don't thrash React style props.
+    panStyle: undefined,
+    zoomStyle: undefined,
   };
 }
 

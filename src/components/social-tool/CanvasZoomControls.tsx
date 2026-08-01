@@ -4,18 +4,15 @@ import type { ReactNode } from "react";
 import { Hand } from "lucide-react";
 import { Button, Tooltip } from "@heroui/react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import {
-  ASIDE_PANEL_TOGGLE_LAYOUT_ID,
-  asidePanelSpring,
-} from "@/components/social-tool/asidePanelMotion";
+import { asidePanelSpring } from "@/components/social-tool/asidePanelMotion";
 
 type Props = {
   handActive: boolean;
   handMode: boolean;
   onToggleHand: () => void;
-  /** Primary leading control (e.g. show sidebar) — shares collapse morph layout id. */
+  /** Primary leading control (e.g. show sidebar). */
   leading?: ReactNode;
-  /** Extra leading controls without shared morph (e.g. open chat). */
+  /** Extra leading controls (e.g. open chat). */
   leadingExtra?: ReactNode;
 };
 
@@ -40,15 +37,7 @@ export function CanvasZoomControls({
             exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -8 }}
             transition={reduceMotion ? { duration: 0 } : asidePanelSpring}
           >
-            {leading ? (
-              <motion.div
-                layoutId={ASIDE_PANEL_TOGGLE_LAYOUT_ID}
-                className="flex"
-                transition={reduceMotion ? { duration: 0 } : asidePanelSpring}
-              >
-                {leading}
-              </motion.div>
-            ) : null}
+            {leading ? <div className="flex">{leading}</div> : null}
             {leadingExtra ? (
               <div className="canvas-stage-chrome-leading-extra flex">{leadingExtra}</div>
             ) : null}

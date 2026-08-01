@@ -524,14 +524,17 @@ export function ProductShotPost({
           !!onReorderFeaturedSlot ||
           !!onRemoveFeaturedSlot ||
           !!onAddFeaturedSlot)));
-  const spacingHistoryCoalesce = {
-    onHistoryCoalesceBegin: onHistoryCoalesceBegin
-      ? () => onHistoryCoalesceBegin("spacing")
-      : undefined,
-    onHistoryCoalesceEnd: onHistoryCoalesceEnd
-      ? () => onHistoryCoalesceEnd("spacing")
-      : undefined,
-  };
+  const spacingHistoryCoalesce = useMemo(
+    () => ({
+      onHistoryCoalesceBegin: onHistoryCoalesceBegin
+        ? () => onHistoryCoalesceBegin("spacing")
+        : undefined,
+      onHistoryCoalesceEnd: onHistoryCoalesceEnd
+        ? () => onHistoryCoalesceEnd("spacing")
+        : undefined,
+    }),
+    [onHistoryCoalesceBegin, onHistoryCoalesceEnd],
+  );
   const shapesHistoryCoalesce = useMemo(
     () => ({
       onHistoryCoalesceBegin: onHistoryCoalesceBegin

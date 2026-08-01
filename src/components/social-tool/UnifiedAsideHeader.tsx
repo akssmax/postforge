@@ -3,11 +3,9 @@
 import { useRouter } from "next/navigation";
 import { PanelLeftClose, PenSquare } from "lucide-react";
 import { Button, Tooltip } from "@heroui/react";
-import { motion } from "framer-motion";
 import { AppNav } from "@/components/designs/AppNav";
 import { createDesignId } from "@/lib/design/ids";
 import { InspectorTextSegment } from "@/components/social-tool/InspectorControls";
-import { ASIDE_PANEL_TOGGLE_LAYOUT_ID } from "@/components/social-tool/asidePanelMotion";
 import type { AsideTab } from "@/components/social-tool/DesignInspector";
 
 type Props = {
@@ -74,33 +72,27 @@ export function UnifiedAsideHeader({
         </Tooltip>
 
         {onCollapseAside ? (
-          <motion.div
-            layoutId={ASIDE_PANEL_TOGGLE_LAYOUT_ID}
-            className="shrink-0"
-            transition={{ type: "spring", stiffness: 420, damping: 32 }}
-          >
-            <Tooltip delay={500}>
-              <Tooltip.Trigger>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  isIconOnly
-                  aria-label="Hide sidebar"
-                  className="social-tool-unified-aside-header__icon-btn size-9 shrink-0"
-                  onPress={onCollapseAside}
-                >
-                  <PanelLeftClose className="size-4" aria-hidden />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content placement="bottom" offset={8}>
-                <p className="layout-shuffle-tooltip-title">Hide sidebar</p>
-                <p className="layout-shuffle-tooltip-body">
-                  Expand the canvas to full width
-                </p>
-              </Tooltip.Content>
-            </Tooltip>
-          </motion.div>
+          <Tooltip delay={500}>
+            <Tooltip.Trigger>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                isIconOnly
+                aria-label="Hide sidebar"
+                className="social-tool-unified-aside-header__icon-btn size-9 shrink-0"
+                onPress={onCollapseAside}
+              >
+                <PanelLeftClose className="size-4" aria-hidden />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content placement="bottom" offset={8}>
+              <p className="layout-shuffle-tooltip-title">Hide sidebar</p>
+              <p className="layout-shuffle-tooltip-body">
+                Expand the canvas to full width
+              </p>
+            </Tooltip.Content>
+          </Tooltip>
         ) : null}
       </div>
     </header>

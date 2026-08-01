@@ -66,12 +66,7 @@ import {
   ASIDE_PANEL_WIDTH_PX,
   asidePanelSpring,
 } from "@/components/social-tool/asidePanelMotion";
-import {
-  AnimatePresence,
-  LayoutGroup,
-  motion,
-  useReducedMotion,
-} from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useCanvasPreviewViewport } from "@/lib/social-tool/useCanvasPreviewViewport";
 import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
 import { applyShuffleToSession } from "@/lib/social-tool/applyShuffle";
@@ -569,6 +564,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const thumbnailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const asideMotionRef = useRef<HTMLElement | null>(null);
   const [stageEl, setStageEl] = useState<HTMLElement | null>(null);
 
   const {
@@ -972,7 +968,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   const contrastFailingCount = contrastResults.filter((r) => !r.passes).length;
 
-  function handleFixVisualBalance() {
+  const handleFixVisualBalance = useCallback(() => {
     const fix = suggestVisualBalanceFix({
       backgroundCss: activeBgCss,
       accentColor: session.activeBackground.css.accentDot,
@@ -1024,7 +1020,26 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       );
       session.setColor(accentFix.role, fix.accentColor);
     }
-  }
+  }, [
+    activeBgCss,
+    session.activeBackground.css.accentDot,
+    session.featured.mode,
+    session.kit.colors,
+    session.setColor,
+    doc.copy.heading,
+    doc.showFeaturedImage,
+    featuredSvgMarkup,
+    doc.featuredTransform,
+    doc.showPattern,
+    doc.patternOpacity,
+    doc.showContent,
+    doc.layoutId,
+    doc.typeScale,
+    doc.layoutSpacing,
+    doc.featuredSlots,
+    patchDocument,
+    bgHex,
+  ]);
 
   const canFixLogoSvg = useMemo(
     () =>
@@ -1574,13 +1589,106 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     },
   });
 
-  function handleExplainContrastInChat(result: ContrastResult) {
-    setAsideTab("chat");
-    setAsideCollapsed(false);
-    setContrastPanelOpen(false);
-    setSelectedBlock(null);
-    briefChat.submitText(buildContrastIssueChatPrompt(result));
-  }
+  const handleExplainContrastInChat = useCallback(
+    (result: ContrastResult) => {
+      setAsideTab("chat");
+      setAsideCollapsed(false);
+      setContrastPanelOpen(false);
+      setSelectedBlock(null);
+      briefChat.submitText(buildContrastIssueChatPrompt(result));
+    },
+    [briefChat.submitText],
+  );
+
+  const contrastToolbarExtra = useMemo(() => {
+    if (!contrastEnabled || contrastFailingCount === 0) return null;
+    return (
+      <ContrastIssuesToggle
+        results={contrastResults}
+        open={contrastPanelOpen}
+        onOpenChange={setContrastPanelOpen}
+        selectedBlock={selectedBlock}
+        onSelectBlock={setSelectedBlock}
+        logoBackdrop={doc.logoBackdrop}
+        hasSvgLogo={canvasLogo?.record.mime === "image/svg+xml"}
+        canFixLogoSvg={canFixLogoSvg}
+        hasLogoSvgFix={hasLogoSvgFix}
+        onFixLogoBackdrop={() => patchDocument({ logoBackdrop: true })}
+        onFixLogoSvgContrast={() =>
+          session.fixLogoSvgContrast(activeBgCss, doc.logoBackdrop)
+        }
+        onRestoreLogoSvg={() => session.restoreLogoSvg()}
+        onFixBackground={() => {
+          session.setBackgroundPreset(suggestHighContrastBackgroundId());
+          patchDocument({ logoBackdrop: false });
+        }}
+        onFixTextContrast={() => {
+          session.setBackgroundPreset(suggestHighContrastBackgroundId());
+          patchDocument({ textContrastBoost: true });
+        }}
+        onFixAccentContrast={() => {
+          const fix = buildAccentContrastFix(
+            bgHex,
+            session.activeBackground.css.accentDot,
+            session.kit.colors,
+          );
+          session.setColor(fix.role, fix.hex);
+        }}
+        onFixPatternOpacity={() => {
+          patchDocument({
+            patternOpacity: Math.min(doc.patternOpacity, 0.16),
+          });
+        }}
+        onFixFeaturedVisual={() => {
+          session.setBackgroundPreset(suggestHighContrastBackgroundId());
+          const nextScale = Math.max(
+            0.72,
+            doc.featuredTransform.scale * 0.88,
+          );
+          patchDocument({
+            logoBackdrop: false,
+            featuredTransform: {
+              ...doc.featuredTransform,
+              scale: nextScale,
+            },
+            featuredSlots: doc.featuredSlots?.map((slot) => ({
+              ...slot,
+              transform: {
+                ...(slot.transform ?? doc.featuredTransform),
+                scale: nextScale,
+              },
+            })),
+          });
+        }}
+        onFixVisualBalance={handleFixVisualBalance}
+        onExplainInChat={handleExplainContrastInChat}
+      />
+    );
+  }, [
+    contrastEnabled,
+    contrastFailingCount,
+    contrastResults,
+    contrastPanelOpen,
+    selectedBlock,
+    doc.logoBackdrop,
+    doc.patternOpacity,
+    doc.featuredTransform,
+    doc.featuredSlots,
+    canvasLogo?.record.mime,
+    canFixLogoSvg,
+    hasLogoSvgFix,
+    patchDocument,
+    session.fixLogoSvgContrast,
+    session.restoreLogoSvg,
+    session.setBackgroundPreset,
+    session.setColor,
+    session.activeBackground.css.accentDot,
+    session.kit.colors,
+    activeBgCss,
+    bgHex,
+    handleFixVisualBalance,
+    handleExplainContrastInChat,
+  ]);
 
   const handleFeaturedTransformChange = useCallback(
     (value: FeaturedImageTransform, slotId?: string) => {
@@ -1653,28 +1761,27 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   return (
     <div ref={toolThemeRef} className="social-tool flex min-h-0 flex-1 flex-col">
-      <LayoutGroup id="design-aside-panel">
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-        <AnimatePresence initial={false} mode="sync">
-        {!asideCollapsed ? (
         <motion.aside
+          ref={asideMotionRef}
           key="design-aside"
-          initial={
-            reduceMotion
-              ? false
-              : { opacity: 0, x: -36, width: 0 }
-          }
-          animate={{
-            opacity: 1,
-            x: 0,
-            width: ASIDE_PANEL_WIDTH_PX,
-          }}
-          exit={
-            reduceMotion
-              ? { opacity: 0, width: 0 }
-              : { opacity: 0, x: -28, width: 0 }
+          initial={false}
+          animate={
+            asideCollapsed
+              ? reduceMotion
+                ? { opacity: 0, width: 0, x: 0 }
+                : { opacity: 0, width: 0, x: -28 }
+              : { opacity: 1, width: ASIDE_PANEL_WIDTH_PX, x: 0 }
           }
           transition={asideTransition}
+          aria-hidden={asideCollapsed}
+          inert={asideCollapsed ? true : undefined}
+          onAnimationStart={() => {
+            asideMotionRef.current?.setAttribute("data-aside-animating", "true");
+          }}
+          onAnimationComplete={() => {
+            asideMotionRef.current?.removeAttribute("data-aside-animating");
+          }}
           className={`social-tool-aside social-tool-aside--motion flex min-h-0 shrink-0 flex-col overflow-hidden border-b border-leap-line lg:h-full lg:border-r lg:border-b-0${
             isNeedsBrief || isReady ? " social-tool-aside--brief" : ""
           }`}
@@ -1854,8 +1961,6 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
           />
           </div>
         </motion.aside>
-        ) : null}
-        </AnimatePresence>
 
         <div
           ref={setStageEl}
@@ -2191,85 +2296,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         (liveBoard.document.showContent || isNeedsBrief) &&
                         showCanvasBlocks
                       }
-                      toolbarEndExtra={
-                        isActive &&
-                        contrastEnabled &&
-                        contrastFailingCount > 0 ? (
-                          <ContrastIssuesToggle
-                            results={contrastResults}
-                            open={contrastPanelOpen}
-                            onOpenChange={setContrastPanelOpen}
-                            selectedBlock={selectedBlock}
-                            onSelectBlock={setSelectedBlock}
-                            logoBackdrop={doc.logoBackdrop}
-                            hasSvgLogo={
-                              canvasLogo?.record.mime === "image/svg+xml"
-                            }
-                            canFixLogoSvg={canFixLogoSvg}
-                            hasLogoSvgFix={hasLogoSvgFix}
-                            onFixLogoBackdrop={() =>
-                              patchDocument({ logoBackdrop: true })
-                            }
-                            onFixLogoSvgContrast={() =>
-                              session.fixLogoSvgContrast(
-                                activeBgCss,
-                                doc.logoBackdrop,
-                              )
-                            }
-                            onRestoreLogoSvg={() => session.restoreLogoSvg()}
-                            onFixBackground={() => {
-                              session.setBackgroundPreset(
-                                suggestHighContrastBackgroundId(),
-                              );
-                              patchDocument({ logoBackdrop: false });
-                            }}
-                            onFixTextContrast={() => {
-                              session.setBackgroundPreset(
-                                suggestHighContrastBackgroundId(),
-                              );
-                              patchDocument({ textContrastBoost: true });
-                            }}
-                            onFixAccentContrast={() => {
-                              const fix = buildAccentContrastFix(
-                                bgHex,
-                                session.activeBackground.css.accentDot,
-                                session.kit.colors,
-                              );
-                              session.setColor(fix.role, fix.hex);
-                            }}
-                            onFixPatternOpacity={() => {
-                              patchDocument({
-                                patternOpacity: Math.min(doc.patternOpacity, 0.16),
-                              });
-                            }}
-                            onFixFeaturedVisual={() => {
-                              session.setBackgroundPreset(
-                                suggestHighContrastBackgroundId(),
-                              );
-                              const nextScale = Math.max(
-                                0.72,
-                                doc.featuredTransform.scale * 0.88,
-                              );
-                              patchDocument({
-                                logoBackdrop: false,
-                                featuredTransform: {
-                                  ...doc.featuredTransform,
-                                  scale: nextScale,
-                                },
-                                featuredSlots: doc.featuredSlots?.map((slot) => ({
-                                  ...slot,
-                                  transform: {
-                                    ...(slot.transform ?? doc.featuredTransform),
-                                    scale: nextScale,
-                                  },
-                                })),
-                              });
-                            }}
-                            onFixVisualBalance={handleFixVisualBalance}
-                            onExplainInChat={handleExplainContrastInChat}
-                          />
-                        ) : null
-                      }
+                      toolbarEndExtra={isActive ? contrastToolbarExtra : null}
                     />
                   );
                 })}
@@ -2308,7 +2335,6 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
           </div>
         </div>
       </div>
-      </LayoutGroup>
 
       <Modal state={deleteBoardModal}>
         <Modal.Backdrop>

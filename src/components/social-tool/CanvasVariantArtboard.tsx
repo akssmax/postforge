@@ -40,6 +40,12 @@ import {
 } from "@/lib/social-tool/canvasSelection";
 import type { PostLayoutSpacing } from "@/lib/social-tool/layoutSpacing";
 import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
+import type { CanvasIconRecord } from "@/lib/social-tool/icons/types";
+import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
+
+const EMPTY_SHAPES: CanvasShapeRecord[] = [];
+const EMPTY_ICONS: CanvasIconRecord[] = [];
+const EMPTY_VISUAL_BLOCKS: VisualBlockRecord[] = [];
 
 type Props = {
   board: DesignSessionPersisted;
@@ -220,10 +226,20 @@ function CanvasVariantArtboardInner({
   const template = getTemplate(doc.templateId);
   const activeLayout = getPostLayout(layoutIdForDocument(doc));
   const resolvedLayout = useMemo(() => resolveDocumentLayout(doc), [doc]);
+  const visualBlocks = board.featured.visualBlocks ?? EMPTY_VISUAL_BLOCKS;
   const activeComposedBlock = activeVisualBlock(
-    board.featured.visualBlocks ?? [],
+    visualBlocks,
     board.featured.activeBlockId,
   );
+  const brandColors = useMemo(
+    () => ({
+      primary: board.brand.colors.primary,
+      accent: board.brand.colors.accent,
+    }),
+    [board.brand.colors.primary, board.brand.colors.accent],
+  );
+  const canvasShapes = doc.canvasShapes ?? EMPTY_SHAPES;
+  const canvasIcons = doc.canvasIcons ?? EMPTY_ICONS;
 
   const bgCss = activeBackground.css;
   const bgHex = resolveBackgroundHex(bgCss.background);
@@ -525,11 +541,8 @@ function CanvasVariantArtboardInner({
                     ? activeComposedBlock ?? null
                     : null
                 }
-                brandColors={{
-                  primary: board.brand.colors.primary,
-                  accent: board.brand.colors.accent,
-                }}
-                visualBlocks={board.featured.visualBlocks ?? []}
+                brandColors={brandColors}
+                visualBlocks={visualBlocks}
                 activeVisualBlockId={board.featured.activeBlockId}
                 generatingVisualBlocks={generatingVisualBlocks && isActive}
                 onGenerateVisualBlocks={
@@ -613,9 +626,9 @@ function CanvasVariantArtboardInner({
                 dynamicLayout={resolvedLayout}
                 textSlots={doc.textSlots}
                 featuredSlots={doc.featuredSlots}
-                canvasShapes={doc.canvasShapes ?? []}
+                canvasShapes={canvasShapes}
                 onCanvasShapesChange={isActive ? onCanvasShapesChange : undefined}
-                canvasIcons={doc.canvasIcons ?? []}
+                canvasIcons={canvasIcons}
                 onCanvasIconsChange={isActive ? onCanvasIconsChange : undefined}
                 spacing={doc.layoutSpacing}
                 onSpacingChange={isActive ? onSpacingChange : undefined}
@@ -632,19 +645,18 @@ function CanvasVariantArtboardInner({
   );
 }
 
-/** Skip re-renders for inactive artboards when only sibling/workspace chrome changed. */
-function artboardPropsAreEqual(prev: Props, next: Props): boolean {
+/**
+ * Skip re-renders when only sibling/workspace chrome changed.
+ * Inactive boards ignore interaction chrome (hand, pills, spacing, zoom preview)
+ * — those only affect the active artboard.
+ */
+export function artboardPropsAreEqual(prev: Props, next: Props): boolean {
   if (prev.isActive !== next.isActive) return false;
   if (prev.board.designId !== next.board.designId) return false;
   if (prev.index !== next.index) return false;
   if (prev.isOrigin !== next.isOrigin) return false;
-  if (prev.previewScale !== next.previewScale) return false;
   if (prev.layoutScale !== next.layoutScale) return false;
   if (prev.exporting !== next.exporting) return false;
-  if (prev.handActive !== next.handActive) return false;
-  if (prev.interactive !== next.interactive) return false;
-  if (prev.adjustSpacing !== next.adjustSpacing) return false;
-  if (prev.showPropertyPills !== next.showPropertyPills) return false;
   if (prev.shufflePending !== next.shufflePending) return false;
   if (prev.generatingVariants !== next.generatingVariants) return false;
   if (prev.canGenerate !== next.canGenerate) return false;
@@ -657,6 +669,12 @@ function artboardPropsAreEqual(prev: Props, next: Props): boolean {
   if (prev.originDesignId !== next.originDesignId) return false;
 
   if (next.isActive) {
+    // Active board needs zoom preview for pills/handles counter-scale + drag math.
+    if (prev.previewScale !== next.previewScale) return false;
+    if (prev.handActive !== next.handActive) return false;
+    if (prev.interactive !== next.interactive) return false;
+    if (prev.adjustSpacing !== next.adjustSpacing) return false;
+    if (prev.showPropertyPills !== next.showPropertyPills) return false;
     if (prev.board !== next.board) return false;
     if (prev.canvasSelection !== next.canvasSelection) return false;
     if (prev.editingCopyField !== next.editingCopyField) return false;

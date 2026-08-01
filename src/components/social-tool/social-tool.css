@@ -1213,7 +1213,9 @@
 
 .social-tool-canvas-stage[data-canvas-panning="true"] .canvas-pan-layer,
 .social-tool-canvas-stage[data-canvas-wheeling="true"] .canvas-pan-layer,
-.social-tool-canvas-stage[data-canvas-wheeling="true"] .canvas-zoom-layer {
+.social-tool-canvas-stage[data-canvas-wheeling="true"] .canvas-zoom-layer,
+.social-tool-canvas-stage[data-canvas-fitting="true"] .canvas-pan-layer,
+.social-tool-canvas-stage[data-canvas-fitting="true"] .canvas-zoom-layer {
   transition: none;
   will-change: transform;
 }
@@ -2441,12 +2443,22 @@ html:has(.social-tool) body {
 }
 
 .social-tool-aside--motion {
+  /* will-change applied only while animating via data-aside-animating */
+  min-width: 0;
+}
+
+.social-tool-aside--motion[data-aside-animating="true"] {
   will-change: width, opacity, transform;
 }
 
 .social-tool-aside--motion .social-tool-aside__inner {
   width: 360px;
   max-width: 100%;
+}
+
+.social-tool-aside--motion[aria-hidden="true"] {
+  border-color: transparent;
+  pointer-events: none;
 }
 
 .social-tool-aside-unified {
