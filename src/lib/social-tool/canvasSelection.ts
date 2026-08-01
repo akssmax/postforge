@@ -3,6 +3,7 @@ import { copySlotIdFromSelectionId } from "@/lib/social-tool/copyEdit";
 
 /** Inspector target when an element is selected on the canvas */
 export type CanvasSelectionId =
+  | "artboard"
   | "copy"
   | "logo"
   | "featured"
@@ -15,6 +16,7 @@ export type CanvasSelectionId =
   | `icon:${string}`;
 
 export const CANVAS_SELECTION_LABELS: Record<string, string> = {
+  artboard: "Artboard",
   copy: "Content",
   logo: "Brand",
   featured: "Featured image",
@@ -25,8 +27,9 @@ export const CANVAS_SELECTION_LABELS: Record<string, string> = {
 
 export function canvasSelectionKind(
   id: CanvasSelectionId | null,
-): "copy" | "logo" | "featured" | "pattern" | "shape" | "icon" | null {
+): "artboard" | "copy" | "logo" | "featured" | "pattern" | "shape" | "icon" | null {
   if (!id) return null;
+  if (id === "artboard") return "artboard";
   if (id === "copy" || id.startsWith("copy:")) return "copy";
   if (id === "featured" || id.startsWith("featured:")) return "featured";
   if (id === "shape" || id.startsWith("shape:")) return "shape";
@@ -51,6 +54,7 @@ export function isCanvasSelectableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return Boolean(
     target.closest("[data-canvas-select]") ||
+      target.closest(".social-post") ||
       target.closest(".canvas-preview-toolbar") ||
       target.closest(".canvas-stage-chrome") ||
       target.closest(".canvas-bottom-chrome") ||

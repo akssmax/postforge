@@ -21,7 +21,7 @@ import {
   PatternLibraryPicker,
 } from "@/components/social-tool/PatternLibraryPicker";
 import {
-  InspectorSlider,
+  InspectorLiveSlider,
 } from "@/components/social-tool/InspectorControls";
 import { UnifiedAsideHeader } from "@/components/social-tool/UnifiedAsideHeader";
 import { getMonogramOnlyMarkup } from "@/lib/brand/logoVariants";
@@ -117,6 +117,7 @@ type Props = {
   copy: PostCopy;
   editableTextSlots?: EditableTextSlot[];
   onUpdateTextSlot?: (slotId: string, text: string) => void;
+  onClearTextSlot?: (slotId: string) => void;
   onUpdateField: <K extends keyof PostCopy>(key: K, value: PostCopy[K]) => void;
   onAddExtraField?: () => void;
   onRemoveExtraField?: (id: string) => void;
@@ -149,6 +150,8 @@ type Props = {
   onShowFeaturedImageChange: (value: boolean) => void;
   featuredTransform: FeaturedImageTransform;
   onFeaturedTransformChange: (value: FeaturedImageTransform) => void;
+  onHistoryCoalesceBegin?: (key: string) => void;
+  onHistoryCoalesceEnd?: (key?: string) => void;
   pattern: PatternRef;
   onPatternChange: (value: PatternRef) => void;
   patternTint?: string;
@@ -205,6 +208,8 @@ function PatternSection({
   patternAnimated,
   onPatternAnimatedChange,
   brand,
+  onHistoryCoalesceBegin,
+  onHistoryCoalesceEnd,
 }: Pick<
   Props,
   | "pattern"
@@ -220,6 +225,8 @@ function PatternSection({
   | "patternAnimated"
   | "onPatternAnimatedChange"
   | "brand"
+  | "onHistoryCoalesceBegin"
+  | "onHistoryCoalesceEnd"
 >) {
   return (
     <section className="social-tool-section space-y-3">
@@ -250,7 +257,7 @@ function PatternSection({
           />
           {!isPatternNone(pattern) ? (
             <>
-              <InspectorSlider
+              <InspectorLiveSlider
                 label="Opacity"
                 value={patternOpacity}
                 onChange={onPatternOpacityChange}
@@ -258,8 +265,18 @@ function PatternSection({
                 max={1}
                 step={0.01}
                 format={(v) => `${Math.round(v * 100)}%`}
+                onCoalesceBegin={
+                  onHistoryCoalesceBegin
+                    ? () => onHistoryCoalesceBegin("pattern")
+                    : undefined
+                }
+                onCoalesceEnd={
+                  onHistoryCoalesceEnd
+                    ? () => onHistoryCoalesceEnd("pattern")
+                    : undefined
+                }
               />
-              <InspectorSlider
+              <InspectorLiveSlider
                 label="Scale"
                 value={patternScale}
                 onChange={onPatternScaleChange}
@@ -268,6 +285,16 @@ function PatternSection({
                 step={0.05}
                 format={(v) =>
                   `${v.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1")}×`
+                }
+                onCoalesceBegin={
+                  onHistoryCoalesceBegin
+                    ? () => onHistoryCoalesceBegin("pattern")
+                    : undefined
+                }
+                onCoalesceEnd={
+                  onHistoryCoalesceEnd
+                    ? () => onHistoryCoalesceEnd("pattern")
+                    : undefined
                 }
               />
               <div className="social-tool-row">
@@ -312,6 +339,25 @@ function resolveUpdateTextSlot(props: Props): (slotId: string, text: string) => 
   };
 }
 
+function resolveClearTextSlot(props: Props): (slotId: string) => void {
+  if (props.onClearTextSlot) return props.onClearTextSlot;
+  return (slotId) => {
+    if (slotId === "headline") {
+      props.onUpdateField("heading", "");
+      return;
+    }
+    if (slotId === "subheading") {
+      props.onUpdateField("subheading", "");
+      return;
+    }
+    if (props.onRemoveExtraField) {
+      props.onRemoveExtraField(slotId);
+      return;
+    }
+    props.onUpdateExtraField?.(slotId, "");
+  };
+}
+
 function SharedContentPanel(props: Props) {
   return (
     <ContentPanel
@@ -319,6 +365,7 @@ function SharedContentPanel(props: Props) {
       onShowContentChange={props.onShowContentChange}
       editableSlots={resolveEditableSlots(props)}
       onUpdateTextSlot={resolveUpdateTextSlot(props)}
+      onClearTextSlot={resolveClearTextSlot(props)}
       textAlign={props.textAlign}
       onTextAlignChange={props.onTextAlignChange}
       headingFont={props.headingFont}
@@ -327,6 +374,8 @@ function SharedContentPanel(props: Props) {
       onSubFontChange={props.onSubFontChange}
       typeScale={props.typeScale}
       onTypeScaleChange={props.onTypeScaleChange}
+      onHistoryCoalesceBegin={props.onHistoryCoalesceBegin}
+      onHistoryCoalesceEnd={props.onHistoryCoalesceEnd}
       copyVariantIndex={props.copyVariantIndex}
       copyVariantCount={props.copyVariantCount}
       onCycleCopyVariant={props.onCycleCopyVariant}
@@ -440,6 +489,8 @@ function BrandInspectorSection(
     | "onLogoPlacementChange"
     | "logoAlign"
     | "onLogoAlignChange"
+    | "onHistoryCoalesceBegin"
+    | "onHistoryCoalesceEnd"
   > & {
     defaultExpanded?: boolean;
   },
@@ -451,6 +502,8 @@ function BrandInspectorSection(
       onShowBrandChange={props.onShowBrandChange}
       logoScale={props.logoScale}
       onLogoScaleChange={props.onLogoScaleChange}
+      onHistoryCoalesceBegin={props.onHistoryCoalesceBegin}
+      onHistoryCoalesceEnd={props.onHistoryCoalesceEnd}
       logoPlacement={props.logoPlacement}
       onLogoPlacementChange={props.onLogoPlacementChange}
       logoAlign={props.logoAlign}
@@ -465,6 +518,11 @@ function ReadyDesignPanels(props: Props) {
 
   if (inspectorSelection === null) {
     return <CanvasInspectorEmptyState />;
+  }
+
+  // Artboard / empty-canvas click → background + pattern (not the empty hint).
+  if (inspectorSelection === "artboard") {
+    return <FixedCanvasPanels {...props} />;
   }
 
   if (inspectorSelection === "pattern") {
@@ -530,6 +588,8 @@ function ReadyDesignPanels(props: Props) {
           stockAttribution={featured.stockAttribution}
           featuredTransform={props.featuredTransform}
           onFeaturedTransformChange={props.onFeaturedTransformChange}
+          onHistoryCoalesceBegin={props.onHistoryCoalesceBegin}
+          onHistoryCoalesceEnd={props.onHistoryCoalesceEnd}
         />
         <FixedCanvasPanels {...props} compact />
       </>
@@ -547,6 +607,16 @@ function ReadyDesignPanels(props: Props) {
             brandAccent={featured.brandColors?.accent}
             onChange={(next) => props.onUpdateCanvasShape!(shape.id, next)}
             onRemove={() => props.onRemoveCanvasShape!(shape.id)}
+            onHistoryCoalesceBegin={
+              props.onHistoryCoalesceBegin
+                ? () => props.onHistoryCoalesceBegin!("shapes")
+                : undefined
+            }
+            onHistoryCoalesceEnd={
+              props.onHistoryCoalesceEnd
+                ? () => props.onHistoryCoalesceEnd!("shapes")
+                : undefined
+            }
           />
         ) : null}
         {props.onAddCanvasShape ? (
@@ -576,6 +646,16 @@ function ReadyDesignPanels(props: Props) {
             brandAccent={featured.brandColors?.accent}
             onChange={(next) => props.onUpdateCanvasIcon!(icon.id, next)}
             onRemove={() => props.onRemoveCanvasIcon!(icon.id)}
+            onHistoryCoalesceBegin={
+              props.onHistoryCoalesceBegin
+                ? () => props.onHistoryCoalesceBegin!("icons")
+                : undefined
+            }
+            onHistoryCoalesceEnd={
+              props.onHistoryCoalesceEnd
+                ? () => props.onHistoryCoalesceEnd!("icons")
+                : undefined
+            }
           />
         ) : null}
         {props.onAddCanvasIcon ? (

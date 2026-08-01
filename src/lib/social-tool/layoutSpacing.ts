@@ -143,20 +143,22 @@ export function socialPostCopyFontSizes(
 
 export type SocialPostCopyFieldRole = "headline" | "subheading" | "extra";
 
-/** Full inline typography for canvas copy fields (matches sheet + survives preview transform). */
+/**
+ * Non-size typography for canvas copy fields.
+ * Font size comes from `--sp-fs-*` on `.social-post` so live scale preview
+ * can update CSS vars without fighting React inline styles.
+ */
 export function socialPostCopyFieldStyle(
-  canvasWidth: number,
-  canvasHeight: number,
-  typeScale: number,
+  _canvasWidth: number,
+  _canvasHeight: number,
+  _typeScale: number,
   role: SocialPostCopyFieldRole,
   fonts: { heading: string; sub: string },
   options?: { headlineProfile?: "default" | "display" | "poster" },
 ): Record<string, string | number> {
-  const sizes = socialPostCopyFontSizes(canvasWidth, canvasHeight, typeScale);
   if (role === "headline") {
     const profile = options?.headlineProfile ?? "default";
     return {
-      fontSize: sizes.display,
       fontFamily: fonts.heading,
       fontWeight: 700,
       letterSpacing: profile === "poster" ? "-0.05em" : profile === "display" ? "-0.045em" : "-0.04em",
@@ -165,7 +167,6 @@ export function socialPostCopyFieldStyle(
   }
   if (role === "subheading") {
     return {
-      fontSize: sizes.sub,
       fontFamily: fonts.sub,
       fontWeight: 400,
       letterSpacing: "-0.01em",
@@ -173,7 +174,6 @@ export function socialPostCopyFieldStyle(
     };
   }
   return {
-    fontSize: sizes.extra,
     fontFamily: fonts.sub,
     fontWeight: 400,
     lineHeight: 1.45,

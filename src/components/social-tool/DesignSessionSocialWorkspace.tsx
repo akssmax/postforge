@@ -29,7 +29,10 @@ import {
   getPlatform,
   type PlatformId,
   type PostCopy,
+  type TextAlign,
 } from "@/lib/social-tool/presets";
+import type { PostLayoutSpacing } from "@/lib/social-tool/layoutSpacing";
+import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
 import { adaptSessionToPlatform } from "@/lib/social-tool/adaptPlatformChange";
 import type { ExportFormat } from "@/lib/social-tool/exportPost";
 import { resolveDesignCanvasSize } from "@/lib/design-engine/canvasSpec";
@@ -200,10 +203,74 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   const reduceMotion = useReducedMotion();
   const asideTransition = reduceMotion ? { duration: 0 } : asidePanelSpring;
 
+  /** Pointer-drag coalesce keys: mirror in memory only; flush IDB on coalesce end. */
+  const POINTER_COALESCE_KEYS = useMemo(
+    () =>
+      new Set([
+        "featuredTransform",
+        "spacing",
+        "shapes",
+        "icons",
+        "typeScale",
+        "logoScale",
+        "pattern",
+      ]),
+    [],
+  );
+  const copyPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushActiveBoardPersist = useCallback(() => {
+    if (copyPersistTimerRef.current) {
+      clearTimeout(copyPersistTimerRef.current);
+      copyPersistTimerRef.current = null;
+    }
+    if (session.session) {
+      variantGroup.syncBoard(session.session);
+    }
+  }, [session.session, variantGroup]);
+
+  const beginHistoryCoalesce = useCallback(
+    (key: string) => {
+      session.beginHistoryCoalesce(key);
+    },
+    [session.beginHistoryCoalesce],
+  );
+
+  const endHistoryCoalesce = useCallback(
+    (key?: string) => {
+      session.endHistoryCoalesce(key);
+      flushActiveBoardPersist();
+    },
+    [session.endHistoryCoalesce, flushActiveBoardPersist],
+  );
+
   useEffect(() => {
-    if (session.session) variantGroup.syncBoard(session.session);
+    if (!session.session) return;
+    const coalesceKey = session.getActiveCoalesceKey();
+    if (coalesceKey && POINTER_COALESCE_KEYS.has(coalesceKey)) {
+      // Avoid structuredClone + IDB on every pointermove during drag.
+      variantGroup.mirrorBoard(session.session);
+      return;
+    }
+    if (coalesceKey === "copy") {
+      variantGroup.mirrorBoard(session.session);
+      if (copyPersistTimerRef.current) clearTimeout(copyPersistTimerRef.current);
+      copyPersistTimerRef.current = setTimeout(() => {
+        if (session.session) variantGroup.syncBoard(session.session);
+        copyPersistTimerRef.current = null;
+      }, 500);
+      return;
+    }
+    variantGroup.syncBoard(session.session);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync live active session into board list
   }, [session.session]);
+
+  useEffect(
+    () => () => {
+      if (copyPersistTimerRef.current) clearTimeout(copyPersistTimerRef.current);
+    },
+    [],
+  );
 
   const toolThemeRef = useBrandToolTheme({
     colors: session.kit.colors,
@@ -483,7 +550,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
 
   function clearInspectorSelection() {
     if (editingCopyField) {
-      session.endHistoryCoalesce("copy");
+      endHistoryCoalesce("copy");
       setEditingCopyField(null);
     }
     setCanvasSelection(null);
@@ -1274,7 +1341,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     field: import("@/lib/social-tool/copyEdit").EditingCopyField,
   ) {
     copyEditBaselineRef.current = readCopyFieldValue(field);
-    session.beginHistoryCoalesce("copy");
+    beginHistoryCoalesce("copy");
     setAsideCollapsed(false);
     setAsideTab("design");
     setEditingCopyField(field);
@@ -1296,7 +1363,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
   }
 
   function handleCopyFieldCommit() {
-    session.endHistoryCoalesce("copy");
+    endHistoryCoalesce("copy");
     setEditingCopyField(null);
   }
 
@@ -1308,31 +1375,37 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       else if (field.kind === "subheading") updateField("subheading", baseline);
       else updateExtraField(field.id, baseline);
     }
-    session.endHistoryCoalesce("copy");
+    endHistoryCoalesce("copy");
     setEditingCopyField(null);
   }
 
-  function handleDeleteSelectedCopyField() {
-    const slotId = copySlotIdFromSelection(canvasSelection);
-    if (!slotId) return;
-
+  function clearTextSlot(slotId: string) {
     if (slotId === "headline") {
       updateField("heading", "");
-      setCanvasSelection(null);
       return;
     }
     if (slotId === "subheading") {
       updateField("subheading", "");
-      setCanvasSelection(null);
       return;
     }
 
-    const isLayoutSlot = doc.textSlots?.some((slot) => slot.slotId === slotId);
+    const layout = resolveLayoutRef(
+      doc.layoutRef ?? catalogLayoutRef(doc.layoutId),
+    );
+    const isLayoutSlot = layout.slots.some(
+      (slot) => slot.kind === "text" && slot.id === slotId,
+    );
     if (isLayoutSlot) {
       updateTextSlot(slotId, "");
     } else {
       removeExtraField(slotId);
     }
+  }
+
+  function handleDeleteSelectedCopyField() {
+    const slotId = copySlotIdFromSelection(canvasSelection);
+    if (!slotId) return;
+    clearTextSlot(slotId);
     setCanvasSelection(null);
   }
 
@@ -1509,21 +1582,50 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     briefChat.submitText(buildContrastIssueChatPrompt(result));
   }
 
-  function handleFeaturedTransformChange(
-    value: FeaturedImageTransform,
-    slotId?: string,
-  ) {
-    const targetSlotId =
-      slotId ??
-      featuredSlotIdFromSelection(inspectorSelection) ??
-      FEATURED_PRIMARY_SLOT_ID;
-    patchDocument({
-      featuredTransform: value,
-      featuredSlots: patchFeaturedSlot(doc.featuredSlots, targetSlotId, {
-        transform: value,
-      }),
-    });
-  }
+  const handleFeaturedTransformChange = useCallback(
+    (value: FeaturedImageTransform, slotId?: string) => {
+      const targetSlotId =
+        slotId ??
+        featuredSlotIdFromSelection(inspectorSelection) ??
+        FEATURED_PRIMARY_SLOT_ID;
+      patchDocument({
+        featuredTransform: value,
+        featuredSlots: patchFeaturedSlot(doc.featuredSlots, targetSlotId, {
+          transform: value,
+        }),
+      });
+    },
+    [doc.featuredSlots, inspectorSelection, patchDocument],
+  );
+
+  const handleTypeScaleChange = useCallback(
+    (v: number) => patchDocument({ typeScale: v }),
+    [patchDocument],
+  );
+  const handleLogoScaleChange = useCallback(
+    (v: number) => patchDocument({ logoScale: v }),
+    [patchDocument],
+  );
+  const handleTextAlignChange = useCallback(
+    (v: TextAlign) => patchDocument({ textAlign: v }),
+    [patchDocument],
+  );
+  const handleSpacingChange = useCallback(
+    (v: PostLayoutSpacing) => patchDocument({ layoutSpacing: v }),
+    [patchDocument],
+  );
+  const handleCanvasShapesChange = useCallback(
+    (shapes: CanvasShapeRecord[]) => session.setCanvasShapes(shapes),
+    [session.setCanvasShapes],
+  );
+  const handleCanvasIconsChange = useCallback(
+    (icons: import("@/lib/social-tool/icons/types").CanvasIconRecord[]) =>
+      session.setCanvasIcons(icons),
+    [session.setCanvasIcons],
+  );
+  const handleToggleSpacing = useCallback(() => {
+    setAdjustSpacing((on) => !on);
+  }, []);
 
   const selectedFeaturedSlotId =
     featuredSlotIdFromSelection(inspectorSelection) ?? FEATURED_PRIMARY_SLOT_ID;
@@ -1592,6 +1694,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             copy={doc.copy}
             editableTextSlots={editableTextSlots}
             onUpdateTextSlot={updateTextSlot}
+            onClearTextSlot={clearTextSlot}
             onUpdateField={updateField}
             artifactId={doc.artifactId}
             artifactCategory={doc.artifactCategory}
@@ -1631,6 +1734,8 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             onShowFeaturedImageChange={(v) => patchDocument({ showFeaturedImage: v })}
             featuredTransform={selectedSlotTransform}
             onFeaturedTransformChange={handleFeaturedTransformChange}
+            onHistoryCoalesceBegin={beginHistoryCoalesce}
+            onHistoryCoalesceEnd={endHistoryCoalesce}
             pattern={doc.pattern}
             onPatternChange={(v) => patchDocument({ pattern: v })}
             patternTint={session.activeBackground.css.patternTint}
@@ -1963,7 +2068,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       previewScale={previewScale}
                       layoutScale={fitScale}
                       adjustSpacing={adjustSpacing}
-                      onToggleSpacing={() => setAdjustSpacing((on) => !on)}
+                      onToggleSpacing={handleToggleSpacing}
                       onActivate={() => handleActivateBoard(board.designId)}
                       artboardName={
                         variantGroup.group.boardNames?.[board.designId]
@@ -2012,9 +2117,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       exporting={exportTargetIds.has(board.designId)}
                       canvasSelection={inspectorSelection}
                       onCanvasSelect={handleCanvasSelect}
-                      onTypeScaleChange={(v) => patchDocument({ typeScale: v })}
-                      onLogoScaleChange={(v) => patchDocument({ logoScale: v })}
-                      onTextAlignChange={(v) => patchDocument({ textAlign: v })}
+                      onTypeScaleChange={handleTypeScaleChange}
+                      onLogoScaleChange={handleLogoScaleChange}
+                      onTextAlignChange={handleTextAlignChange}
                       copyVariantIndex={doc.copyVariantIndex ?? 0}
                       copyVariantCount={
                         doc.copyVariants && doc.copyVariants.length > 0
@@ -2030,22 +2135,16 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                         !asideCollapsed && asideTab === "design"
                       }
                       onFeaturedTransformChange={handleFeaturedTransformChange}
-                      onHistoryCoalesceBegin={session.beginHistoryCoalesce}
-                      onHistoryCoalesceEnd={session.endHistoryCoalesce}
+                      onHistoryCoalesceBegin={beginHistoryCoalesce}
+                      onHistoryCoalesceEnd={endHistoryCoalesce}
                       editingCopyField={editingCopyField}
                       onCopyFieldEditStart={handleCopyFieldEditStart}
                       onCopyFieldChange={handleCopyFieldChange}
                       onCopyFieldCommit={handleCopyFieldCommit}
                       onCopyFieldCancel={handleCopyFieldCancel}
-                      onSpacingChange={(v) =>
-                        patchDocument({ layoutSpacing: v })
-                      }
-                      onCanvasShapesChange={(shapes) =>
-                        session.setCanvasShapes(shapes)
-                      }
-                      onCanvasIconsChange={(icons) =>
-                        session.setCanvasIcons(icons)
-                      }
+                      onSpacingChange={handleSpacingChange}
+                      onCanvasShapesChange={handleCanvasShapesChange}
+                      onCanvasIconsChange={handleCanvasIconsChange}
                       onSelectVisualBlock={(blockId, slotId) =>
                         session.selectVisualBlock(
                           blockId,

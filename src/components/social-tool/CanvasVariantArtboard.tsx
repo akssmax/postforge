@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Trash2 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Button, Tooltip } from "@heroui/react";
@@ -34,7 +34,10 @@ import { resolveDesignCanvasSize } from "@/lib/design-engine/canvasSpec";
 import { getTemplate, getPlatform, type TextAlign } from "@/lib/social-tool/presets";
 import { activeVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
 import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
-import type { CanvasSelectionId } from "@/lib/social-tool/canvasSelection";
+import {
+  canvasSelectionKind,
+  type CanvasSelectionId,
+} from "@/lib/social-tool/canvasSelection";
 import type { PostLayoutSpacing } from "@/lib/social-tool/layoutSpacing";
 import type { CanvasShapeRecord } from "@/lib/social-tool/shapes/types";
 
@@ -116,7 +119,7 @@ type Props = {
   handActive?: boolean;
 };
 
-export function CanvasVariantArtboard({
+function CanvasVariantArtboardInner({
   board,
   originDesignId,
   index,
@@ -453,7 +456,30 @@ export function CanvasVariantArtboard({
 
       <div
         ref={viewportRef}
-        className="canvas-preview-viewport relative overflow-hidden"
+        className={`canvas-preview-viewport relative ${
+          isActive && canvasSelection
+            ? "overflow-visible has-canvas-selection"
+            : "overflow-hidden"
+        }${
+          isActive &&
+          showPropertyPills &&
+          !!canvasSelection &&
+          (canvasSelectionKind(canvasSelection) === "copy" ||
+            canvasSelectionKind(canvasSelection) === "logo" ||
+            canvasSelectionKind(canvasSelection) === "featured")
+            ? " has-property-pills"
+            : ""
+        }`}
+        data-canvas-pills-open={
+          isActive &&
+          showPropertyPills &&
+          !!canvasSelection &&
+          (canvasSelectionKind(canvasSelection) === "copy" ||
+            canvasSelectionKind(canvasSelection) === "logo" ||
+            canvasSelectionKind(canvasSelection) === "featured")
+            ? "true"
+            : undefined
+        }
         style={{
           width: platform.width * layoutScale,
           height: platform.height * layoutScale,
@@ -484,7 +510,9 @@ export function CanvasVariantArtboard({
                 exporting={!!exporting}
                 patternOpacity={doc.patternOpacity}
                 patternScale={doc.patternScale}
-                patternAnimated={doc.patternAnimated && !exporting}
+                patternAnimated={
+                  doc.patternAnimated && !exporting && isActive
+                }
                 productPage={board.featured.productPage}
                 featuredMode={board.featured.mode}
                 composedSvgMarkup={
@@ -603,6 +631,55 @@ export function CanvasVariantArtboard({
     </motion.div>
   );
 }
+
+/** Skip re-renders for inactive artboards when only sibling/workspace chrome changed. */
+function artboardPropsAreEqual(prev: Props, next: Props): boolean {
+  if (prev.isActive !== next.isActive) return false;
+  if (prev.board.designId !== next.board.designId) return false;
+  if (prev.index !== next.index) return false;
+  if (prev.isOrigin !== next.isOrigin) return false;
+  if (prev.previewScale !== next.previewScale) return false;
+  if (prev.layoutScale !== next.layoutScale) return false;
+  if (prev.exporting !== next.exporting) return false;
+  if (prev.handActive !== next.handActive) return false;
+  if (prev.interactive !== next.interactive) return false;
+  if (prev.adjustSpacing !== next.adjustSpacing) return false;
+  if (prev.showPropertyPills !== next.showPropertyPills) return false;
+  if (prev.shufflePending !== next.shufflePending) return false;
+  if (prev.generatingVariants !== next.generatingVariants) return false;
+  if (prev.canGenerate !== next.canGenerate) return false;
+  if (prev.showGenerateButton !== next.showGenerateButton) return false;
+  if (prev.artboardName !== next.artboardName) return false;
+  if (prev.reveal !== next.reveal) return false;
+  if (prev.showContent !== next.showContent) return false;
+  if (prev.canDeleteArtboard !== next.canDeleteArtboard) return false;
+  if (prev.canDuplicateArtboard !== next.canDuplicateArtboard) return false;
+  if (prev.originDesignId !== next.originDesignId) return false;
+
+  if (next.isActive) {
+    if (prev.board !== next.board) return false;
+    if (prev.canvasSelection !== next.canvasSelection) return false;
+    if (prev.editingCopyField !== next.editingCopyField) return false;
+    if (prev.liveFeaturedImageSrc !== next.liveFeaturedImageSrc) return false;
+    if (prev.liveLogoSrc !== next.liveLogoSrc) return false;
+    if (prev.copyVariantIndex !== next.copyVariantIndex) return false;
+    if (prev.copyVariantCount !== next.copyVariantCount) return false;
+    if (prev.generatingVisualBlocks !== next.generatingVisualBlocks) return false;
+    if (prev.toolbarEndExtra !== next.toolbarEndExtra) return false;
+  } else if (
+    prev.board.updatedAt !== next.board.updatedAt ||
+    prev.board.document !== next.board.document
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+export const CanvasVariantArtboard = memo(
+  CanvasVariantArtboardInner,
+  artboardPropsAreEqual,
+);
 
 export function CanvasVariantSkeleton({
   width,

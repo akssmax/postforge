@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import type { Key } from "@heroui/react";
 import {
   Label,
@@ -11,6 +12,7 @@ import {
 } from "@heroui/react";
 import type { LucideIcon } from "lucide-react";
 import { Lock } from "lucide-react";
+import { useLiveSliderValue } from "@/lib/social-tool/useLiveSliderValue";
 
 type SegmentOption = {
   id: string;
@@ -267,6 +269,8 @@ type InspectorSliderProps = {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: (value: number) => void;
   min: number;
   max: number;
   step?: number;
@@ -286,6 +290,8 @@ export function InspectorSlider({
   label,
   value,
   onChange,
+  onInteractionStart,
+  onInteractionEnd,
   min,
   max,
   step = 1,
@@ -293,6 +299,25 @@ export function InspectorSlider({
   "aria-label": ariaLabel,
 }: InspectorSliderProps) {
   const safeValue = Number.isFinite(value) ? value : min;
+  const draggingRef = useRef(false);
+  const latestRef = useRef(safeValue);
+  latestRef.current = safeValue;
+
+  function ensureDragging() {
+    if (draggingRef.current) return;
+    draggingRef.current = true;
+    onInteractionStart?.();
+  }
+
+  function finishDragging(final: number) {
+    if (!draggingRef.current) {
+      onChange(final);
+      return;
+    }
+    draggingRef.current = false;
+    latestRef.current = final;
+    onInteractionEnd?.(final);
+  }
 
   return (
     <div className="space-y-1.5">
@@ -311,7 +336,17 @@ export function InspectorSlider({
         value={safeValue}
         onChange={(next) => {
           const n = Array.isArray(next) ? next[0] : next;
-          if (typeof n === "number" && !Number.isNaN(n)) onChange(n);
+          if (typeof n === "number" && !Number.isNaN(n)) {
+            ensureDragging();
+            latestRef.current = n;
+            onChange(n);
+          }
+        }}
+        onChangeEnd={(next) => {
+          const n = Array.isArray(next) ? next[0] : next;
+          if (typeof n === "number" && !Number.isNaN(n)) {
+            finishDragging(n);
+          }
         }}
       >
         <Label className="sr-only">{ariaLabel ?? label}</Label>
@@ -321,5 +356,47 @@ export function InspectorSlider({
         </Slider.Track>
       </Slider>
     </div>
+  );
+}
+
+/**
+ * Inspector slider with local RAF preview; commits once on pointer-up.
+ * Pass coalesce callbacks so a drag is a single undo step.
+ */
+export function InspectorLiveSlider({
+  label,
+  value,
+  onChange,
+  onCoalesceBegin,
+  onCoalesceEnd,
+  min,
+  max,
+  step = 1,
+  format = defaultFormat,
+  "aria-label": ariaLabel,
+}: Omit<InspectorSliderProps, "onInteractionStart" | "onInteractionEnd"> & {
+  onCoalesceBegin?: () => void;
+  onCoalesceEnd?: () => void;
+}) {
+  const live = useLiveSliderValue(
+    value,
+    onChange,
+    onCoalesceBegin,
+    onCoalesceEnd,
+  );
+
+  return (
+    <InspectorSlider
+      label={label}
+      value={live.display}
+      onChange={live.onLiveChange}
+      onInteractionStart={live.onInteractionStart}
+      onInteractionEnd={live.onInteractionEnd}
+      min={min}
+      max={max}
+      step={step}
+      format={format}
+      aria-label={ariaLabel}
+    />
   );
 }

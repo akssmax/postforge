@@ -3,7 +3,7 @@
 import { RotateCcw, Trash2 } from "lucide-react";
 import { Button, Tooltip } from "@heroui/react";
 import {
-  InspectorSlider,
+  InspectorLiveSlider,
   InspectorTransformRow,
 } from "@/components/social-tool/InspectorControls";
 import {
@@ -16,6 +16,8 @@ type Props = {
   onChange: (icon: CanvasIconRecord) => void;
   onRemove: () => void;
   brandAccent?: string;
+  onHistoryCoalesceBegin?: () => void;
+  onHistoryCoalesceEnd?: () => void;
 };
 
 export function IconInspectorPanel({
@@ -23,6 +25,8 @@ export function IconInspectorPanel({
   onChange,
   onRemove,
   brandAccent,
+  onHistoryCoalesceBegin,
+  onHistoryCoalesceEnd,
 }: Props) {
   function patch(partial: Partial<CanvasIconRecord>) {
     onChange({ ...icon, ...partial });
@@ -104,7 +108,7 @@ export function IconInspectorPanel({
           }
         />
 
-        <InspectorSlider
+        <InspectorLiveSlider
           label="Scale"
           value={icon.transform.scale}
           onChange={(scale) => patchTransform("scale", scale)}
@@ -112,9 +116,11 @@ export function IconInspectorPanel({
           max={2.5}
           step={0.01}
           format={(v) => `${v.toFixed(2)}×`}
+          onCoalesceBegin={onHistoryCoalesceBegin}
+          onCoalesceEnd={onHistoryCoalesceEnd}
         />
 
-        <InspectorSlider
+        <InspectorLiveSlider
           label="Rotate"
           value={icon.transform.rotateZ}
           onChange={(rotateZ) => patchTransform("rotateZ", rotateZ)}
@@ -122,9 +128,11 @@ export function IconInspectorPanel({
           max={180}
           step={1}
           format={(v) => `${Math.round(v)}°`}
+          onCoalesceBegin={onHistoryCoalesceBegin}
+          onCoalesceEnd={onHistoryCoalesceEnd}
         />
 
-        <InspectorSlider
+        <InspectorLiveSlider
           label="Opacity"
           value={icon.opacity ?? 1}
           onChange={(opacity) => patch({ opacity })}
@@ -132,6 +140,8 @@ export function IconInspectorPanel({
           max={1}
           step={0.01}
           format={(v) => `${Math.round(v * 100)}%`}
+          onCoalesceBegin={onHistoryCoalesceBegin}
+          onCoalesceEnd={onHistoryCoalesceEnd}
         />
 
         {brandAccent ? (

@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { ImagePlus, Loader2, RotateCcw, Search, Shuffle, Trash2 } from "lucide-react";
 import { Button, Switch, Tooltip } from "@heroui/react";
 import {
-  InspectorSlider,
+  InspectorLiveSlider,
   InspectorTransformRow,
 } from "@/components/social-tool/InspectorControls";
 import {
@@ -69,6 +69,8 @@ type Props = {
   stockAttribution?: string | null;
   featuredTransform: FeaturedImageTransform;
   onFeaturedTransformChange: (next: FeaturedImageTransform) => void;
+  onHistoryCoalesceBegin?: (key: string) => void;
+  onHistoryCoalesceEnd?: (key?: string) => void;
 };
 
 const KIND_OPTIONS: { id: FeaturedVisualKind | "photo"; label: string }[] = [
@@ -102,7 +104,17 @@ export function FeaturedBlockPanel({
   stockAttribution,
   featuredTransform,
   onFeaturedTransformChange,
+  onHistoryCoalesceBegin,
+  onHistoryCoalesceEnd,
 }: Props) {
+  const transformCoalesce = {
+    onCoalesceBegin: onHistoryCoalesceBegin
+      ? () => onHistoryCoalesceBegin("featuredTransform")
+      : undefined,
+    onCoalesceEnd: onHistoryCoalesceEnd
+      ? () => onHistoryCoalesceEnd("featuredTransform")
+      : undefined,
+  };
   const inputRef = useRef<HTMLInputElement>(null);
   const [dropActive, setDropActive] = useState(false);
   const [stockQuery, setStockQuery] = useState("");
@@ -588,7 +600,7 @@ export function FeaturedBlockPanel({
                     </Tooltip>
                   }
                 />
-                <InspectorSlider
+                <InspectorLiveSlider
                   label="Scale"
                   value={featuredTransform.scale}
                   onChange={(scale) =>
@@ -598,8 +610,9 @@ export function FeaturedBlockPanel({
                   max={4}
                   step={0.01}
                   format={(v) => `${v.toFixed(2)}×`}
+                  {...transformCoalesce}
                 />
-                <InspectorSlider
+                <InspectorLiveSlider
                   label="Rotate X"
                   value={featuredTransform.rotateX}
                   onChange={(rotateX) =>
@@ -609,8 +622,9 @@ export function FeaturedBlockPanel({
                   max={60}
                   step={1}
                   format={(v) => `${Math.round(v)}°`}
+                  {...transformCoalesce}
                 />
-                <InspectorSlider
+                <InspectorLiveSlider
                   label="Rotate Y"
                   value={featuredTransform.rotateY}
                   onChange={(rotateY) =>
@@ -620,8 +634,9 @@ export function FeaturedBlockPanel({
                   max={60}
                   step={1}
                   format={(v) => `${Math.round(v)}°`}
+                  {...transformCoalesce}
                 />
-                <InspectorSlider
+                <InspectorLiveSlider
                   label="Rotate Z"
                   value={featuredTransform.rotateZ}
                   onChange={(rotateZ) =>
@@ -631,8 +646,9 @@ export function FeaturedBlockPanel({
                   max={45}
                   step={1}
                   format={(v) => `${Math.round(v)}°`}
+                  {...transformCoalesce}
                 />
-                <InspectorSlider
+                <InspectorLiveSlider
                   label="Perspective"
                   value={featuredTransform.perspective}
                   onChange={(perspective) =>
@@ -642,6 +658,7 @@ export function FeaturedBlockPanel({
                   max={2400}
                   step={50}
                   format={(v) => `${Math.round(v)}px`}
+                  {...transformCoalesce}
                 />
               </div>
             </div>

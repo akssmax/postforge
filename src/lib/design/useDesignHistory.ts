@@ -165,6 +165,11 @@ export function useDesignHistory(designId: string) {
     [syncFlags],
   );
 
+  const getActiveCoalesceKey = useCallback(
+    () => coalesceKeyRef.current,
+    [],
+  );
+
   const endCoalesce = useCallback((key?: string) => {
     if (key && coalesceKeyRef.current && coalesceKeyRef.current !== key) {
       return;
@@ -247,6 +252,7 @@ export function useDesignHistory(designId: string) {
     pushBeforeChange,
     beginCoalesce,
     endCoalesce,
+    getActiveCoalesceKey,
     undo,
     redo,
     runWithoutRecording,

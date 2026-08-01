@@ -1,11 +1,19 @@
 "use client";
 
-import { AlignCenter, AlignLeft, AlignRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+} from "lucide-react";
 import { Button, Label, Switch, TextArea, Tooltip } from "@heroui/react";
 import {
   InspectorSegment,
   InspectorSelect,
-  InspectorSlider,
+  InspectorLiveSlider,
 } from "@/components/social-tool/InspectorControls";
 import type { EditableTextSlot } from "@/lib/social-tool/layoutAdapter";
 import {
@@ -25,6 +33,7 @@ type Props = {
   onShowContentChange: (value: boolean) => void;
   editableSlots: EditableTextSlot[];
   onUpdateTextSlot: (slotId: string, text: string) => void;
+  onClearTextSlot?: (slotId: string) => void;
   textAlign: TextAlign;
   onTextAlignChange: (value: TextAlign) => void;
   headingFont: SocialFontId;
@@ -33,6 +42,8 @@ type Props = {
   onSubFontChange: (value: SocialFontId) => void;
   typeScale: number;
   onTypeScaleChange: (value: number) => void;
+  onHistoryCoalesceBegin?: (key: string) => void;
+  onHistoryCoalesceEnd?: (key?: string) => void;
   copyVariantIndex?: number;
   copyVariantCount?: number;
   onCycleCopyVariant?: (delta: 1 | -1) => void;
@@ -46,11 +57,25 @@ function isMultilineRole(role: EditableTextSlot["role"]): boolean {
   return role === "body" || role === "caption" || role === "contact";
 }
 
+function isPrimaryContentRole(role: EditableTextSlot["role"]): boolean {
+  return role === "headline" || role === "subheading";
+}
+
+function isSlotVisible(
+  slot: EditableTextSlot,
+  retainedEmptySlotIds: ReadonlySet<string>,
+): boolean {
+  if (isPrimaryContentRole(slot.role)) return true;
+  if (slot.text.trim().length > 0) return true;
+  return retainedEmptySlotIds.has(slot.slotId);
+}
+
 export function ContentPanel({
   showContent,
   onShowContentChange,
   editableSlots,
   onUpdateTextSlot,
+  onClearTextSlot,
   textAlign,
   onTextAlignChange,
   headingFont,
@@ -59,11 +84,47 @@ export function ContentPanel({
   onSubFontChange,
   typeScale,
   onTypeScaleChange,
+  onHistoryCoalesceBegin,
+  onHistoryCoalesceEnd,
   copyVariantIndex = 0,
   copyVariantCount = 0,
   onCycleCopyVariant,
 }: Props) {
   const showVariantCycle = !!onCycleCopyVariant && copyVariantCount > 1;
+  const [retainedEmptySlotIds, setRetainedEmptySlotIds] = useState(
+    () => new Set<string>(),
+  );
+
+  const visibleSlots = editableSlots.filter((slot) =>
+    isSlotVisible(slot, retainedEmptySlotIds),
+  );
+
+  function retainEmptySlot(slotId: string) {
+    setRetainedEmptySlotIds((prev) => {
+      if (prev.has(slotId)) return prev;
+      const next = new Set(prev);
+      next.add(slotId);
+      return next;
+    });
+  }
+
+  function releaseEmptySlot(slotId: string) {
+    setRetainedEmptySlotIds((prev) => {
+      if (!prev.has(slotId)) return prev;
+      const next = new Set(prev);
+      next.delete(slotId);
+      return next;
+    });
+  }
+
+  function handleClearSlot(slot: EditableTextSlot) {
+    if (onClearTextSlot) {
+      onClearTextSlot(slot.slotId);
+    } else {
+      onUpdateTextSlot(slot.slotId, "");
+    }
+    releaseEmptySlot(slot.slotId);
+  }
 
   return (
     <section className="social-tool-section space-y-3">
@@ -121,33 +182,62 @@ export function ContentPanel({
       </div>
 
       <div className="space-y-3">
-        {editableSlots.map((slot) => {
+        {visibleSlots.map((slot) => {
           const fieldId = slotFieldId(slot.slotId);
           const multiline = isMultilineRole(slot.role);
+          const retainOnFocus = !isPrimaryContentRole(slot.role);
           return (
             <div key={slot.slotId} className="space-y-1.5">
-              <Label htmlFor={fieldId} className="text-xs text-text-secondary">
-                {slot.label}
-              </Label>
-              {multiline ? (
-                <TextArea
-                  id={fieldId}
-                  value={slot.text}
-                  onChange={(e) => onUpdateTextSlot(slot.slotId, e.target.value)}
-                  rows={slot.role === "body" ? 3 : 2}
-                  className="content-slot-textarea w-full"
-                  data-slot-role={slot.role}
-                />
-              ) : (
-                <TextArea
-                  id={fieldId}
-                  value={slot.text}
-                  onChange={(e) => onUpdateTextSlot(slot.slotId, e.target.value)}
-                  rows={slot.role === "headline" ? 2 : 1}
-                  className="content-slot-textarea w-full"
-                  data-slot-role={slot.role}
-                />
-              )}
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor={fieldId} className="text-xs text-text-secondary">
+                  {slot.label}
+                </Label>
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      isIconOnly
+                      aria-label={`Remove ${slot.label}`}
+                      onPress={() => handleClearSlot(slot)}
+                    >
+                      <Trash2 className="size-3.5" aria-hidden />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    <p className="layout-shuffle-tooltip-title">
+                      Remove {slot.label}
+                    </p>
+                  </Tooltip.Content>
+                </Tooltip>
+              </div>
+              <TextArea
+                id={fieldId}
+                value={slot.text}
+                onChange={(e) => onUpdateTextSlot(slot.slotId, e.target.value)}
+                onFocus={() => {
+                  if (retainOnFocus) retainEmptySlot(slot.slotId);
+                }}
+                onBlur={(e) => {
+                  if (
+                    retainOnFocus &&
+                    e.currentTarget.value.trim().length === 0
+                  ) {
+                    releaseEmptySlot(slot.slotId);
+                  }
+                }}
+                rows={
+                  multiline
+                    ? slot.role === "body"
+                      ? 3
+                      : 2
+                    : slot.role === "headline"
+                      ? 2
+                      : 1
+                }
+                className="content-slot-textarea w-full"
+                data-slot-role={slot.role}
+              />
               {slot.role === "headline" ? (
                 <p className="text-[0.6875rem] text-text-tertiary">
                   Use [[text]] for emphasis
@@ -192,13 +282,23 @@ export function ContentPanel({
         }))}
       />
 
-      <InspectorSlider
+      <InspectorLiveSlider
         label="Type scale"
         value={typeScale}
         min={0.85}
         max={1.15}
         step={0.01}
         onChange={onTypeScaleChange}
+        onCoalesceBegin={
+          onHistoryCoalesceBegin
+            ? () => onHistoryCoalesceBegin("typeScale")
+            : undefined
+        }
+        onCoalesceEnd={
+          onHistoryCoalesceEnd
+            ? () => onHistoryCoalesceEnd("typeScale")
+            : undefined
+        }
       />
     </section>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps, ReactNode } from "react";
+import { memo, type ComponentProps, type ReactNode } from "react";
 import { CanvasVariantArtboard } from "@/components/social-tool/CanvasVariantArtboard";
 import type { DesignDocument } from "@/lib/design/types";
 
@@ -38,7 +38,9 @@ function RendererFrame({
 }
 
 /** Routes design session artboards to renderer-specific chrome. */
-export function DesignRendererArtboard(props: CanvasProps) {
+export const DesignRendererArtboard = memo(function DesignRendererArtboard(
+  props: CanvasProps,
+) {
   const rendererId = props.board.document.rendererId ?? "product-shot";
 
   return (
@@ -46,6 +48,6 @@ export function DesignRendererArtboard(props: CanvasProps) {
       <CanvasVariantArtboard {...props} />
     </RendererFrame>
   );
-}
+});
 
 export type { CanvasProps as DesignRendererArtboardProps };

@@ -3,7 +3,7 @@
 import { RotateCcw, Trash2 } from "lucide-react";
 import { Button, Switch, Tooltip } from "@heroui/react";
 import {
-  InspectorSlider,
+  InspectorLiveSlider,
   InspectorTransformRow,
 } from "@/components/social-tool/InspectorControls";
 import { DEFAULT_SHAPE_TRANSFORM } from "@/lib/social-tool/shapes/types";
@@ -14,6 +14,8 @@ type Props = {
   onChange: (shape: CanvasShapeRecord) => void;
   onRemove: () => void;
   brandAccent?: string;
+  onHistoryCoalesceBegin?: () => void;
+  onHistoryCoalesceEnd?: () => void;
 };
 
 export function ShapeInspectorPanel({
@@ -21,6 +23,8 @@ export function ShapeInspectorPanel({
   onChange,
   onRemove,
   brandAccent,
+  onHistoryCoalesceBegin,
+  onHistoryCoalesceEnd,
 }: Props) {
   function patch(partial: Partial<CanvasShapeRecord>) {
     onChange({ ...shape, ...partial });
@@ -100,7 +104,7 @@ export function ShapeInspectorPanel({
           }
         />
 
-        <InspectorSlider
+        <InspectorLiveSlider
           label="Scale"
           value={shape.transform.scale}
           onChange={(scale) => patchTransform("scale", scale)}
@@ -108,9 +112,11 @@ export function ShapeInspectorPanel({
           max={2.5}
           step={0.01}
           format={(v) => `${v.toFixed(2)}×`}
+          onCoalesceBegin={onHistoryCoalesceBegin}
+          onCoalesceEnd={onHistoryCoalesceEnd}
         />
 
-        <InspectorSlider
+        <InspectorLiveSlider
           label="Rotate"
           value={shape.transform.rotateZ}
           onChange={(rotateZ) => patchTransform("rotateZ", rotateZ)}
@@ -118,9 +124,11 @@ export function ShapeInspectorPanel({
           max={180}
           step={1}
           format={(v) => `${Math.round(v)}°`}
+          onCoalesceBegin={onHistoryCoalesceBegin}
+          onCoalesceEnd={onHistoryCoalesceEnd}
         />
 
-        <InspectorSlider
+        <InspectorLiveSlider
           label="Opacity"
           value={shape.opacity ?? 0.25}
           onChange={(opacity) => patch({ opacity })}
@@ -128,6 +136,8 @@ export function ShapeInspectorPanel({
           max={1}
           step={0.01}
           format={(v) => `${Math.round(v * 100)}%`}
+          onCoalesceBegin={onHistoryCoalesceBegin}
+          onCoalesceEnd={onHistoryCoalesceEnd}
         />
 
         <div className="layout-shuffle-menu-row">

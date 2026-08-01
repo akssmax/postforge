@@ -86,6 +86,49 @@ export function applyCanvasPatchToSession(
   const brandPatch = patch.brand ? omitUndefined(patch.brand) : undefined;
   const featuredPatch = patch.featured ? omitUndefined(patch.featured) : undefined;
 
+  let mergedDocument = documentPatch
+    ? {
+        ...session.document,
+        ...documentPatch,
+        featuredSlots: mergeFeaturedSlots(
+          session.document.featuredSlots,
+          documentPatch.featuredSlots,
+        ),
+        canvasShapes:
+          documentPatch.canvasShapes !== undefined
+            ? mergeCanvasShapeArrays(
+                session.document.canvasShapes ?? [],
+                documentPatch.canvasShapes,
+              )
+            : session.document.canvasShapes,
+      }
+    : session.document;
+
+  // When tools rewrite live copy, keep the active variant pool entry aligned so
+  // cycling copy variants doesn't resurrect the previous headline/subheading.
+  if (
+    documentPatch?.copy &&
+    mergedDocument.copyVariants?.length &&
+    documentPatch.copyVariants === undefined
+  ) {
+    const variantIndex = Math.min(
+      Math.max(mergedDocument.copyVariantIndex ?? 0, 0),
+      mergedDocument.copyVariants.length - 1,
+    );
+    mergedDocument = {
+      ...mergedDocument,
+      copyVariants: mergedDocument.copyVariants.map((variant, index) =>
+        index === variantIndex
+          ? {
+              ...variant,
+              heading: documentPatch.copy!.heading,
+              subheading: documentPatch.copy!.subheading,
+            }
+          : variant,
+      ),
+    };
+  }
+
   let next: DesignSessionPersisted = {
     ...session,
     brand: brandPatch ? { ...session.brand, ...brandPatch } : session.brand,
@@ -98,24 +141,7 @@ export function applyCanvasPatchToSession(
         }
       : session.featured,
     document: documentPatch
-      ? sanitizeDocument(
-          {
-            ...session.document,
-            ...documentPatch,
-            featuredSlots: mergeFeaturedSlots(
-              session.document.featuredSlots,
-              documentPatch.featuredSlots,
-            ),
-            canvasShapes:
-              documentPatch.canvasShapes !== undefined
-                ? mergeCanvasShapeArrays(
-                    session.document.canvasShapes ?? [],
-                    documentPatch.canvasShapes,
-                  )
-                : session.document.canvasShapes,
-          },
-          session.document,
-        )
+      ? sanitizeDocument(mergedDocument, session.document)
       : session.document,
     updatedAt: Date.now(),
   };

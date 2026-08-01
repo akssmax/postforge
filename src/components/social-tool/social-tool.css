@@ -287,8 +287,7 @@
 }
 
 .canvas-copy-editor__input--rich {
-  white-space: pre-wrap;
-  text-wrap: balance;
+  /* white-space / text-wrap come from the measured canvas node (inline). */
   cursor: text;
 }
 
@@ -476,7 +475,6 @@
   height: 100%;
   align-items: flex-end;
   justify-content: center;
-  will-change: transform;
 }
 
 .social-post-pattern--outline .social-post-pattern-scale {
@@ -717,6 +715,7 @@
 }
 
 .social-post-pattern.is-animated .social-post-pattern-scale {
+  will-change: transform;
   animation: social-pattern-breathe 3.2s ease-in-out infinite;
 }
 
@@ -766,7 +765,8 @@
 /* Product-shot template: split text / feature without overlap */
 .social-post--product .social-post-product-layout {
   position: relative;
-  z-index: 1;
+  /* Above pattern + back shapes so selection rings aren't covered */
+  z-index: 3;
   display: flex;
   height: 100%;
   flex-direction: column;
@@ -1203,13 +1203,11 @@
 }
 
 .canvas-pan-layer {
-  will-change: transform;
   transform-origin: center center;
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .canvas-zoom-layer {
-  will-change: transform;
   transform-origin: center center;
 }
 
@@ -1217,12 +1215,19 @@
 .social-tool-canvas-stage[data-canvas-wheeling="true"] .canvas-pan-layer,
 .social-tool-canvas-stage[data-canvas-wheeling="true"] .canvas-zoom-layer {
   transition: none;
+  will-change: transform;
 }
 
 .canvas-variant-artboard {
   position: relative;
   border-radius: 0.75rem;
   transition: opacity 160ms ease;
+}
+
+/* Only skip paint for off-screen inactive boards — active board must paint selection rings. */
+.canvas-variant-artboard:not(.is-artboard-active) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 720px;
 }
 
 /* Print artboards — no inset card border in the editor chrome */
@@ -1349,6 +1354,8 @@
   cursor: pointer;
 }
 
+.social-post.has-canvas-selection,
+.social-post.has-property-pills,
 .social-post:has(.canvas-selectable.is-canvas-selected),
 .social-post-text-zone:has(.canvas-selectable.is-canvas-selected),
 .social-post-copy-stack.canvas-selectable.is-canvas-selected {
@@ -1359,8 +1366,11 @@
 .social-post-sub.canvas-selectable.is-canvas-selected,
 .social-post-extra.canvas-selectable.is-canvas-selected,
 .social-post-list-title.canvas-selectable.is-canvas-selected,
-.social-post-list-body.canvas-selectable.is-canvas-selected {
-  z-index: 1;
+.social-post-list-body.canvas-selectable.is-canvas-selected,
+.social-post-copy-stack.canvas-selectable.is-canvas-selected,
+.canvas-selectable.is-canvas-selected[data-canvas-select="logo"],
+.social-post-product-viewport.canvas-selectable.is-canvas-selected {
+  z-index: 6;
 }
 
 /* Infinite-canvas stage: transform pan/zoom, never native scroll */
@@ -1424,6 +1434,15 @@
   cursor: auto !important;
 }
 
+/*
+ * Selection chrome: use outline (not clipped by self overflow) plus an ::after
+ * ring for the soft glow. Outline is the reliable primary signal.
+ */
+.canvas-selectable.is-canvas-selected {
+  outline: 2px solid color-mix(in oklab, var(--brand-500) 88%, white);
+  outline-offset: 4px;
+}
+
 .canvas-selectable.is-canvas-selected::after {
   content: "";
   position: absolute;
@@ -1435,6 +1454,10 @@
     0 0 0 1px color-mix(in oklab, white 28%, transparent),
     0 0 0 4px color-mix(in oklab, var(--brand-500) 18%, transparent);
   z-index: 25;
+}
+
+.social-post-copy-stack.canvas-selectable.is-canvas-selected {
+  outline-offset: 8px;
 }
 
 .social-post-copy-stack.canvas-selectable.is-canvas-selected::after {
@@ -1462,7 +1485,7 @@
   left: 50%;
   bottom: 100%;
   /* Above selection ring (25) and spacing chrome (40–42); artboard crop is
-     handled separately via :has(.canvas-property-pills) overflow rules. */
+     handled via explicit has-property-pills / data-canvas-pills-open classes. */
   z-index: 50;
   display: flex;
   align-items: center;
@@ -1478,26 +1501,27 @@
  * often extend past the artboard top. overflow:hidden on .social-post (export
  * crop) and .canvas-preview-viewport (scaled frame) would clip them — z-index
  * alone cannot fix that. Pills are not mounted while exporting.
+ * Use explicit classes (not :has) to avoid expensive style invalidation.
  */
-.social-post:has(.canvas-property-pills),
 .social-post.has-property-pills {
   overflow: visible;
 }
 
-.social-post:has(.canvas-property-pills) .social-post-text-zone--split,
 .social-post.has-property-pills .social-post-text-zone--split {
   overflow: visible;
 }
 
-.canvas-preview-viewport:has(.canvas-property-pills),
-.canvas-preview-viewport:has(.has-property-pills) {
-  overflow: visible;
+.canvas-preview-viewport.has-property-pills,
+.canvas-preview-viewport.has-canvas-selection,
+.canvas-preview-viewport[data-canvas-pills-open="true"] {
+  /* Beat Tailwind overflow-hidden utility on the same node */
+  overflow: visible !important;
 }
 
 .social-post-product-viewport.has-property-pills,
-.social-post-product-viewport:has(.canvas-property-pills) {
+.social-post-product-viewport.canvas-selectable.is-canvas-selected {
   overflow: visible;
-  z-index: 2;
+  z-index: 6;
 }
 
 .canvas-property-pill {
@@ -1617,23 +1641,30 @@
   opacity: 0.4;
 }
 
-.social-post-product-viewport.canvas-selectable.is-canvas-selected::after {
-  inset: 2px;
+/*
+ * Featured slot: one outline only. The shared .canvas-selectable::after glow
+ * plus a frame ring stacked 3–4 borders — disable those here.
+ */
+.social-post-product-viewport.canvas-selectable.is-canvas-selected {
+  outline: 2.5px solid color-mix(in oklab, var(--brand-500) 75%, white);
+  outline-offset: 2px;
   border-radius: 14px;
 }
 
-.social-post-product-viewport--genui.canvas-selectable.is-canvas-selected::after {
-  display: none;
+.social-post-product-viewport.canvas-selectable.is-canvas-selected::after {
+  content: none;
+}
+
+.social-post-product-frame.is-frame-selected,
+.social-post-product-viewport.canvas-selectable.is-canvas-selected
+  > .social-post-product-frame--composed,
+.social-post-product-viewport.canvas-selectable.is-canvas-selected
+  > .social-post-product-frame--illustration {
+  outline: none;
 }
 
 .social-post-product-viewport--genui.canvas-selectable.is-canvas-selected::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  border: 1.5px dashed color-mix(in oklab, var(--brand-500) 45%, transparent);
-  border-radius: 14px;
-  pointer-events: none;
+  content: none;
 }
 
 .canvas-inspector-empty {
@@ -4179,6 +4210,10 @@ button.canvas-platform-pill-badge-trigger:disabled {
     rotateY(var(--fi-ry, 0deg))
     rotateZ(var(--fi-rz, 0deg))
     scale(var(--fi-scale, 1));
+}
+
+.social-post-product-viewport.is-dragging-featured .social-post-product-inner--composed,
+.social-post-product-viewport.is-dragging-featured .social-post-product-inner--image {
   will-change: transform;
 }
 
@@ -5924,7 +5959,8 @@ button.canvas-platform-pill-badge-trigger:disabled {
 }
 
 .canvas-shape-layer--back {
-  z-index: 2;
+  /* Must stay below .social-post-product-layout (z-index: 3) */
+  z-index: 0;
 }
 
 .canvas-shape-layer--front {

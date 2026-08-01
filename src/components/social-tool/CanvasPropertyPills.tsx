@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlignCenter,
   AlignLeft,
@@ -25,7 +25,7 @@ import type { TextAlign } from "@/lib/social-tool/presets";
 
 const TYPE_SCALE_MIN = 0.75;
 const TYPE_SCALE_MAX = 4;
-const TYPE_SCALE_STEP = 0.05;
+const TYPE_SCALE_STEP = 0.01;
 
 const LOGO_SCALE_MIN = 0.5;
 const LOGO_SCALE_MAX = 3;
@@ -49,6 +49,11 @@ function PillSeparator() {
   return <span className="canvas-property-pill-separator" aria-hidden />;
 }
 
+function readSliderNumber(next: number | number[]): number | null {
+  const n = Array.isArray(next) ? next[0] : next;
+  return typeof n === "number" && !Number.isNaN(n) ? n : null;
+}
+
 function InlineScaleSection({
   value,
   onChange,
@@ -68,24 +73,33 @@ function InlineScaleSection({
   step: number;
   ariaLabel: string;
 }) {
-  const safeScale = Number.isFinite(value) ? value : min;
+  const safeCommitted = Number.isFinite(value) ? value : min;
+  const [draft, setDraft] = useState<number | null>(null);
   const draggingRef = useRef(false);
-  const latestRef = useRef(safeScale);
-  latestRef.current = safeScale;
+  const latestRef = useRef(safeCommitted);
+  const display = draft ?? safeCommitted;
+  latestRef.current = display;
 
   useEffect(() => {
-    const finish = () => {
-      if (!draggingRef.current) return;
-      draggingRef.current = false;
-      onInteractionEnd?.(latestRef.current);
-    };
-    window.addEventListener("pointerup", finish);
-    window.addEventListener("pointercancel", finish);
-    return () => {
-      window.removeEventListener("pointerup", finish);
-      window.removeEventListener("pointercancel", finish);
-    };
-  }, [onInteractionEnd]);
+    if (!draggingRef.current) setDraft(null);
+  }, [safeCommitted]);
+
+  function ensureDragging() {
+    if (draggingRef.current) return;
+    draggingRef.current = true;
+    onInteractionStart?.();
+  }
+
+  function finishDragging(final: number) {
+    if (!draggingRef.current) {
+      onChange(final);
+      return;
+    }
+    draggingRef.current = false;
+    latestRef.current = final;
+    setDraft(null);
+    onInteractionEnd?.(final);
+  }
 
   return (
     <div className="canvas-property-pill-section canvas-property-pill-section--scale">
@@ -96,17 +110,19 @@ function InlineScaleSection({
         minValue={min}
         maxValue={max}
         step={step}
-        value={safeScale}
-        onPointerDown={() => {
-          draggingRef.current = true;
-          onInteractionStart?.();
-        }}
+        value={display}
         onChange={(next) => {
-          const n = Array.isArray(next) ? next[0] : next;
-          if (typeof n === "number" && !Number.isNaN(n)) {
-            latestRef.current = n;
-            onChange(n);
-          }
+          const n = readSliderNumber(next);
+          if (n == null) return;
+          ensureDragging();
+          latestRef.current = n;
+          setDraft(n);
+          onChange(n);
+        }}
+        onChangeEnd={(next) => {
+          const n = readSliderNumber(next);
+          if (n == null) return;
+          finishDragging(n);
         }}
       >
         <Label className="sr-only">{ariaLabel}</Label>
@@ -116,7 +132,7 @@ function InlineScaleSection({
         </Slider.Track>
       </Slider>
       <span className="canvas-property-pill-value" aria-live="polite">
-        {formatScale(safeScale)}
+        {formatScale(display)}
       </span>
     </div>
   );
@@ -226,6 +242,8 @@ function FeaturedSlotsPill({
   slotHasVisual = true,
   featuredScale = 1,
   onFeaturedScaleChange,
+  onFeaturedScaleInteractionStart,
+  onFeaturedScaleInteractionEnd,
 }: {
   slotId: string;
   index: number;
@@ -239,6 +257,8 @@ function FeaturedSlotsPill({
   slotHasVisual?: boolean;
   featuredScale?: number;
   onFeaturedScaleChange?: (value: number) => void;
+  onFeaturedScaleInteractionStart?: () => void;
+  onFeaturedScaleInteractionEnd?: (value: number) => void;
 }) {
   const atStart = index <= 0;
   const atEnd = index >= count - 1;
@@ -388,6 +408,8 @@ function FeaturedSlotsPill({
         <InlineScaleSection
           value={featuredScale}
           onChange={onFeaturedScaleChange}
+          onInteractionStart={onFeaturedScaleInteractionStart}
+          onInteractionEnd={onFeaturedScaleInteractionEnd}
           min={FEATURED_SCALE_MIN}
           max={FEATURED_SCALE_MAX}
           step={FEATURED_SCALE_STEP}
@@ -417,6 +439,8 @@ export type CanvasPropertyPillsProps = {
   onLogoScaleInteractionEnd?: (value: number) => void;
   featuredScale?: number;
   onFeaturedScaleChange?: (value: number) => void;
+  onFeaturedScaleInteractionStart?: () => void;
+  onFeaturedScaleInteractionEnd?: (value: number) => void;
   featuredSlotIndex?: number;
   featuredSlotCount?: number;
   featuredSlotHasVisual?: boolean;
@@ -449,6 +473,8 @@ export function CanvasPropertyPills({
   onLogoScaleInteractionEnd,
   featuredScale = 1,
   onFeaturedScaleChange,
+  onFeaturedScaleInteractionStart,
+  onFeaturedScaleInteractionEnd,
   featuredSlotIndex = 0,
   featuredSlotCount = 1,
   featuredSlotHasVisual = true,
@@ -543,6 +569,8 @@ export function CanvasPropertyPills({
           onAdd={onAddFeaturedSlot}
           featuredScale={featuredScale}
           onFeaturedScaleChange={onFeaturedScaleChange}
+          onFeaturedScaleInteractionStart={onFeaturedScaleInteractionStart}
+          onFeaturedScaleInteractionEnd={onFeaturedScaleInteractionEnd}
         />
       </div>
     );

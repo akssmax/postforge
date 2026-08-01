@@ -74,6 +74,32 @@ function slotRoleForId(
   return snapshot.textSlots.find((slot) => slot.slotId === slotId)?.role ?? null;
 }
 
+const ROLE_ALIASES: Record<string, TextSlotRole> = {
+  headline: "headline",
+  heading: "headline",
+  title: "headline",
+  subheading: "subheading",
+  sub: "subheading",
+  subtitle: "subheading",
+  body: "body",
+  caption: "caption",
+  cta: "cta",
+  contact: "contact",
+};
+
+/** Resolve a tool slot id to an index in the snapshot textSlots list. */
+function resolveCopySlotIndex(
+  slots: DesignSnapshot["textSlots"],
+  requestedId: string,
+): number {
+  const exact = slots.findIndex((slot) => slot.slotId === requestedId);
+  if (exact >= 0) return exact;
+
+  const alias = ROLE_ALIASES[requestedId.trim().toLowerCase()];
+  if (!alias) return -1;
+  return slots.findIndex((slot) => slot.role === alias);
+}
+
 export function computeUpdateCopyPatch(
   snapshot: DesignSnapshot,
   input: z.infer<typeof updateCopyToolSchema>,
@@ -82,19 +108,21 @@ export function computeUpdateCopyPatch(
   const errors: string[] = [];
 
   for (const update of input.slots) {
-    const index = nextSlots.findIndex((slot) => slot.slotId === update.slotId);
+    const index = resolveCopySlotIndex(nextSlots, update.slotId);
     if (index < 0) {
       errors.push(`Unknown slot: ${update.slotId}`);
       continue;
     }
-    const role = slotRoleForId(snapshot, update.slotId) ?? nextSlots[index].role;
+    const role =
+      slotRoleForId(snapshot, nextSlots[index]!.slotId) ?? nextSlots[index]!.role;
     const constraint = getSlotConstraint(role);
     if (update.text.length > constraint.maxCharacters) {
       errors.push(
-        `${update.slotId} exceeds ${constraint.maxCharacters} characters`,
+        `${nextSlots[index]!.slotId} exceeds ${constraint.maxCharacters} characters`,
       );
+      continue;
     }
-    nextSlots[index] = { ...nextSlots[index], text: update.text };
+    nextSlots[index] = { ...nextSlots[index]!, text: update.text };
   }
 
   if (errors.length > 0) {

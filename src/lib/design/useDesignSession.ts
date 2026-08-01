@@ -322,6 +322,8 @@ export type UseDesignSessionResult = {
   historyLimitToast: boolean;
   beginHistoryCoalesce: (key: string) => void;
   endHistoryCoalesce: (key?: string) => void;
+  /** Active history coalesce key, or null when not coalescing. */
+  getActiveCoalesceKey: () => string | null;
 };
 
 export type UseDesignSessionOptions = {
@@ -362,6 +364,7 @@ export function useDesignSession(
     pushBeforeChange,
     beginCoalesce,
     endCoalesce,
+    getActiveCoalesceKey,
     undo: popUndo,
     redo: popRedo,
     runWithoutRecording,
@@ -399,12 +402,14 @@ export function useDesignSession(
       clearTimeout(persistTimer.current);
       persistTimer.current = null;
     }
-    saveDesignSession(next);
+    // Meaningful sessions: upsert persists session + index (avoid double saveDesignSession).
     if (isMeaningfulSession(next)) {
       void designRepository.upsert(next).catch((err) => {
         console.warn("[postforge] design index upsert failed", err);
       });
+      return;
     }
+    saveDesignSession(next);
   }, []);
 
   useEffect(() => {
@@ -1995,6 +2000,7 @@ export function useDesignSession(
       historyLimitToast,
       beginHistoryCoalesce: beginCoalesce,
       endHistoryCoalesce: endCoalesce,
+      getActiveCoalesceKey,
     }),
     [
       ready,
@@ -2060,6 +2066,7 @@ export function useDesignSession(
       historyLimitToast,
       beginCoalesce,
       endCoalesce,
+      getActiveCoalesceKey,
     ],
   );
 }

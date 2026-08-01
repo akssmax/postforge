@@ -13,7 +13,7 @@ import { BrandColorPicker } from "@/components/social-tool/BrandColorPicker";
 import { BrandLogoKitGrid } from "@/components/social-tool/BrandLogoKitGrid";
 import {
   InspectorSegment,
-  InspectorSlider,
+  InspectorLiveSlider,
 } from "@/components/social-tool/InspectorControls";
 import type { UseBrandKitReturn } from "@/lib/brand/useBrandKit";
 import type { BrandColors } from "@/lib/brand/types";
@@ -46,6 +46,8 @@ type Props = Pick<
   onShowBrandChange: (value: boolean) => void;
   logoScale: number;
   onLogoScaleChange: (value: number) => void;
+  onHistoryCoalesceBegin?: (key: string) => void;
+  onHistoryCoalesceEnd?: (key?: string) => void;
   logoPlacement: LogoPlacement;
   onLogoPlacementChange: (value: LogoPlacement) => void;
   logoAlign: LogoAlign;
@@ -74,6 +76,8 @@ export function BrandPanel({
   onShowBrandChange,
   logoScale,
   onLogoScaleChange,
+  onHistoryCoalesceBegin,
+  onHistoryCoalesceEnd,
   logoPlacement,
   onLogoPlacementChange,
   logoAlign,
@@ -132,7 +136,7 @@ export function BrandPanel({
                 <div className="brand-panel-block">
             <p className="social-tool-label !mb-3">Logo</p>
             <div className="space-y-3">
-              <InspectorSlider
+              <InspectorLiveSlider
                 label="Scale"
                 value={logoScale}
                 onChange={onLogoScaleChange}
@@ -143,6 +147,16 @@ export function BrandPanel({
                   `${v.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1")}×`
                 }
                 aria-label="Logo scale"
+                onCoalesceBegin={
+                  onHistoryCoalesceBegin
+                    ? () => onHistoryCoalesceBegin("logoScale")
+                    : undefined
+                }
+                onCoalesceEnd={
+                  onHistoryCoalesceEnd
+                    ? () => onHistoryCoalesceEnd("logoScale")
+                    : undefined
+                }
               />
               <div className="social-tool-row">
                 <span className="social-tool-row-label">Placement</span>

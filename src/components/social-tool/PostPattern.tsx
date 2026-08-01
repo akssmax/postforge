@@ -27,6 +27,19 @@ type Props = {
   footerPatternTint?: string;
 };
 
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduced(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return reduced;
+}
+
 export function PostPattern({
   pattern,
   theme,
@@ -38,23 +51,14 @@ export function PostPattern({
   patternTint,
   footerPatternTint,
 }: Props) {
-  const [pulse, setPulse] = useState(false);
+  const reduceMotion = usePrefersReducedMotion();
+  const motionOn = animated && !reduceMotion;
   const isDark = theme === "dark";
   const color = patternTint ?? (isDark ? "#4BB793" : "#275144");
   const footerColor =
     footerPatternTint ?? (isDark ? "#E3FFCC" : "#275144");
   const patternScale = Math.min(4, Math.max(0.4, scale));
   const resolved = resolvePattern(pattern, designId);
-
-  useEffect(() => {
-    if (!animated || isPatternNone(resolved.ref)) {
-      setPulse(false);
-      return;
-    }
-    setPulse(true);
-    const id = window.setInterval(() => setPulse((v) => !v), 1800);
-    return () => window.clearInterval(id);
-  }, [animated, resolved.ref]);
 
   if (resolved.kind === "none") return null;
 
@@ -77,7 +81,7 @@ export function PostPattern({
         color={color}
         opacity={Math.min(1, Math.max(0, opacity))}
         scale={patternScale}
-        animated={animated}
+        animated={motionOn}
       />
     );
   }
@@ -91,7 +95,7 @@ export function PostPattern({
         color={color}
         opacity={Math.min(1, Math.max(0, opacity))}
         scale={patternScale}
-        animated={animated}
+        animated={motionOn}
       />
     );
   }
@@ -105,7 +109,7 @@ export function PostPattern({
         color={color}
         opacity={Math.min(1, Math.max(0, opacity))}
         scale={patternScale}
-        animated={animated}
+        animated={motionOn}
       />
     );
   }
@@ -116,7 +120,7 @@ export function PostPattern({
     const outlineSvg = tintSvgMarkup(LEGACY_OUTLINE_SVG, color);
     return (
       <div
-        className={`social-post-pattern social-post-pattern--outline${animated ? " is-animated" : ""}`}
+        className={`social-post-pattern social-post-pattern--outline${motionOn ? " is-animated" : ""}`}
         style={shellStyle}
         aria-hidden
       >
@@ -139,7 +143,7 @@ export function PostPattern({
   if (legacyId === "footer") {
     return (
       <div
-        className={`social-post-pattern social-post-pattern--footer${animated ? " is-animated" : ""}`}
+        className={`social-post-pattern social-post-pattern--footer${motionOn ? " is-animated" : ""}`}
         style={shellStyle}
         aria-hidden
       >
@@ -147,7 +151,7 @@ export function PostPattern({
           <MonogramPattern
             tileSize={380}
             interactive={false}
-            variant={pulse ? "highlight" : "default"}
+            variant="default"
             color={footerColor}
             className="social-post-footer-pattern"
           />
@@ -162,7 +166,7 @@ export function PostPattern({
 
   return (
     <div
-      className={`social-post-pattern${animated ? " is-animated" : ""}`}
+      className={`social-post-pattern${motionOn ? " is-animated" : ""}`}
       style={
         {
           opacity: userOpacity * softFactor,
@@ -173,7 +177,7 @@ export function PostPattern({
     >
       <div className="social-post-pattern-scale" style={scaleStyle}>
         <HeroMonogramPattern
-          active={animated ? pulse : false}
+          active={false}
           opacity={isDark ? 0.9 : 0.85}
           activeOpacity={1}
           color={color}

@@ -1,16 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+type LiveSliderOptions = {
+  /**
+   * Called RAF-throttled while dragging (DOM paint / local UI).
+   * When set, React `display` state is not updated during drag unless
+   * `mirrorDisplay` is true — use this to avoid re-rendering heavy trees.
+   */
+  onPreview?: (value: number) => void;
+  /** Also update `display` state during drag (default: true when no onPreview). */
+  mirrorDisplay?: boolean;
+};
+
 /** Live preview while dragging; commit once on pointer-up (avoids session/history churn). */
 export function useLiveSliderValue(
   committed: number,
   onCommit: (value: number) => void,
   onCoalesceBegin?: () => void,
   onCoalesceEnd?: () => void,
+  options?: LiveSliderOptions,
 ) {
   const [live, setLive] = useState<number | null>(null);
   const draggingRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const latestRef = useRef(committed);
+  const onPreviewRef = useRef(options?.onPreview);
+  onPreviewRef.current = options?.onPreview;
+  const mirrorDisplay =
+    options?.mirrorDisplay ?? options?.onPreview == null;
 
   latestRef.current = live ?? committed;
 
@@ -20,20 +36,24 @@ export function useLiveSliderValue(
     onCoalesceBegin?.();
   }, [onCoalesceBegin]);
 
-  const onLiveChange = useCallback((value: number) => {
-    latestRef.current = value;
-    if (!draggingRef.current) {
-      onCommit(value);
-      return;
-    }
-    if (rafRef.current != null) return;
-    rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = null;
-      if (draggingRef.current) {
-        setLive(latestRef.current);
+  const onLiveChange = useCallback(
+    (value: number) => {
+      latestRef.current = value;
+      if (!draggingRef.current) {
+        onCommit(value);
+        return;
       }
-    });
-  }, [onCommit]);
+      if (rafRef.current != null) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        if (!draggingRef.current) return;
+        const next = latestRef.current;
+        onPreviewRef.current?.(next);
+        if (mirrorDisplay) setLive(next);
+      });
+    },
+    [onCommit, mirrorDisplay],
+  );
 
   const onInteractionEnd = useCallback(
     (value: number) => {
@@ -44,6 +64,7 @@ export function useLiveSliderValue(
         rafRef.current = null;
       }
       setLive(null);
+      onPreviewRef.current?.(value);
       onCommit(value);
       onCoalesceEnd?.();
     },
@@ -59,6 +80,7 @@ export function useLiveSliderValue(
 
   return {
     display: live ?? committed,
+    dragging: live != null,
     onLiveChange,
     onInteractionStart,
     onInteractionEnd,

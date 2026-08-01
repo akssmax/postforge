@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   applyTokenSteps,
   dragPxToTokenSteps,
@@ -61,7 +61,41 @@ export function SpacingHandle({
     startY: number;
     origin: SpacingToken;
   } | null>(null);
+  const pendingTokenRef = useRef<SpacingToken | null>(null);
+  const rafRef = useRef<number | null>(null);
   const horizontal = isHorizontalVariant(variant);
+
+  useEffect(
+    () => () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
+
+  const flushPendingToken = () => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    const pending = pendingTokenRef.current;
+    if (pending != null) {
+      pendingTokenRef.current = null;
+      onTokenChange(pending);
+    }
+  };
+
+  const scheduleTokenChange = (next: SpacingToken) => {
+    pendingTokenRef.current = next;
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const pending = pendingTokenRef.current;
+      if (pending != null) {
+        pendingTokenRef.current = null;
+        onTokenChange(pending);
+      }
+    });
+  };
 
   const onPointerDown = (ev: React.PointerEvent) => {
     ev.preventDefault();
@@ -99,17 +133,18 @@ export function SpacingHandle({
 
     if (steps === 0) return;
     const next = applyTokenSteps(drag.origin, steps);
-    if (next !== token) {
+    if (next !== drag.origin) {
       dragRef.current = {
         startX: ev.clientX,
         startY: ev.clientY,
         origin: next,
       };
-      onTokenChange(next);
+      scheduleTokenChange(next);
     }
   };
 
   const endDrag = (ev: React.PointerEvent) => {
+    flushPendingToken();
     dragRef.current = null;
     setActive(false);
     onHistoryCoalesceEnd?.();
@@ -199,6 +234,40 @@ export function SplitTextColumnShareHandle({
     startX: number;
     origin: number;
   } | null>(null);
+  const pendingShareRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
+
+  const flushPendingShare = () => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    const pending = pendingShareRef.current;
+    if (pending != null) {
+      pendingShareRef.current = null;
+      onShareChange(pending);
+    }
+  };
+
+  const scheduleShareChange = (next: number) => {
+    pendingShareRef.current = next;
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const pending = pendingShareRef.current;
+      if (pending != null) {
+        pendingShareRef.current = null;
+        onShareChange(pending);
+      }
+    });
+  };
 
   const onPointerDown = (ev: React.PointerEvent) => {
     ev.preventDefault();
@@ -225,16 +294,17 @@ export function SplitTextColumnShareHandle({
     for (let i = 0; i < Math.abs(steps); i += 1) {
       next = stepSplitTextColumnShare(next, steps > 0 ? 1 : -1);
     }
-    if (next !== share) {
+    if (next !== drag.origin) {
       dragRef.current = {
         startX: ev.clientX,
         origin: next,
       };
-      onShareChange(next);
+      scheduleShareChange(next);
     }
   };
 
   const endDrag = (ev: React.PointerEvent) => {
+    flushPendingShare();
     dragRef.current = null;
     setActive(false);
     onHistoryCoalesceEnd?.();

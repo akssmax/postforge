@@ -240,7 +240,10 @@ export function useBriefChat({
       lastClientActionRef.current = "";
     }
 
-    const { plan, planOptions, patches, variants } = extractTurnPayload(messages, lastUserIndex);
+    const { plan, planOptions, patches, variants } = extractTurnPayload(
+      messages,
+      lastUserIndex,
+    );
 
     if (variants?.length) {
       setPendingVariants(variants);
@@ -252,22 +255,45 @@ export function useBriefChat({
     if (!fingerprint) return;
     if (fingerprint === lastAppliedRef.current) return;
 
-    if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
-    applyTimerRef.current = setTimeout(() => {
+    const applyNow = () => {
+      if (fingerprint === lastAppliedRef.current) return;
       lastAppliedRef.current = fingerprint;
+      // Apply canvas patches even when a plan is present in the same turn —
+      // otherwise updateCopy / layout tweaks after updateDesign are dropped.
       if (plan) {
         onApplyPlanRef.current(plan, planOptions);
-      } else {
-        for (const patch of patches) {
-          onApplyCanvasPatchRef.current(patch);
-        }
       }
+      for (const patch of patches) {
+        onApplyCanvasPatchRef.current(patch);
+      }
+    };
+
+    // While tokens stream, debounce so we don't apply every partial tool payload.
+    // When the turn is idle, apply immediately — otherwise the debounce timer is
+    // repeatedly cleared by text-token message updates and never fires.
+    const streamActive = status === "streaming" || status === "submitted";
+    if (!streamActive) {
+      if (applyTimerRef.current) {
+        clearTimeout(applyTimerRef.current);
+        applyTimerRef.current = null;
+      }
+      applyNow();
+      return;
+    }
+
+    if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
+    applyTimerRef.current = setTimeout(() => {
+      applyTimerRef.current = null;
+      applyNow();
     }, APPLY_DEBOUNCE_MS);
 
     return () => {
-      if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
+      if (applyTimerRef.current) {
+        clearTimeout(applyTimerRef.current);
+        applyTimerRef.current = null;
+      }
     };
-  }, [messages]);
+  }, [messages, status]);
 
   useEffect(() => {
     const action = extractLatestClientAction(messages);

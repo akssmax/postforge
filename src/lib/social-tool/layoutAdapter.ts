@@ -132,6 +132,7 @@ export function legacyEditableSlotsFromCopy(copy: PostCopy): EditableTextSlot[] 
     },
   ];
   copy.extraFields.forEach((field, index) => {
+    if (!field.value.trim()) return;
     slots.push({
       slotId: field.id,
       role: "body",
@@ -387,6 +388,10 @@ export function copyFromTextSlots(
     else if (slot.role === "subheading") next.subheading = slot.text;
     else {
       const idx = next.extraFields.findIndex((f) => f.id === slot.slotId);
+      if (!slot.text.trim()) {
+        if (idx >= 0) next.extraFields.splice(idx, 1);
+        continue;
+      }
       const existingLabel = idx >= 0 ? next.extraFields[idx]?.label?.trim() : "";
       const label =
         existingLabel ||
@@ -400,19 +405,6 @@ export function copyFromTextSlots(
           value: slot.text,
         });
       }
-    }
-  }
-
-  const expectedExtras = layout.slots.filter(
-    (s) => s.kind === "text" && s.textRole !== "headline" && s.textRole !== "subheading",
-  ).length;
-  if (next.extraFields.length < expectedExtras) {
-    for (let i = next.extraFields.length; i < expectedExtras; i++) {
-      next.extraFields.push({
-        id: `extra-${i}`,
-        label: "Detail",
-        value: "",
-      });
     }
   }
 

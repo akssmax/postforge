@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -78,7 +79,10 @@ import {
   SplitTextColumnShareHandle,
   SpacingHandle,
 } from "@/components/social-tool/SpacingHandle";
-import { canvasSelectionKind } from "@/lib/social-tool/canvasSelection";
+import {
+  canvasSelectionKind,
+  featuredSlotIdFromSelection,
+} from "@/lib/social-tool/canvasSelection";
 import {
   DEFAULT_POST_LAYOUT_SPACING,
   canvasScaleFactor,
@@ -366,11 +370,82 @@ export function ProductShotPost({
   canvasIcons = [],
   onCanvasIconsChange,
 }: Props) {
+  const postRootRef = useRef<HTMLDivElement>(null);
+  const canvasSizeRef = useRef({ width, height });
+  canvasSizeRef.current = { width, height };
+
+  const selectedFeaturedSlotId = featuredSlotIdFromSelection(canvasSelection);
+  const selectedFeaturedTransform = useMemo(() => {
+    if (!selectedFeaturedSlotId) return featuredTransform;
+    const slot = featuredSlots?.find((s) => s.slotId === selectedFeaturedSlotId);
+    return slot?.transform ?? featuredTransform;
+  }, [selectedFeaturedSlotId, featuredSlots, featuredTransform]);
+  const selectedFeaturedTransformRef = useRef(selectedFeaturedTransform);
+  selectedFeaturedTransformRef.current = selectedFeaturedTransform;
+  const selectedFeaturedSlotIdRef = useRef(selectedFeaturedSlotId);
+  selectedFeaturedSlotIdRef.current = selectedFeaturedSlotId;
+
+  const previewTypeScale = useCallback((scale: number) => {
+    const root = postRootRef.current;
+    if (!root) return;
+    const { width: w, height: h } = canvasSizeRef.current;
+    const vars = socialPostTypographyVars(w, h, scale);
+    for (const [key, val] of Object.entries(vars)) {
+      root.style.setProperty(key, String(val));
+    }
+    // Drop legacy per-node font-size overrides so CSS vars drive live preview.
+    if (root.dataset.spTypeScaleVarsOnly !== "1") {
+      root
+        .querySelectorAll<HTMLElement>(
+          ".social-post-headline, .social-post-sub, .social-post-extra, .social-post-list-title, .social-post-list-body",
+        )
+        .forEach((el) => {
+          el.style.removeProperty("font-size");
+        });
+      root.dataset.spTypeScaleVarsOnly = "1";
+    }
+  }, []);
+
+  const previewLogoScale = useCallback((scale: number) => {
+    const root = postRootRef.current;
+    if (!root) return;
+    const { width: w, height: h } = canvasSizeRef.current;
+    const nextH = Math.max(
+      12,
+      Math.round(34 * canvasScaleFactor(w, h) * scale),
+    );
+    root
+      .querySelectorAll<HTMLElement>(
+        "[data-canvas-select='logo'] .brand-logo-inline, [data-canvas-select='logo'] .brand-logo-img, [data-canvas-select='logo'] .canvas-slot",
+      )
+      .forEach((el) => {
+        el.style.height = `${nextH}px`;
+        if (el.classList.contains("canvas-slot")) {
+          el.style.minWidth = `${Math.round(nextH * 2.4)}px`;
+        }
+      });
+  }, []);
+
+  const previewFeaturedScale = useCallback((scale: number) => {
+    const root = postRootRef.current;
+    if (!root) return;
+    const slotId = selectedFeaturedSlotIdRef.current;
+    const selectAttr =
+      !slotId || slotId === "featured-primary"
+        ? "featured"
+        : `featured:${slotId}`;
+    const viewport = root.querySelector<HTMLElement>(
+      `.social-post-product-viewport[data-canvas-select="${selectAttr}"]`,
+    );
+    viewport?.style.setProperty("--fi-scale", String(scale));
+  }, []);
+
   const typeScaleSlider = useLiveSliderValue(
     typeScale,
     (value) => onTypeScaleChange?.(value),
     () => onHistoryCoalesceBegin?.("typeScale"),
     () => onHistoryCoalesceEnd?.("typeScale"),
+    { onPreview: previewTypeScale, mirrorDisplay: false },
   );
   const effectiveTypeScale = typeScaleSlider.display;
 
@@ -379,8 +454,24 @@ export function ProductShotPost({
     (value) => onLogoScaleChange?.(value),
     () => onHistoryCoalesceBegin?.("logoScale"),
     () => onHistoryCoalesceEnd?.("logoScale"),
+    { onPreview: previewLogoScale, mirrorDisplay: false },
   );
   const effectiveLogoScale = logoScaleSlider.display;
+
+  const featuredScaleSlider = useLiveSliderValue(
+    selectedFeaturedTransform.scale,
+    (scale) => {
+      const slotId = selectedFeaturedSlotIdRef.current;
+      if (!onFeaturedTransformChange || !slotId) return;
+      onFeaturedTransformChange(
+        { ...selectedFeaturedTransformRef.current, scale },
+        slotId,
+      );
+    },
+    () => onHistoryCoalesceBegin?.("featuredTransform"),
+    () => onHistoryCoalesceEnd?.("featuredTransform"),
+    { onPreview: previewFeaturedScale, mirrorDisplay: false },
+  );
 
   const layout = dynamicLayout
     ? dynamicLayoutAsPostLayout(dynamicLayout)
@@ -573,10 +664,17 @@ export function ProductShotPost({
 
   const [hoveredSlotId, setHoveredSlotId] = useState<string | null>(null);
   const [draggingSlotId, setDraggingSlotId] = useState<string | null>(null);
+  const [featuredDragPreview, setFeaturedDragPreview] = useState<{
+    slotId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const featuredDragPreviewRef = useRef(featuredDragPreview);
+  featuredDragPreviewRef.current = featuredDragPreview;
+  const featuredDragRafRef = useRef<number | null>(null);
   const [featuredZoneHovered, setFeaturedZoneHovered] = useState(false);
   const [copyEditAnchor, setCopyEditAnchor] = useState<HTMLElement | null>(null);
   const [dropTargetSlotId, setDropTargetSlotId] = useState<string | null>(null);
-  const postRootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!editingCopyField || !postRootRef.current) {
@@ -738,10 +836,25 @@ export function ProductShotPost({
     if (!interactive) {
       setHoveredSlotId(null);
       setDraggingSlotId(null);
+      setFeaturedDragPreview(null);
+      featuredDragPreviewRef.current = null;
+      if (featuredDragRafRef.current != null) {
+        cancelAnimationFrame(featuredDragRafRef.current);
+        featuredDragRafRef.current = null;
+      }
       setFeaturedZoneHovered(false);
       dragRef.current = null;
     }
   }, [interactive]);
+
+  useEffect(
+    () => () => {
+      if (featuredDragRafRef.current != null) {
+        cancelAnimationFrame(featuredDragRafRef.current);
+      }
+    },
+    [],
+  );
 
   function featuredSelectId(slotId: string): CanvasSelectionId {
     return slotId === "featured-primary" ? "featured" : `featured:${slotId}`;
@@ -754,7 +867,7 @@ export function ProductShotPost({
 
   function selectableClassForFeatured(slotId: string) {
     if (!interactive || !onCanvasSelect) return "";
-    return `canvas-selectable${isFeaturedSlotSelected(slotId) ? " is-canvas-selected" : ""}`;
+    return ` canvas-selectable${isFeaturedSlotSelected(slotId) ? " is-canvas-selected" : ""}`;
   }
 
   function textForRole(role: TextSlotRole, slotId: string): string {
@@ -781,12 +894,12 @@ export function ProductShotPost({
 
   function selectableClassForCopyField(slotId: string) {
     if (!interactive || !onCanvasSelect) return "";
-    return `canvas-selectable${isCopyFieldSelected(slotId) ? " is-canvas-selected" : ""}`;
+    return ` canvas-selectable${isCopyFieldSelected(slotId) ? " is-canvas-selected" : ""}`;
   }
 
   function selectableClass(id: CanvasSelectionId) {
     if (!interactive || !onCanvasSelect) return "";
-    return `canvas-selectable${canvasSelection === id ? " is-canvas-selected" : ""}`;
+    return ` canvas-selectable${canvasSelection === id ? " is-canvas-selected" : ""}`;
   }
 
   function handleCanvasSelect(id: CanvasSelectionId, ev: React.PointerEvent) {
@@ -797,8 +910,7 @@ export function ProductShotPost({
 
   function applyFeaturedDragDelta(clientX: number, clientY: number) {
     const drag = dragRef.current;
-    const onChange = onChangeRef.current;
-    if (!drag || !onChange) return;
+    if (!drag) return;
 
     const scaleFactor = metricsRef.current.previewScale > 0
       ? metricsRef.current.previewScale
@@ -816,14 +928,40 @@ export function ProductShotPost({
       100,
     );
 
-    onChange(
-      {
-        ...drag.base,
-        x: Math.round(nextX * 10) / 10,
-        y: Math.round(nextY * 10) / 10,
-      },
-      drag.slotId,
-    );
+    const preview = {
+      slotId: drag.slotId,
+      x: Math.round(nextX * 10) / 10,
+      y: Math.round(nextY * 10) / 10,
+    };
+    featuredDragPreviewRef.current = preview;
+    if (featuredDragRafRef.current != null) return;
+    featuredDragRafRef.current = requestAnimationFrame(() => {
+      featuredDragRafRef.current = null;
+      if (featuredDragPreviewRef.current) {
+        setFeaturedDragPreview(featuredDragPreviewRef.current);
+      }
+    });
+  }
+
+  function commitFeaturedDrag() {
+    const drag = dragRef.current;
+    const preview = featuredDragPreviewRef.current;
+    const onChange = onChangeRef.current;
+    if (drag && preview && onChange && preview.slotId === drag.slotId) {
+      onChange(
+        { ...drag.base, x: preview.x, y: preview.y },
+        drag.slotId,
+      );
+    }
+    if (featuredDragRafRef.current != null) {
+      cancelAnimationFrame(featuredDragRafRef.current);
+      featuredDragRafRef.current = null;
+    }
+    featuredDragPreviewRef.current = null;
+    setFeaturedDragPreview(null);
+    dragRef.current = null;
+    setDraggingSlotId(null);
+    onHistoryCoalesceEnd?.("featuredTransform");
   }
 
   function renderFeaturedDragHandle(
@@ -874,17 +1012,13 @@ export function ProductShotPost({
           if (ev.currentTarget.hasPointerCapture(ev.pointerId)) {
             ev.currentTarget.releasePointerCapture(ev.pointerId);
           }
-          dragRef.current = null;
-          setDraggingSlotId(null);
-          onHistoryCoalesceEnd?.("featuredTransform");
+          commitFeaturedDrag();
         }}
         onPointerCancel={(ev) => {
           if (ev.currentTarget.hasPointerCapture(ev.pointerId)) {
             ev.currentTarget.releasePointerCapture(ev.pointerId);
           }
-          dragRef.current = null;
-          setDraggingSlotId(null);
-          onHistoryCoalesceEnd?.("featuredTransform");
+          commitFeaturedDrag();
         }}
       >
         <Move className="size-3.5" strokeWidth={2.25} aria-hidden />
@@ -1195,7 +1329,11 @@ export function ProductShotPost({
       }
       case "subheading": {
         const editing = isEditingField({ kind: "subheading" });
-        return hasSubheading || editing ? (
+        const subText =
+          textSlots?.find((slot) => slot.role === "subheading")?.text ??
+          copy.subheading;
+        const showSub = !isEmptyCopyField(subText) || editing;
+        return showSub ? (
           <p
             key="subheading"
             className={`social-post-sub${editing ? " is-copy-editing" : ""}${selectableClassForCopyField("subheading")}`}
@@ -1208,7 +1346,7 @@ export function ProductShotPost({
               startCopyFieldEdit({ kind: "subheading" }, ev)
             }
           >
-            <AccentText text={copy.subheading} />
+            <AccentText text={subText} />
           </p>
         ) : (
           renderEmptyTextSlot("subheading-slot", "subheading", subheadingSlotStyle, {
@@ -1646,6 +1784,10 @@ export function ProductShotPost({
     slotMeta?: { index: number; total: number },
   ) {
     const slotTransform = slot.transform ?? fi;
+    const displayFeaturedScale =
+      slot.slotId === selectedFeaturedSlotId
+        ? featuredScaleSlider.display
+        : slotTransform.scale;
     const slotProductPage = slot.productPage ?? productPage;
     const slotMode = slot.mode ?? featuredMode;
     const slotBlock = resolveSlotBlock(slot, visualBlocks);
@@ -1741,13 +1883,21 @@ export function ProductShotPost({
             ...(slotShowFrame
               ? {
                   "--fi-perspective": `${slotTransform.perspective}px`,
-                  "--fi-x": `${slotTransform.x}%`,
-                  "--fi-y": `${slotTransform.y}%`,
+                  "--fi-x": `${
+                    featuredDragPreview?.slotId === slot.slotId
+                      ? featuredDragPreview.x
+                      : slotTransform.x
+                  }%`,
+                  "--fi-y": `${
+                    featuredDragPreview?.slotId === slot.slotId
+                      ? featuredDragPreview.y
+                      : slotTransform.y
+                  }%`,
                   "--fi-z": `${slotTransform.z}px`,
                   "--fi-rx": `${slotTransform.rotateX}deg`,
                   "--fi-ry": `${slotTransform.rotateY}deg`,
                   "--fi-rz": `${slotTransform.rotateZ}deg`,
-                  "--fi-scale": slotTransform.scale,
+                  "--fi-scale": displayFeaturedScale,
                 }
               : {}),
           } as React.CSSProperties
@@ -1757,17 +1907,17 @@ export function ProductShotPost({
           <CanvasPropertyPills
             selection={selectId}
             enabled
-            typeScale={typeScale}
-            featuredScale={slotTransform.scale}
+            typeScale={effectiveTypeScale}
+            featuredScale={displayFeaturedScale}
             onFeaturedScaleChange={
               onFeaturedTransformChange
-                ? (scale) =>
-                    onFeaturedTransformChange(
-                      { ...slotTransform, scale },
-                      slot.slotId,
-                    )
+                ? featuredScaleSlider.onLiveChange
                 : undefined
             }
+            onFeaturedScaleInteractionStart={
+              featuredScaleSlider.onInteractionStart
+            }
+            onFeaturedScaleInteractionEnd={featuredScaleSlider.onInteractionEnd}
             featuredSlotIndex={slotMeta?.index ?? 0}
             featuredSlotCount={slotMeta?.total ?? 1}
             featuredSlotHasVisual={Boolean(slotBlock || slotComposedMarkup)}
@@ -1809,10 +1959,10 @@ export function ProductShotPost({
             </div>
           ) : isComposedFeatured ? (
             <div
-              className={`social-post-product-frame social-post-product-frame--composed${draggingSlotId === slot.slotId ? " is-dragging" : ""}`}
+              className={`social-post-product-frame social-post-product-frame--composed${draggingSlotId === slot.slotId ? " is-dragging" : ""}${slotSelected ? " is-frame-selected" : ""}`}
               style={featuredFrameRadius}
               data-design-block={slot.slotId === "featured-primary" ? "featured" : undefined}
-              data-canvas-select={slot.slotId === "featured-primary" ? "featured" : undefined}
+              data-canvas-select={selectId}
               data-figma-name={slot.slotId === "featured-primary" ? "Featured" : undefined}
             >
               <div
@@ -1845,10 +1995,10 @@ export function ProductShotPost({
             </div>
           ) : (
             <div
-              className={`social-post-product-frame${isIllustrationFeaturedAsset(featuredImageSrc, featuredSvgMarkup) ? " social-post-product-frame--illustration" : ""}${draggingSlotId === slot.slotId ? " is-dragging" : ""}`}
+              className={`social-post-product-frame${isIllustrationFeaturedAsset(featuredImageSrc, featuredSvgMarkup) ? " social-post-product-frame--illustration" : ""}${draggingSlotId === slot.slotId ? " is-dragging" : ""}${slotSelected ? " is-frame-selected" : ""}`}
               style={featuredFrameRadius}
               data-design-block={slot.slotId === "featured-primary" ? "featured" : undefined}
-              data-canvas-select={slot.slotId === "featured-primary" ? "featured" : undefined}
+              data-canvas-select={selectId}
               data-figma-name={slot.slotId === "featured-primary" ? "Featured" : undefined}
             >
               <div className="social-post-product-inner social-post-product-inner--image">
@@ -2021,13 +2171,28 @@ export function ProductShotPost({
           : showBackground
             ? "social-post--dark"
             : `social-post--dark social-post--no-bg${exporting ? " social-post--exporting" : ""}`
-      } social-post--product${hasPropertyPills ? " has-property-pills" : ""}`}
+      } social-post--product${hasPropertyPills ? " has-property-pills" : ""}${
+        interactive && canvasSelection ? " has-canvas-selection" : ""
+      }`}
       style={surfaceStyle}
-      onPointerDown={() => {
-        if (interactive && !editingCopyField) {
-          if (designMode) onSelectBlock?.(null);
-          onCanvasSelect?.(null);
+      onPointerDown={(ev) => {
+        if (!interactive || editingCopyField) return;
+        // Clicking empty artboard chrome (not a layer) opens background/pattern.
+        if (
+          ev.target instanceof Element &&
+          (ev.target.closest("[data-canvas-select]") ||
+            ev.target.closest("[data-copy-field]") ||
+            ev.target.closest(".canvas-property-pills") ||
+            ev.target.closest(".spacing-handle") ||
+            ev.target.closest(".social-featured-drag-handle") ||
+            ev.target.closest(".canvas-shape") ||
+            ev.target.closest(".canvas-icon-layer__item"))
+        ) {
+          return;
         }
+        ev.stopPropagation();
+        if (designMode) onSelectBlock?.(null);
+        onCanvasSelect?.("artboard");
       }}
     >
       {copyEditAnchor &&
