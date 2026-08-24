@@ -1,15 +1,24 @@
-"use client";
+import type { Metadata } from "next";
+import { LandingCapabilities } from "@/components/landing/LandingCapabilities";
+import { LandingPage } from "@/components/landing/LandingPage";
+import { withShareImages } from "@/lib/site/shareMetadata";
 
-import dynamic from "next/dynamic";
-
-const Landing2Page = dynamic(
-  () =>
-    import("@/components/landing-2/Landing2Page").then(
-      (mod) => mod.Landing2Page,
-    ),
-  { ssr: false },
-);
+export const metadata: Metadata = withShareImages({
+  title: "Postforge — From logo to finished post",
+  description:
+    "Upload your brand, shuffle layouts until it looks right, and export social posts — PNG, JPG, or PDF. No blank canvas.",
+  openGraph: {
+    title: "Postforge — From logo to finished post",
+    description:
+      "Upload your brand, shuffle layouts until it looks right, and export social posts — PNG, JPG, or PDF. No blank canvas.",
+  },
+  twitter: {
+    title: "Postforge — From logo to finished post",
+    description:
+      "Upload your brand, shuffle layouts until it looks right, and export social posts — PNG, JPG, or PDF. No blank canvas.",
+  },
+});
 
 export default function Page() {
-  return <Landing2Page />;
+  return <LandingPage capabilities={<LandingCapabilities />} />;
 }
