@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { AppShellLayout } from "@/components/app-shell/AppShellLayout";
 
 export const metadata: Metadata = {
-  title: "Designs · Postforge",
-  description: "Your saved social post design threads",
+  title: "Postforge",
+  description: "Design branded posts and slides",
 };
 
 export default function DesignsLayout({
@@ -10,9 +11,5 @@ export default function DesignsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="min-h-svh bg-surface-primary text-text-primary">
-      {children}
-    </div>
-  );
+  return <AppShellLayout>{children}</AppShellLayout>;
 }

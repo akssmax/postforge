@@ -1,39 +1,17 @@
-/* Landing-2 — maps to semantic tokens (theme-aware) */
+/* ─────────────────────────────────────────────
+   Landing-2 — Modern design (ElevenLabs-inspired)
+   ───────────────────────────────────────────── */
+
 .landing-2 {
-  /* Structural brand fills stay fixed; theme flips surfaces/text */
+  /* Theme-aware tokens */
   --l2-accent: var(--brand-100);
-  --l2-highlight: var(--brand-100);
-  /* CTA fill — mint on dark surfaces; logo green in light mode */
-  --l2-cta: var(--brand-100);
-  --l2-cta-fg: var(--brand-900);
-  --l2-ocean: var(--brand-500);
-  --l2-gradient-start: var(--brand-gradient-start);
-  --l2-gradient-end: var(--brand-gradient-end);
-  --l2-brand-950: var(--brand-950);
+  --l2-highlight: var(--brand-500);
+  --l2-cta: var(--brand-500);
+  --l2-cta-fg: var(--white);
   --l2-primary: var(--brand-900);
   --l2-surface: var(--surface-primary);
-  /* Efficiency left panel — elevated dark in dark mode, white in light */
-  --l2-panel: color-mix(in oklab, var(--brand-900) 82%, var(--gray-950));
-  --l2-panel-fg: var(--gray-50);
-  --l2-panel-muted: color-mix(in oklab, var(--gray-100) 72%, transparent);
-  /* Always light on dark brand washes — never theme-flipped text-invert */
-  --l2-text-on-brand: var(--text-on-brand);
-  --l2-text-invert: var(--text-on-brand);
-  --l2-text-primary: var(--text-primary);
-  --l2-text-tertiary: var(--text-tertiary);
-  --l2-cod-gray: var(--text-secondary);
-  --l2-emperor: var(--text-tertiary);
-  --l2-horizon: #628da4;
-  --l2-tiber: #083237;
-  --l2-mirage: #1c2c35;
-  --l2-grays-950: var(--gray-950);
-  --l2-white: var(--white);
-  --l2-radius: 4px;
-  --l2-pad: 64px;
-  --l2-nav-pad-block: 12px;
-  --l2-nav-pad-inline: 20px;
-  --l2-nav-pad-end: 8px;
-  --l2-max: 1312px;
+  --l2-max: 1200px;
+  --l2-pad: clamp(1.25rem, 4vw, 4rem);
   --l2-font: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
   font-family: var(--l2-font);
@@ -42,343 +20,192 @@
 }
 
 [data-theme="light"] .landing-2 {
-  /* Logo green (#4BB793) for primary CTAs — mint is too low-contrast on light */
   --l2-highlight: var(--brand-600);
   --l2-cta: var(--brand-500);
-  --l2-cta-fg: var(--brand-950);
-  --l2-panel: var(--white);
-  --l2-panel-fg: var(--brand-900);
-  --l2-panel-muted: color-mix(in oklab, var(--brand-900) 72%, transparent);
+  --l2-cta-fg: var(--white);
 }
 
 .landing-2 a {
   text-decoration: none;
 }
 
-/* Dark brand hero (Figma 13:1615) — light text on gradient */
-.landing-2-hero-gradient {
-  background: var(--gradient-hero);
-  color: var(--text-on-brand);
+/* ── Nav ── */
+
+.l2-nav-chrome {
+  background: transparent;
 }
 
-/* Light marketing hero — soft mint wash (Figma light mode) */
-[data-theme="light"] .landing-2-hero-gradient {
+.l2-nav-bar {
+  background: color-mix(in oklab, var(--surface-primary) 85%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: var(--text-primary);
+  padding: 10px 12px 10px 20px;
+  border: 1px solid color-mix(in oklab, var(--text-primary) 8%, transparent);
+}
+
+[data-theme="dark"] .l2-nav-bar {
+  background: color-mix(in oklab, var(--gray-950) 88%, transparent);
+  border-color: color-mix(in oklab, var(--white) 8%, transparent);
+}
+
+/* ── Hero ── */
+
+.l2-hero {
+  background: var(--surface-primary);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .l2-hero {
   background: linear-gradient(
     180deg,
-    var(--surface-secondary) 0%,
-    var(--surface-primary) 55%,
+    var(--gray-950) 0%,
+    color-mix(in oklab, var(--gray-950) 92%, var(--brand-900)) 100%
+  );
+}
+
+[data-theme="light"] .l2-hero {
+  background: linear-gradient(
+    180deg,
+    var(--surface-primary) 0%,
+    var(--surface-secondary) 60%,
     var(--surface-tertiary) 100%
   );
-  color: var(--text-primary);
 }
 
-/* Transparent wrapper only — frosted/solid fill lives on .landing-2-nav-bar */
-.landing-2-nav-chrome {
-  background: transparent;
-  background-color: transparent;
+[data-theme="light"] .l2-hero svg {
+  mix-blend-mode: multiply;
 }
 
-.landing-2-nav-bar {
-  background: var(--gray-950);
-  color: var(--text-on-brand);
-  /* Tighter on the right so the CTA sits flush with the bar edge */
-  padding-block: var(--l2-nav-pad-block, 12px);
-  padding-left: var(--l2-nav-pad-inline, 20px);
-  padding-right: var(--l2-nav-pad-end, 8px);
+/* ── Logo strip ── */
+
+.l2-logos {
+  border-top: 1px solid color-mix(in oklab, var(--text-primary) 6%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--text-primary) 6%, transparent);
 }
 
-[data-theme="light"] .landing-2-nav-bar {
-  background: var(--white);
-  backdrop-filter: blur(80px);
-  -webkit-backdrop-filter: blur(80px);
-  color: var(--text-primary);
-  box-shadow: 0 10px 30px rgba(15, 24, 22, 0.08);
-}
-
-.landing-2-footer-gradient {
-  background: linear-gradient(
-    0deg,
-    var(--brand-gradient-start) 33.7%,
-    var(--brand-gradient-end) 82.5%
-  );
-}
-
-[data-theme="light"] .landing-2-hero-gradient svg {
-  mix-blend-mode: multiply !important;
-}
-
-/* Trusted-by logos — white monochrome on dark surfaces for contrast */
-.landing-2-logo-cell {
-  border-right: 1px solid color-mix(in oklab, var(--text-primary) 12%, transparent);
-  padding-inline: 0.5rem;
-}
-
-.landing-2-logo-cell:last-child {
-  border-right: none;
-}
-
-@media (max-width: 1023px) {
-  .landing-2-logo-strip .landing-2-logo-cell:nth-child(3n) {
-    border-right: none;
-  }
-}
-
-@media (max-width: 639px) {
-  .landing-2-logo-strip .landing-2-logo-cell:nth-child(odd) {
-    border-right: 1px solid color-mix(in oklab, var(--text-primary) 12%, transparent);
-  }
-
-  .landing-2-logo-strip .landing-2-logo-cell:nth-child(even) {
-    border-right: none;
-  }
-}
-
-.landing-2-logo-img {
-  /* Dark mode default: flatten to white so navy/black wordmarks read */
+.l2-logo-img {
   filter: brightness(0) invert(1);
-  opacity: 0.88;
+  opacity: 0.45;
   transition: opacity 0.2s ease;
 }
 
-.landing-2-logo-img.is-color {
-  /* Color badges (Arena Animation) — keep original art on dark */
+.l2-logo-img.is-color {
   filter: none;
-  opacity: 0.95;
-}
-
-.landing-2-logo-img:hover {
-  opacity: 1;
-}
-
-[data-theme="light"] .landing-2-logo-img {
-  filter: none;
-  opacity: 0.8;
-}
-
-[data-theme="light"] .landing-2-logo-img.is-color {
-  opacity: 0.95;
-}
-
-[data-theme="light"] .landing-2-logo-img:hover {
-  opacity: 1;
-}
-
-/* ── Efficiency band ── */
-.landing-2-efficiency {
-  --l2-efficiency-line: color-mix(in oklab, var(--brand-500) 28%, transparent);
-  background: var(--l2-brand-950);
-}
-
-/* Match CutoutCTA mint band in light mode */
-[data-theme="light"] .landing-2-efficiency {
-  --l2-efficiency-line: color-mix(in oklab, var(--gray-950) 10%, transparent);
-  background: var(--gray-25);
-}
-
-.landing-2-efficiency-glow {
-  pointer-events: none;
-  position: absolute;
-  inset: 10% -10% auto;
-  height: 55%;
-  background:
-    radial-gradient(
-      55% 70% at 70% 40%,
-      color-mix(in oklab, var(--brand-500) 18%, transparent),
-      transparent 70%
-    );
-  opacity: 0.9;
-}
-
-[data-theme="light"] .landing-2-efficiency-glow {
-  background:
-    radial-gradient(
-      55% 70% at 70% 35%,
-      color-mix(in oklab, var(--white) 55%, transparent),
-      transparent 70%
-    );
   opacity: 0.7;
 }
 
-.landing-2-efficiency-grid {
-  position: relative;
-  z-index: 1;
-  border: 1px solid var(--l2-efficiency-line);
-  border-radius: var(--l2-radius);
-  background: color-mix(in oklab, var(--brand-950) 40%, transparent);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+.l2-logo-img:hover {
+  opacity: 0.75;
 }
 
-[data-theme="light"] .landing-2-efficiency-grid {
-  background: color-mix(in oklab, var(--white) 55%, transparent);
-  box-shadow: 0 18px 48px rgba(4, 12, 11, 0.08);
+[data-theme="light"] .l2-logo-img {
+  filter: none;
+  opacity: 0.35;
 }
 
-.landing-2-efficiency-panel {
-  background: var(--l2-panel);
-  border-right: 1px solid var(--l2-efficiency-line);
-  min-height: 100%;
+[data-theme="light"] .l2-logo-img.is-color {
+  opacity: 0.7;
 }
 
-[data-theme="light"] .landing-2-efficiency-panel {
-  background: var(--l2-panel);
+[data-theme="light"] .l2-logo-img:hover {
+  opacity: 0.6;
 }
 
-@media (max-width: 1023px) {
-  .landing-2-efficiency-panel {
-    border-right: none;
-    border-bottom: 1px solid var(--l2-efficiency-line);
-  }
+/* ── Feature cards ── */
+
+.l2-feature-card {
+  background: color-mix(in oklab, var(--surface-primary) 60%, transparent);
 }
 
-.landing-2-efficiency-badge {
-  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+[data-theme="dark"] .l2-feature-card {
+  background: color-mix(in oklab, var(--gray-950) 50%, transparent);
+  border-color: color-mix(in oklab, var(--white) 6%, transparent);
 }
 
-.landing-2-efficiency-panel:hover .landing-2-efficiency-badge {
-  transform: translateY(-1px);
+[data-theme="dark"] .l2-feature-card:hover {
+  border-color: color-mix(in oklab, var(--white) 12%, transparent);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
-.landing-2-efficiency-badge-dot {
-  animation: l2-badge-pulse 2.4s ease-in-out infinite;
+[data-theme="light"] .l2-feature-card:hover {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
 }
 
-@keyframes l2-badge-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(0.92);
-  }
+/* ── Steps section ── */
+
+.l2-steps-section {
+  background: color-mix(in oklab, var(--surface-primary) 60%, transparent);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .landing-2-efficiency-badge-dot {
-    animation: none;
-  }
+[data-theme="dark"] .l2-steps-section {
+  background: color-mix(in oklab, var(--gray-950) 40%, transparent);
 }
 
-.landing-2-efficiency-stamp {
-  cursor: default;
-  transform-origin: center;
-  filter: drop-shadow(0 6px 14px rgba(4, 12, 11, 0.12));
-  transition: filter 0.25s ease;
+/* ── Stats section ── */
+
+.l2-stats-section {
+  border-top: 1px solid color-mix(in oklab, var(--text-primary) 6%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--text-primary) 6%, transparent);
 }
 
-.landing-2-efficiency-stamp:hover {
-  filter: drop-shadow(0 10px 22px rgba(4, 12, 11, 0.18));
+/* ── Trust cards ── */
+
+.l2-trust-card {
+  background: color-mix(in oklab, var(--surface-primary) 60%, transparent);
 }
 
-.landing-2-metrics {
-  isolation: isolate;
+[data-theme="dark"] .l2-trust-card {
+  background: color-mix(in oklab, var(--gray-950) 40%, transparent);
+  border-color: color-mix(in oklab, var(--white) 6%, transparent);
 }
 
-.landing-2-metric {
-  position: relative;
-  display: flex;
-  min-height: 220px;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 2.5rem;
-  overflow: hidden;
-  border: 1px solid var(--l2-efficiency-line);
-  margin: -1px 0 0 -1px;
-  cursor: default;
-  transition:
-    background-color 0.3s ease,
-    box-shadow 0.3s ease;
-}
-
-.landing-2-metric--primary {
-  background: var(--l2-primary);
-}
-
-.landing-2-metric--tiber {
-  background: var(--l2-tiber);
-}
-
-.landing-2-metric::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    145deg,
-    color-mix(in oklab, var(--brand-500) 16%, transparent),
-    transparent 55%
-  );
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  pointer-events: none;
-}
-
-.landing-2-metric:hover::before {
-  opacity: 1;
-}
-
-.landing-2-metric:hover {
-  z-index: 2;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
-}
-
-.landing-2-metric-value {
-  position: relative;
-  margin: 0;
-  font-size: clamp(3rem, 5vw, 4.5rem);
-  font-weight: 650;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  color: var(--l2-text-invert);
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.landing-2-metric:hover .landing-2-metric-value {
-  transform: translateY(-2px) scale(1.03);
-  transform-origin: left top;
-}
-
-.landing-2-metric-foot {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.landing-2-metric-rule {
-  display: block;
-  width: 1.75rem;
-  height: 2px;
-  border-radius: 1px;
-  background: color-mix(in oklab, var(--brand-100) 55%, transparent);
-  transform-origin: left center;
-  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1), background 0.35s ease;
-}
-
-.landing-2-metric:hover .landing-2-metric-rule {
-  width: 3rem;
-  background: var(--brand-100);
-}
-
-.landing-2-metric-label {
-  margin: 0;
-  max-width: 12rem;
-  font-size: 1rem;
-  line-height: 1.4;
-  color: color-mix(in oklab, var(--l2-text-invert) 82%, transparent);
-  transition: color 0.25s ease;
-}
-
-.landing-2-metric:hover .landing-2-metric-label {
-  color: var(--l2-text-invert);
-}
+/* ── Responsive ── */
 
 @media (max-width: 768px) {
   .landing-2 {
-    --l2-pad: 24px;
+    --l2-pad: 20px;
   }
 
   .monogram-cutout--responsive {
     clip-path: none !important;
   }
+}
+
+/* ── Reduced motion ── */
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-2 * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Hero container override ──
+   Wrap LandingHeroEditor in a max-w container matching the nav.
+   Remove the hero's own horizontal padding so the wrapper handles it. */
+
+.landing-2 .pf-hero-v2 {
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: clamp(4rem, 10vh, 7rem);
+}
+
+.landing-2 .pf-hero-v2-inner {
+  max-width: 100%;
+}
+
+.landing-2 .pf-hero-v2-product {
+  max-width: 100%;
+}
+
+/* Hero CTA button — use brand orange instead of mint */
+.landing-2 .pf-hero-v2-cta .pf-btn-accent {
+  background: var(--l2-cta);
+  color: var(--l2-cta-fg);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--l2-cta) 35%, transparent);
+}
+
+.landing-2 .pf-hero-v2-cta .pf-btn-accent:hover {
+  filter: brightness(1.08);
 }
