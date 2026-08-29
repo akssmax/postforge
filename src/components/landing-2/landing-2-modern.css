@@ -1,0 +1,327 @@
+/* ─────────────────────────────────────────────
+   Landing-2 Modern — ElevenLabs-inspired minimal
+   on top of the shared --l2-* tokens (landing-2.css)
+   ───────────────────────────────────────────── */
+
+.l2m {
+  position: relative;
+  isolation: isolate;
+  --l2m-line: color-mix(in oklab, var(--text-primary) 10%, transparent);
+  --l2m-line-soft: color-mix(in oklab, var(--text-primary) 6%, transparent);
+}
+
+/* ── Ambient page background ── */
+
+.l2m-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.l2m-ambient::before {
+  content: "";
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  width: 1100px;
+  height: 700px;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in oklab, var(--l2-highlight) 10%, transparent),
+    transparent 65%
+  );
+  filter: blur(20px);
+}
+
+/* ── Section eyebrow — small caps with marker ── */
+
+.l2m-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.l2m-eyebrow::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--l2-highlight);
+}
+
+/* ── Section heading ── */
+
+.l2m-h2 {
+  margin-top: 20px;
+  font-size: clamp(1.875rem, 4vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.l2m-lede {
+  margin-top: 16px;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+/* ── Features — hairline grid ── */
+
+.l2m-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--l2m-line);
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--surface-primary);
+}
+
+.l2m-cell {
+  position: relative;
+  padding: 36px 32px;
+  border-top: 1px solid var(--l2m-line-soft);
+  border-left: 1px solid var(--l2m-line-soft);
+  margin-top: -1px;
+  margin-left: -1px;
+  transition: background 0.25s ease;
+}
+
+.l2m-cell:hover {
+  background: color-mix(in oklab, var(--l2-highlight) 4%, transparent);
+}
+
+.l2m-cell-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  margin-bottom: 24px;
+  color: var(--l2-highlight);
+  background: color-mix(in oklab, var(--l2-highlight) 10%, transparent);
+  transition: transform 0.25s ease;
+}
+
+.l2m-cell:hover .l2m-cell-icon {
+  transform: scale(1.06);
+}
+
+.l2m-cell-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.l2m-cell-desc {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .l2m-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .l2m-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Steps — hairline-top columns ── */
+
+.l2m-steps {
+  display: grid;
+  gap: 40px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.l2m-step {
+  border-top: 1px solid var(--l2m-line);
+  padding-top: 28px;
+}
+
+.l2m-step-number {
+  display: block;
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-bottom: 20px;
+  color: color-mix(in oklab, var(--text-primary) 22%, transparent);
+  transition: color 0.25s ease;
+}
+
+.l2m-step:hover .l2m-step-number {
+  color: var(--l2-highlight);
+}
+
+.l2m-step-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.l2m-step-desc {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  max-width: 300px;
+}
+
+@media (max-width: 768px) {
+  .l2m-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Stats — minimal band with dividers ── */
+
+.l2m-stats {
+  border-top: 1px solid var(--l2m-line);
+  border-bottom: 1px solid var(--l2m-line);
+}
+
+.l2m-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.l2m-stat {
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.l2m-stat + .l2m-stat {
+  border-left: 1px solid var(--l2m-line-soft);
+}
+
+.l2m-stat-value {
+  font-size: clamp(2.25rem, 4.5vw, 3.25rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.l2m-stat-label {
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .l2m-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .l2m-stat:nth-child(3) {
+    border-left: none;
+  }
+
+  .l2m-stat:nth-child(n + 3) {
+    border-top: 1px solid var(--l2m-line-soft);
+  }
+}
+
+/* ── Trust — flat divided band ── */
+
+.l2m-trust {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--l2m-line);
+  border-bottom: 1px solid var(--l2m-line);
+}
+
+.l2m-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 32px;
+}
+
+.l2m-trust-item + .l2m-trust-item {
+  border-left: 1px solid var(--l2m-line-soft);
+}
+
+.l2m-trust-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  color: var(--l2-highlight);
+  background: color-mix(in oklab, var(--l2-highlight) 10%, transparent);
+}
+
+.l2m-trust-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.l2m-trust-desc {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .l2m-trust {
+    grid-template-columns: 1fr;
+  }
+
+  .l2m-trust-item + .l2m-trust-item {
+    border-left: none;
+    border-top: 1px solid var(--l2m-line-soft);
+  }
+}
+
+/* ── CTA — WebGL shader panel ── */
+
+.l2m-cta {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid var(--l2m-line);
+  background: var(--surface-primary);
+}
+
+.l2m-cta-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.l2m-cta-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Reduced motion ── */
+
+@media (prefers-reduced-motion: reduce) {
+  .l2m * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
