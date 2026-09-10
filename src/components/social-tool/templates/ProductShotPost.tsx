@@ -62,6 +62,7 @@ import {
   resolveSplitLayoutZones,
   type FeaturedFrameRadius,
   type PostContentBlock,
+  type PostLayout,
   type PostLayoutId,
 } from "@/lib/social-tool/postLayouts";
 import { CanvasPropertyPills } from "@/components/social-tool/CanvasPropertyPills";
@@ -371,6 +372,18 @@ export function ProductShotPost({
   onCanvasIconsChange,
 }: Props) {
   const postRootRef = useRef<HTMLDivElement>(null);
+  const liveTypeLayoutRef = useRef<{
+    footerH: number;
+    layout: PostLayout;
+    layoutPadPx: number;
+    showFeaturedImage: boolean;
+    isTallPrint: boolean;
+    showLogo: boolean;
+    logoPlacement: LogoPlacement;
+    spacing: PostLayoutSpacing;
+    logoScale: number;
+    copy: PostCopy;
+  } | null>(null);
   const canvasSizeRef = useRef({ width, height });
   canvasSizeRef.current = { width, height };
 
@@ -407,7 +420,49 @@ export function ProductShotPost({
         });
       root.dataset.spTypeScaleVarsOnly = "1";
     }
+    // Preview the measured text band and its featured counterpart together.
+    // This stays in the DOM during the drag; React/session state commits once
+    // when the slider is released.
+    const liveLayout = liveTypeLayoutRef.current;
+    if (
+      liveLayout &&
+      !layoutUsesSplit(liveLayout.layout) &&
+      !layoutUsesCornerFeatured(liveLayout.layout)
+    ) {
+      const zones = resolveFeaturedLayoutZones({
+        width: w,
+        height: h,
+        footerH: liveLayout.footerH,
+        layout: liveLayout.layout,
+        showFeaturedImage: liveLayout.showFeaturedImage,
+        isTallPrint: liveLayout.isTallPrint,
+        typeScale: scale,
+        showTopLogo: liveLayout.showLogo && liveLayout.logoPlacement === "top",
+        spacing: liveLayout.spacing,
+        logoScale: liveLayout.logoScale,
+        copy: liveLayout.copy,
+      });
+      root.style.setProperty(
+        "--sp-live-text-zone-height",
+        `${Math.max(0, zones.textZone - liveLayout.layoutPadPx)}px`,
+      );
+      root.style.setProperty(
+        "--sp-live-product-zone-height",
+        `${Math.max(0, zones.productZone)}px`,
+      );
+    }
   }, []);
+
+  const layout = dynamicLayout
+    ? dynamicLayoutAsPostLayout(dynamicLayout)
+    : getPostLayout(layoutId);
+
+  useEffect(() => {
+    const root = postRootRef.current;
+    if (!root) return;
+    root.style.removeProperty("--sp-live-text-zone-height");
+    root.style.removeProperty("--sp-live-product-zone-height");
+  }, [typeScale, width, height]);
 
   const previewLogoScale = useCallback(
     (scale: number, phase: "preview" | "commit" = "preview") => {
@@ -479,9 +534,6 @@ export function ProductShotPost({
     { onPreview: previewFeaturedScale, mirrorDisplay: false },
   );
 
-  const layout = dynamicLayout
-    ? dynamicLayoutAsPostLayout(dynamicLayout)
-    : getPostLayout(layoutId);
   const layoutSlotDefs = dynamicLayout ? textSlotsForLayout(dynamicLayout) : [];
   const canvasScale = canvasScaleFactor(width, height);
   const aspect = height / width;
@@ -648,8 +700,21 @@ export function ProductShotPost({
         showTopLogo: showLogo && logoPlacement === "top",
         spacing,
         logoScale: effectiveLogoScale,
-      })
+    })
     : null;
+
+  liveTypeLayoutRef.current = {
+    footerH,
+    layout,
+    layoutPadPx,
+    showFeaturedImage,
+    isTallPrint,
+    showLogo,
+    logoPlacement,
+    spacing,
+    logoScale,
+    copy,
+  };
 
   const frameWidth =
     isSplit && splitZones ? splitZones.featuredColumn : width - 2 * pad;
@@ -1718,7 +1783,7 @@ export function ProductShotPost({
           height: split
             ? bandHeight
             : showFeaturedImage
-              ? textZone - layoutPadPx
+              ? `var(--sp-live-text-zone-height, ${textZone - layoutPadPx}px)`
               : height - 2 * layoutPadPx - footerH,
           paddingBottom: split ? 0 : textZonePadBottomPx,
         }}
@@ -1906,7 +1971,7 @@ export function ProductShotPost({
         tabIndex={slotSelected ? 0 : undefined}
         style={
           {
-            height: viewportHeight,
+            height: `var(--sp-live-product-zone-height, ${viewportHeight}px)`,
             ...(viewportWidth != null ? { width: viewportWidth, flexShrink: 0 } : { flex: "1 1 0", minWidth: 0 }),
             ...(slotShowFrame
               ? {
@@ -2134,7 +2199,7 @@ export function ProductShotPost({
       <div
         className={`social-post-featured-slots relative flex w-full flex-row items-stretch${showSpacingHandles ? " has-spacing-handles" : ""}`}
         style={{
-          height: viewportHeight,
+          height: `var(--sp-live-product-zone-height, ${viewportHeight}px)`,
           gap: 0,
           ...(viewportWidth != null ? { width: viewportWidth } : {}),
         }}
@@ -2150,7 +2215,7 @@ export function ProductShotPost({
                 className="spacing-zone spacing-zone--slot-gap"
                 style={{
                   width: gap,
-                  height: viewportHeight,
+                  height: `var(--sp-live-product-zone-height, ${viewportHeight}px)`,
                 }}
               >
                 {showSpacingHandles ? (
