@@ -2675,6 +2675,20 @@ button.pf-tool-contrast:hover:not(.is-hot) {
   overflow: hidden;
 }
 
+.pf-hero-v2-shader {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.54;
+  mix-blend-mode: screen;
+}
+
+[data-theme="light"] .pf-hero-v2-shader {
+  opacity: 0.2;
+  mix-blend-mode: multiply;
+}
+
 .pf-hero-v2-grid {
   position: absolute;
   inset: -20% -10%;
@@ -2763,6 +2777,10 @@ button.pf-tool-contrast:hover:not(.is-hot) {
   .pf-hero-v2-grid,
   .pf-hero-v2-glow {
     animation: none;
+  }
+
+  .pf-hero-v2-shader {
+    opacity: 0.34;
   }
 }
 

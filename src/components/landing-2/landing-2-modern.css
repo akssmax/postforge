@@ -36,6 +36,16 @@
   filter: blur(20px);
 }
 
+/* Keep the hero content constrained in LandingHeroEditor, but let its shader
+   and atmospheric treatment reach the viewport edges. */
+.l2m-hero-bleed {
+  width: 100%;
+}
+
+.l2m-hero-bleed .pf-hero-v2 {
+  padding-inline: max(var(--l2-pad), calc((100vw - var(--l2-max)) / 2));
+}
+
 /* ── Section eyebrow — small caps with marker ── */
 
 .l2m-eyebrow {

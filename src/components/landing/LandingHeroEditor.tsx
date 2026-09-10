@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { LandingCanvasPreview } from "@/components/landing/LandingCanvasPreview";
 import { LandingEditorShell } from "@/components/landing/LandingEditorShell";
 import { LandingProductFrame } from "@/components/landing/LandingProductFrame";
+import { HeroShaderCanvas } from "@/components/landing-2/HeroShaderCanvas";
 import { getLandingBrand } from "@/components/landing/landingBrands";
 import type { LandingDemoDesign } from "@/components/landing/landingDemoDesigns";
 import { getHeroGoldenDesign } from "@/lib/landing/goldenDesigns";
@@ -164,6 +165,7 @@ export function LandingHeroEditor() {
   return (
     <section className="pf-hero-v2" aria-label="Hero">
       <div className="pf-hero-v2-bg" aria-hidden>
+        <HeroShaderCanvas />
         <div className="pf-hero-v2-grid" />
         <div className="pf-hero-v2-glow pf-hero-v2-glow--primary" />
         <div className="pf-hero-v2-glow pf-hero-v2-glow--secondary" />

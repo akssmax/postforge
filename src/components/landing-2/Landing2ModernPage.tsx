@@ -337,7 +337,7 @@ export function Landing2ModernPage() {
       </div>
 
       {/* ── Hero ── */}
-      <div className="mx-auto max-w-[var(--l2-max)] px-[var(--l2-pad)]">
+      <div className="l2m-hero-bleed">
         <LandingHeroEditor />
       </div>
 
