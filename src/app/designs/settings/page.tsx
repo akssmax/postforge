@@ -5,6 +5,13 @@ import { Camera, UserRound } from "lucide-react";
 import { Button } from "@heroui/react";
 import { Input } from "@/components/ui/input";
 import { ThemeControls } from "@/components/ThemeControls";
+import {
+  DEFAULT_OPENROUTER_MODEL,
+  getStoredLlmModel,
+  OPENROUTER_CHAT_MODELS,
+  saveStoredLlmModel,
+  type OpenRouterChatModelId,
+} from "@/lib/llm/models";
 
 const STORAGE_KEY_NAME = "postforge:user:name";
 const STORAGE_KEY_AVATAR = "postforge:user:avatar";
@@ -36,19 +43,22 @@ export default function SettingsPage() {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [modelId, setModelId] = useState<OpenRouterChatModelId>(DEFAULT_OPENROUTER_MODEL);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setName(getStoredName());
     setAvatar(getStoredAvatar());
+    setModelId(getStoredLlmModel());
     setMounted(true);
   }, []);
 
   const handleSave = useCallback(() => {
     saveName(name);
+    saveStoredLlmModel(modelId);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
-  }, [name]);
+  }, [modelId, name]);
 
   const handleAvatarChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,6 +179,32 @@ export default function SettingsPage() {
           Appearance
         </h2>
         <ThemeControls />
+      </div>
+
+      <div className="settings-section">
+        <h2 className="mb-2 text-sm font-semibold text-text-primary">AI model</h2>
+        <p className="mb-4 max-w-xl text-sm text-text-secondary">
+          Choose the model used for new design and chat requests. If it is unavailable,
+          OpenRouter automatically tries the Gemma and Nex free-model fallbacks.
+        </p>
+        <label htmlFor="ai-model" className="settings-label">Active model</label>
+        <select
+          id="ai-model"
+          value={modelId}
+          onChange={(event) => {
+            const next = event.target.value as OpenRouterChatModelId;
+            setModelId(next);
+            saveStoredLlmModel(next);
+          }}
+          className="mt-1 block w-full max-w-md rounded-lg border border-border-subtle bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+        >
+          {OPENROUTER_CHAT_MODELS.map((model) => (
+            <option key={model.id} value={model.id}>
+              {model.label} — {model.description}
+            </option>
+          ))}
+        </select>
+        <p className="settings-hint">This preference is stored locally in this browser.</p>
       </div>
 
       {/* Storage */}

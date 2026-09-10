@@ -9,8 +9,10 @@ import {
 } from "ai";
 import { z } from "zod";
 import {
-  createMistralModel,
-  getMistralApiKey,
+  createLlmModel,
+  getLlmProviderOptions,
+  getLlmApiKey,
+  getLlmConfigurationError,
   LLM_STREAM_TIMEOUT_MS,
 } from "@/lib/llm/mistral";
 import { designPlanSchema } from "@/lib/llm/schemas/designPlan";
@@ -31,6 +33,7 @@ import {
 import { validateDesignPlan } from "@/lib/llm/services/layoutValidator";
 import type { PlatformId } from "@/lib/social-tool/presets";
 import { resolvePipelineBrandContext } from "@/lib/brand/starterPalettes";
+import { isOpenRouterChatModelId, type OpenRouterChatModelId } from "@/lib/llm/models";
 
 export type BriefChatRequestBody = {
   messages: UIMessage[];
@@ -42,11 +45,12 @@ export type BriefChatRequestBody = {
     accent?: string;
   };
   designSnapshot?: z.infer<typeof designSnapshotSchema>;
+  modelId?: OpenRouterChatModelId;
 };
 
 export async function handleBriefChatRequest(body: BriefChatRequestBody) {
-  if (!getMistralApiKey()) {
-    return new Response(JSON.stringify({ error: "MISTRAL_API_KEY is not configured." }), {
+  if (!getLlmApiKey()) {
+    return new Response(JSON.stringify({ error: getLlmConfigurationError() }), {
       status: 503,
       headers: { "Content-Type": "application/json" },
     });
@@ -102,7 +106,7 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
     : [];
 
   const useVariants = shouldGenerateVariants(userMessage);
-  const model = createMistralModel();
+  const model = createLlmModel(body.modelId);
 
   // Open the SSE response immediately so proxies/Vercel see first bytes while the
   // multi-stage pipeline runs (wall-clock still counts toward maxDuration).
@@ -174,6 +178,7 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
 
         const result = streamText({
           model,
+          providerOptions: getLlmProviderOptions(body.modelId),
           temperature: 0.3,
           timeout: LLM_STREAM_TIMEOUT_MS,
           // Allow a text step after the forced tool call (default stopWhen is 1 step).
@@ -249,6 +254,7 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
 
       const result = streamText({
         model,
+        providerOptions: getLlmProviderOptions(body.modelId),
         temperature: 0.3,
         timeout: LLM_STREAM_TIMEOUT_MS,
         // Allow a text step after the forced tool call (default stopWhen is 1 step).
@@ -338,4 +344,10 @@ export const briefChatBodySchema = z.object({
     })
     .optional(),
   designSnapshot: designSnapshotSchema.optional(),
+  modelId: z
+    .string()
+    .optional()
+    .refine((value) => value === undefined || isOpenRouterChatModelId(value), {
+      message: "Unsupported AI model.",
+    }),
 });

@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { createMistralModel, LLM_CLASSIFY_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
+import { createLlmModel, getLlmProviderOptions, LLM_CLASSIFY_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 
 export type FollowUpRoute =
@@ -99,9 +99,10 @@ export async function routeFollowUp(
   if (heuristic.mode === "edit") return heuristic;
 
   try {
-    const model = createMistralModel();
+    const model = createLlmModel();
     const result = await generateObject({
       model,
+      providerOptions: getLlmProviderOptions(),
       schema: routeSchema,
       temperature: 0,
       abortSignal: llmAbortSignal(LLM_CLASSIFY_TIMEOUT_MS),

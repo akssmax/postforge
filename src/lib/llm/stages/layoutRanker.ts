@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { createMistralModel, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
+import { createLlmModel, getLlmProviderOptions, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 import {
   campaignPlanToIntent,
@@ -59,9 +59,10 @@ export async function rankLayout(
   }
 
   try {
-    const model = createMistralModel();
+    const model = createLlmModel();
     const result = await generateObject({
       model,
+      providerOptions: getLlmProviderOptions(),
       schema: layoutRankSchema,
       temperature: 0,
       abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),

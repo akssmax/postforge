@@ -35,6 +35,7 @@ export async function POST(req: Request) {
       artifactCategory: parsed.data.artifactCategory as BriefChatRequestBody["artifactCategory"],
       brandSummary: parsed.data.brandSummary,
       designSnapshot: parsed.data.designSnapshot,
+      modelId: parsed.data.modelId,
     });
   } catch (err) {
     return new Response(

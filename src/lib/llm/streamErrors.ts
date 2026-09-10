@@ -96,7 +96,12 @@ function sanitizeBriefChatMessage(message: string): string {
     return "The AI service is busy. Wait a few seconds and try again.";
   }
 
-  if (lower.includes("503") || lower.includes("mistral_api_key")) {
+  if (
+    lower.includes("503") ||
+    lower.includes("mistral_api_key") ||
+    lower.includes("openrouter_api_key") ||
+    lower.includes("configure openrouter_api_key")
+  ) {
     return "LLM unavailable — your next message will use the offline generator.";
   }
 
@@ -115,7 +120,7 @@ function sanitizeBriefChatMessage(message: string): string {
   return `${trimmed.slice(0, 277)}…`;
 }
 
-/** Strip leaked tool-call syntax Mistral sometimes echoes into assistant text. */
+/** Strip leaked provider tool-call syntax from assistant text. */
 export function sanitizeAssistantMessageText(text: string): string {
   let cleaned = text
     .replace(/<\|[^|>]*tool_calls[^|>]*\|>[\s\S]*$/gi, "")
@@ -144,6 +149,8 @@ export function isBriefChatOfflineError(error: Error | undefined): boolean {
   return (
     msg.includes("503") ||
     msg.includes("mistral_api_key is not configured") ||
+    msg.includes("openrouter_api_key") ||
+    msg.includes("configure openrouter_api_key") ||
     msg.includes("llm unavailable") ||
     msg.includes("offline generator") ||
     msg.includes("failed to fetch") ||

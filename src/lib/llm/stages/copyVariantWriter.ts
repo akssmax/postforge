@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { createMistralModel, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
+import { createLlmModel, getLlmProviderOptions, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 import {
   campaignPlanToIntent,
@@ -205,9 +205,10 @@ export async function writeCopyVariants(input: {
   const targetCount = COPY_VARIANT_POOL_SIZE - (input.excludePrimary ? 1 : 0);
 
   try {
-    const model = createMistralModel();
+    const model = createLlmModel();
     const result = await generateObject({
       model,
+      providerOptions: getLlmProviderOptions(),
       schema: copyVariantsResponseSchema,
       temperature: 0.65,
       abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),

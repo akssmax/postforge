@@ -1,10 +1,10 @@
-import { getMistralApiKey } from "@/lib/llm/mistral";
+import { getLlmApiKey, getLlmConfigurationError } from "@/lib/llm/mistral";
 import {
   generateVisualBlocksBodySchema,
   handleGenerateVisualBlocks,
 } from "@/lib/llm/services/visualBlockService";
 
-/** Library picks are instant; source=generate waits on Mistral SVG compose. */
+/** Library picks are instant; source=generate waits on the configured LLM. */
 export const maxDuration = 120;
 
 export async function POST(req: Request) {
@@ -16,8 +16,8 @@ export async function POST(req: Request) {
     }
 
     const source = parsed.data.source ?? "library";
-    if (source === "generate" && !getMistralApiKey()) {
-      return Response.json({ error: "MISTRAL_API_KEY is not configured." }, { status: 503 });
+    if (source === "generate" && !getLlmApiKey()) {
+      return Response.json({ error: getLlmConfigurationError() }, { status: 503 });
     }
 
     const result = await handleGenerateVisualBlocks(parsed.data);

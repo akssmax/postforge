@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
+import { getStoredLlmModel } from "@/lib/llm/models";
 import {
   ensureBriefChatMessagesLoaded,
   saveBriefChatMessages,
@@ -160,6 +161,7 @@ export function useBriefChat({
             artifactCategory: resolvedArtifactCategory,
             brandSummary,
             designSnapshot: designSnapshotRef.current ?? undefined,
+            modelId: getStoredLlmModel(),
           },
         }),
       }),

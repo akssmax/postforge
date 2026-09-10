@@ -1,15 +1,15 @@
-import { getMistralApiKey } from "@/lib/llm/mistral";
+import { getLlmApiKey, getLlmConfigurationError } from "@/lib/llm/mistral";
 import {
   handleModifyVisualBlock,
   modifyVisualBlockBodySchema,
 } from "@/lib/llm/services/visualBlockService";
 
-/** Mistral SVG modify can exceed the old 60s cap under cold starts / region latency. */
+/** SVG modification can exceed the old 60s cap under cold starts / region latency. */
 export const maxDuration = 120;
 
 export async function POST(req: Request) {
-  if (!getMistralApiKey()) {
-    return Response.json({ error: "MISTRAL_API_KEY is not configured." }, { status: 503 });
+  if (!getLlmApiKey()) {
+    return Response.json({ error: getLlmConfigurationError() }, { status: 503 });
   }
 
   try {

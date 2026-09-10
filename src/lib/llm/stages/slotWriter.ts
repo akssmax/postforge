@@ -1,5 +1,5 @@
 import { generateObject } from "ai";
-import { createMistralModel, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
+import { createLlmModel, getLlmProviderOptions, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import { slotDraftSchema, type SlotDraft } from "@/lib/llm/schemas/slotDraft";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 import {
@@ -244,9 +244,10 @@ export async function writeSlots(input: {
   const slotPrompt = buildSlotPrompt(input.dynamicLayout, input.rulesProfile);
 
   try {
-    const model = createMistralModel();
+    const model = createLlmModel();
     const result = await generateObject({
       model,
+      providerOptions: getLlmProviderOptions(),
       schema: slotDraftSchema,
       temperature: input.retryReasons?.length ? 0.2 : 0.4,
       abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),

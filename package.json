@@ -24,6 +24,7 @@
     "@figit/dom-to-figma": "^0.2.1",
     "@heroui/react": "^3.2.2",
     "@heroui/styles": "^3.2.2",
+    "@openrouter/ai-sdk-provider": "^3.0.0",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",
     "@streamdown/math": "^1.0.2",

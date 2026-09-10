@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import type { UIMessage } from "ai";
-import { createMistralModel, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
+import { createLlmModel, getLlmProviderOptions, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import {
   campaignPlanSchema,
   type CampaignPlan,
@@ -53,9 +53,10 @@ export async function planCampaign(input: {
   const recipes = listAllowedRecipeIds();
 
   try {
-    const model = createMistralModel();
+    const model = createLlmModel();
     const result = await generateObject({
       model,
+      providerOptions: getLlmProviderOptions(),
       schema: campaignPlanSchema,
       temperature: 0,
       abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),

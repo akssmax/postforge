@@ -1,7 +1,7 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import { sanitizeSvgMarkup } from "@/lib/brand/parseLogoFile";
-import { createMistralModel, LLM_VISUAL_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
+import { createLlmModel, getLlmProviderOptions, LLM_VISUAL_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import { libraryPatternSummaryForPrompt } from "@/lib/social-tool/visualBlocks/library";
 import { createVisualBlockId } from "@/lib/social-tool/visualBlocks/storage";
 import type {
@@ -105,9 +105,10 @@ export async function composeVisualBlocks(
   const theme = input.theme ?? input.headline ?? "visual block";
 
   try {
-    const model = createMistralModel();
+    const model = createLlmModel();
     const result = await generateObject({
       model,
+      providerOptions: getLlmProviderOptions(),
       schema: generateBlocksSchema,
       temperature: 0.5,
       abortSignal: llmAbortSignal(LLM_VISUAL_TIMEOUT_MS),
@@ -152,9 +153,10 @@ export async function modifyVisualBlock(
   input: VisualBlockModifyInput,
 ): Promise<VisualBlockRecord | null> {
   try {
-    const model = createMistralModel();
+    const model = createLlmModel();
     const result = await generateObject({
       model,
+      providerOptions: getLlmProviderOptions(),
       schema: generatedBlockSchema,
       temperature: 0.4,
       abortSignal: llmAbortSignal(LLM_VISUAL_TIMEOUT_MS),

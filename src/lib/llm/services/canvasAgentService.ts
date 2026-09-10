@@ -6,7 +6,7 @@ import {
   tool,
   type UIMessage,
 } from "ai";
-import { createMistralModel, LLM_STREAM_TIMEOUT_MS } from "@/lib/llm/mistral";
+import { createLlmModel, getLlmProviderOptions, LLM_STREAM_TIMEOUT_MS } from "@/lib/llm/mistral";
 import { toBriefChatClientError } from "@/lib/llm/streamErrors";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 import { resolveDesignRulesForBrief, rulesProfilePrompt, detectFormatFromBrief } from "@/lib/llm/rules";
@@ -423,7 +423,7 @@ export async function handleCanvasAgentRequest(input: {
   messages: UIMessage[];
   snapshot: DesignSnapshot;
 }) {
-  const model = createMistralModel();
+  const model = createLlmModel();
   const userMessage =
     input.messages
       .slice()
@@ -461,6 +461,7 @@ export async function handleCanvasAgentRequest(input: {
 
   const result = streamText({
     model,
+    providerOptions: getLlmProviderOptions(),
     temperature: 0.2,
     timeout: LLM_STREAM_TIMEOUT_MS,
     // Default stopWhen is isStepCount(1), which ends after the first tool call and
@@ -523,9 +524,10 @@ export async function handleCanvasAgentRequest(input: {
 }
 
 export async function handleClarifyRequest(question: string) {
-  const model = createMistralModel();
+  const model = createLlmModel();
   const result = streamText({
     model,
+    providerOptions: getLlmProviderOptions(),
     temperature: 0.3,
     timeout: LLM_STREAM_TIMEOUT_MS,
     prompt: `Ask the user this clarifying question in a friendly sentence: ${question}`,
