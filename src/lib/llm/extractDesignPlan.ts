@@ -4,6 +4,7 @@ import type { DesignPlanApplyOptions } from "@/lib/llm/services/applyDesignPlan"
 import type { PlatformId } from "@/lib/social-tool/presets";
 
 export type DesignVariantResult = {
+  applyOptions?: DesignPlanApplyOptions;
   theme: string;
   layoutId: string;
   rationale: string;

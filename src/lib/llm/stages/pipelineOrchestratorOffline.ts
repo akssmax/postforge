@@ -1,3 +1,4 @@
+import { designPlanSchema } from "@/lib/llm/schemas/designPlan";
 import {
   campaignPlanToIntent,
 } from "@/lib/llm/schemas/campaignPlan";
@@ -14,12 +15,10 @@ import { writeSlotsOffline } from "@/lib/llm/stages/slotWriterOffline";
 import {
   buildCopyVariantPool,
   primaryCopyFromTextSlots,
-  writeCopyVariantsOffline,
 } from "@/lib/llm/stages/copyVariantWriter";
 import { catalogLayoutToDynamic } from "@/lib/social-tool/layoutAdapter";
 import { validateDesignPlan, repairPlanForArtifactConstraints } from "@/lib/llm/services/layoutValidator";
 import type { PlatformId } from "@/lib/social-tool/presets";
-import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
 import {
   canvasSpecFromArtifact,
   filterLayoutCandidatesForArtifact,
@@ -79,16 +78,18 @@ export function runDesignPipelineOffline(input: {
     plan,
     platformId,
     undefined,
-    6,
+    1000,
     effectiveRules,
     userMessage,
     recipe,
     system,
+    artifact,
   );
   candidates = filterLayoutCandidatesForArtifact(candidates, artifact);
-  const rankedId = candidates[0]?.layout.id ?? ("classic-hero" as PostLayoutId);
+  if (!candidates.length) return null;
+  const rankedId = candidates[0].layout.id;
   const adapted = applyRecipeAdaptation(rankedId, plan, recipe, effectiveRules);
-  const layoutId = adapted.layoutId;
+  const layoutId = candidates.some(c => c.layout.id === adapted.layoutId) ? adapted.layoutId : rankedId;
   const layout = getLayoutById(layoutId);
   const dynamicLayout = catalogLayoutToDynamic(layout);
   const brandContext =
@@ -128,7 +129,7 @@ export function runDesignPipelineOffline(input: {
   const primaryCopy = primaryCopyFromTextSlots(slotDraft.textSlots);
   const copyVariants = buildCopyVariantPool(
     primaryCopy,
-    writeCopyVariantsOffline({ userMessage, rulesProfile: effectiveRules }),
+    [],
     effectiveRules,
   );
 
@@ -155,7 +156,9 @@ export function runDesignPipelineOffline(input: {
   const validated = validateDesignPlan(planInput, platformId, effectiveRules);
   if (!validated.ok) return null;
 
-  const artifactAdjusted = repairPlanForArtifactConstraints(validated.plan, artifact);
+  const repaired = validateDesignPlan(repairPlanForArtifactConstraints(validated.plan, artifact), platformId, effectiveRules);
+  if (!repaired.ok) return null;
+  const artifactAdjusted = repaired.plan;
   const score = scoreDesign(artifactAdjusted, plan, effectiveRules);
   const intent = campaignPlanToIntent(plan);
   const canvasSpec = canvasSpecFromArtifact(artifact);
@@ -172,7 +175,7 @@ export function runDesignPipelineOffline(input: {
     platformReason: platformResolution.reason,
     layoutId,
     rationale,
-    planInput,
+    planInput: designPlanSchema.parse(artifactAdjusted),
     validatedPlan: artifactAdjusted,
     summary: `Offline pipeline planned a ${plan.campaign.type.replace(/_/g, " ")} with ${pattern.label} → ${recipe.name}, chose ${layout.name}.`,
     score,

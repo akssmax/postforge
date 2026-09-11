@@ -12,10 +12,11 @@
     "storyset:migrate-cache": "node scripts/deploy-storyset-batch.mjs --migrate-to-cache",
     "deploy:storyset": "node scripts/deploy-storyset-batch.mjs",
     "design:compile": "node scripts/compile-design-config.mjs",
-    "test:golden-briefs": "npx --yes tsx scripts/run-golden-briefs.ts",
+    "test:golden-briefs": "npx --yes tsx --import ./scripts/register-test-runtime.mjs scripts/run-golden-briefs.ts",
     "test:export-artboards": "npx --yes tsx src/lib/social-tool/exportArtboards.test.ts",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:pipeline": "npx --yes tsx --import ./scripts/register-test-runtime.mjs --test src/lib/llm/stages/pipeline.test.ts src/lib/llm/stages/pipelineStreaming.test.ts"
   },
   "dependencies": {
     "@ai-sdk/mistral": "^4.0.14",

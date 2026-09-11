@@ -19,6 +19,7 @@ export type VisualStrategyResult = VisualPolicy & {
  */
 export function resolveVisualStrategy(input: {
   plan: CampaignPlan;
+  variationIndex?: number;
   layout: PostLayout;
   system: DesignSystemConfig;
   rulesProfile: DesignRulesProfile;
@@ -51,6 +52,7 @@ export function resolveVisualStrategy(input: {
     rulesProfile: input.rulesProfile,
     catalog: input.backgroundCatalog,
     recentPresetIds: input.recentBackgroundPresetIds,
+    variationIndex: input.variationIndex,
   });
 
   return {

@@ -57,5 +57,5 @@ export function extractThemesFromBrief(brief: string, maxThemes = 3): string[] {
 }
 
 export function shouldGenerateVariants(brief: string): boolean {
-  return extractThemesFromBrief(brief).length > 1;
+  return extractThemesFromBrief(brief).length > 1 || /\b(?:generate|create|show|make|give)(?:\s+me)?\s+(?:(?:two|three|2|3|multiple|some|different)\s+)?(?:design\s+)?variants\b/i.test(brief);
 }

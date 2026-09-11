@@ -1,5 +1,7 @@
 "use client";
 
+import { mergeQualityChecks } from "@/lib/brand/renderedQuality";
+import { useRenderedQuality } from "@/lib/brand/useRenderedQuality";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { ChevronDown, Download, Loader2, MessageSquare, PanelLeft } from "lucide-react";
 import { Button, Modal, Tooltip, useOverlayState } from "@heroui/react";
@@ -905,14 +907,14 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
         : session.activeBackground.css.subText
       : undefined;
 
-  const contrastEnabled = isReady && doc.showBrand && !exporting;
+  const contrastEnabled = isReady && !exporting;
   const featuredSvgMarkup = resolveFeaturedSvgForContrast({
     mode: session.featured.mode,
     visualBlocks: session.featured.visualBlocks,
     activeBlockId: session.featured.activeBlockId,
     image: session.featured.image,
   });
-  const contrastResults = useMemo(
+  const estimatedContrastResults = useMemo(
     () =>
       evaluateCanvasContrast({
         enabled: contrastEnabled,
@@ -965,6 +967,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
       session.kit.activeBackgroundPresetId,
     ],
   );
+
+  const renderedChecks = useRenderedQuality(canvasRef, contrastEnabled, doc);
+  const contrastResults = useMemo(() => mergeQualityChecks(estimatedContrastResults, renderedChecks), [estimatedContrastResults, renderedChecks]);
 
   const contrastFailingCount = contrastResults.filter((r) => !r.passes).length;
 

@@ -1,3 +1,4 @@
+import type { OpenRouterChatModelId } from "@/lib/llm/models";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { createLlmModel, getLlmProviderOptions, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
@@ -13,15 +14,11 @@ import {
   formatCandidatesForPrompt,
   type LayoutCandidate,
 } from "@/lib/social-tool/engine/layoutRetriever";
-import { POST_LAYOUTS } from "@/lib/social-tool/postLayouts";
 import type { PostLayoutId } from "@/lib/social-tool/postLayouts";
 
-const catalogIds = POST_LAYOUTS.map((layout) => layout.id) as [PostLayoutId, ...PostLayoutId[]];
 
-const layoutRankSchema = z.object({
-  layoutId: z.enum(catalogIds),
-  rationale: z.string().min(1),
-});
+
+
 
 function asIntent(intentOrPlan: CampaignIntent | CampaignPlan): CampaignIntent {
   if ("campaign" in intentOrPlan && typeof intentOrPlan.campaign === "object") {
@@ -37,6 +34,7 @@ export async function rankLayout(
   rulesProfile?: DesignRulesProfile,
   recipe?: RecipeConfig,
   artifact?: { id: string; label: string; category?: string },
+  modelId?: OpenRouterChatModelId,
 ): Promise<{ layoutId: PostLayoutId; rationale: string }> {
   const intent = asIntent(intentOrPlan);
   const plan =
@@ -44,12 +42,7 @@ export async function rankLayout(
       ? (intentOrPlan as CampaignPlan)
       : null;
 
-  if (candidates.length === 0) {
-    return {
-      layoutId: "classic-hero",
-      rationale: "Default hero layout for general announcements.",
-    };
-  }
+  if (candidates.length === 0) throw new Error("No compatible layout for this artifact and platform.");
 
   if (candidates.length === 1) {
     return {
@@ -59,11 +52,14 @@ export async function rankLayout(
   }
 
   try {
-    const model = createLlmModel();
+    const model = createLlmModel(modelId);
     const result = await generateObject({
       model,
-      providerOptions: getLlmProviderOptions(),
-      schema: layoutRankSchema,
+      providerOptions: getLlmProviderOptions(modelId),
+      schema: z.object({
+        layoutId: z.enum(candidates.map(c => c.layout.id) as [PostLayoutId, ...PostLayoutId[]]),
+        rationale: z.string().min(1),
+      }),
       temperature: 0,
       abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),
       system: [
@@ -98,6 +94,9 @@ export async function rankLayout(
       ].join("\n"),
     });
 
+    if (!candidates.some(c => c.layout.id === result.object.layoutId)) {
+      throw new Error("Ranker selected a layout outside the shortlist");
+    }
     return result.object;
   } catch {
     return {

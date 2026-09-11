@@ -1,3 +1,5 @@
+import { z } from "zod";
+import type { OpenRouterChatModelId } from "@/lib/llm/models";
 import { generateObject } from "ai";
 import type { UIMessage } from "ai";
 import { createLlmModel, getLlmProviderOptions, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
@@ -36,6 +38,7 @@ function latestUserText(messages: UIMessage[]): string {
  * Never emits layout ids, coordinates, spacing, or geometry.
  */
 export async function planCampaign(input: {
+  modelId?: OpenRouterChatModelId;
   userMessage: string;
   messages: UIMessage[];
   platformId: PlatformId;
@@ -53,17 +56,19 @@ export async function planCampaign(input: {
   const recipes = listAllowedRecipeIds();
 
   try {
-    const model = createLlmModel();
+    const model = createLlmModel(input.modelId);
     const result = await generateObject({
       model,
-      providerOptions: getLlmProviderOptions(),
-      schema: campaignPlanSchema,
+      providerOptions: getLlmProviderOptions(input.modelId),
+      schema: campaignPlanSchema.extend({ resolvedBrief: z.string().min(1) }),
       temperature: 0,
       abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),
       system: [
         "You are the Creative Planner for a marketing design compiler.",
         "Convert the brief into a structured CampaignPlan — marketing strategy only.",
         "Never choose layouts, coordinates, spacing, typography, colors as hex, or geometry.",
+        "Set resolvedBrief to a complete brief retaining earlier user requirements unless superseded by the current request. Apply corrections and remove obsolete values. Preserve exact supplied names, dates, numbers, contact details, CTA, format and brand requirements. Do not introduce facts.",
+        "Resolve the brief before planning. Regeneration retains prior requirements; an explicit new unrelated campaign discards them.",
         `Target platform: ${input.platformId}`,
         `Allowed communication.pattern values: ${patterns.join(", ")}`,
         `Allowed communication.recipeId values (optional hint): ${recipes.join(", ")}`,
@@ -109,13 +114,15 @@ export async function planCampaign(input: {
     }
 
     return plan;
-  } catch {
+  } catch (error) {
+    console.warn("[pipeline:planner] Using offline fallback", error instanceof Error ? error.name : "unknown");
     return fallback;
   }
 }
 
 /** @deprecated Use planCampaign — kept as thin wrapper during migration. */
 export async function analyzeIntent(input: {
+  modelId?: OpenRouterChatModelId;
   userMessage: string;
   messages: UIMessage[];
   platformId: PlatformId;

@@ -1,3 +1,7 @@
+import { getLayoutRetrievalMeta } from "@/lib/social-tool/engine/layoutRetrievalMeta";
+import { designPlanSchema } from "@/lib/llm/schemas/designPlan";
+import type { OpenRouterChatModelId } from "@/lib/llm/models";
+import { resolveBriefContext } from "./briefContext";
 import {
   extractThemesFromBrief,
   resolveDesignRulesForPlan,
@@ -7,10 +11,7 @@ import { rankLayout } from "@/lib/llm/stages/layoutRanker";
 import { writeSlotsWithRetries } from "@/lib/llm/stages/slotWriter";
 import { writeSlotsOffline } from "@/lib/llm/stages/slotWriterOffline";
 import {
-  buildCopyVariantPool,
   primaryCopyFromTextSlots,
-  writeCopyVariants,
-  writeCopyVariantsOffline,
 } from "@/lib/llm/stages/copyVariantWriter";
 import type {
   DesignVariant,
@@ -28,8 +29,7 @@ import {
   retrieveLayouts,
   type LayoutCandidate,
 } from "@/lib/social-tool/engine/layoutRetriever";
-import { getLayoutRetrievalMeta } from "@/lib/social-tool/engine/layoutRetrievalMeta";
-import { scoreDesign, repairPlanCopyForBalance, repairPlanDropOptionalSlots } from "@/lib/social-tool/engine/scoringEngine";
+import { scoreDesign } from "@/lib/social-tool/engine/scoringEngine";
 import { resolveVisualStrategy } from "@/lib/social-tool/engine/visual/resolveVisualStrategy";
 import { catalogLayoutToDynamic } from "@/lib/social-tool/layoutAdapter";
 import {
@@ -55,6 +55,8 @@ import {
 import type { UIMessage } from "ai";
 
 export type PipelineInput = {
+  modelId?: OpenRouterChatModelId;
+  variantIndex?: number;
   userMessage: string;
   messages: UIMessage[];
   platformId: PlatformId;
@@ -103,7 +105,7 @@ function buildSummary(input: {
     input.recipeName ? ` / **${input.recipeName}** recipe` : "",
     input.systemLabel ? ` in the **${input.systemLabel}** system` : "",
     `. Chose **${input.layoutName}** — ${input.rationale}`,
-    ` Design quality score: ${input.score.total}/100.`,
+    ` Structural checks: ${input.score.total}/100.`,
   ].join("");
 }
 
@@ -116,6 +118,8 @@ function pickVisualFallbackLayout(candidates: LayoutCandidate[]): PostLayoutId {
 }
 
 async function runPipelineAttempt(input: {
+  modelId?: OpenRouterChatModelId;
+  variantIndex?: number;
   userMessage: string;
   messages: UIMessage[];
   platformId: PlatformId;
@@ -149,13 +153,24 @@ async function runPipelineAttempt(input: {
     input.plan,
     input.platformId,
     undefined,
-    6,
+    1000,
     effectiveRules,
     input.userMessage,
     recipe,
     system,
+    artifact,
   );
-  candidates = filterLayoutCandidatesForArtifact(candidates, artifact);
+  candidates = filterLayoutCandidatesForArtifact(candidates, artifact).slice(0, 6);
+  if (!candidates.length) throw new Error("No compatible layout for this artifact and platform.");
+  if (input.variantIndex != null) {
+    const available = [...candidates];
+    const directions = ["copyHeavy", "visualFirst", "balanced"];
+    const distinct = directions.map(density => {
+      const index = Math.max(0, available.findIndex(candidate => candidate.meta.densityClass === density));
+      return available.splice(index, 1)[0];
+    }).filter((candidate): candidate is LayoutCandidate => !!candidate);
+    candidates = [distinct[input.variantIndex % distinct.length]];
+  }
 
   let ranked = input.offline
     ? {
@@ -169,6 +184,7 @@ async function runPipelineAttempt(input: {
         effectiveRules,
         recipe,
         { id: artifact.id, label: artifact.label, category: artifact.category },
+        input.modelId,
       );
 
   if (input.layoutRetry) {
@@ -185,7 +201,8 @@ async function runPipelineAttempt(input: {
     recipe,
     effectiveRules,
   );
-  const layoutId = adapted.layoutId;
+  const layoutId = candidates.some(c => c.layout.id === adapted.layoutId)
+    ? adapted.layoutId : ranked.layoutId;
   const layout = getLayoutById(layoutId);
   const dynamicLayout = catalogLayoutToDynamic(layout);
 
@@ -199,11 +216,12 @@ async function runPipelineAttempt(input: {
     backgroundCatalog: input.backgroundCatalog,
     recentBackgroundPresetIds: input.recentBackgroundPresetIds,
     artifact,
+    variationIndex: input.variantIndex,
   });
 
   const bundle = pickBundleForArtifact(artifact, recipe.bundles?.[0]);
 
-  const stockPhoto = await resolveStockPhotoForArtifact({
+  const stockPhotoPromise = resolveStockPhotoForArtifact({
     artifact,
     brief: input.userMessage,
     platformId: input.platformId,
@@ -212,7 +230,7 @@ async function runPipelineAttempt(input: {
       layoutFeaturedZoneMode(layout) === "corner" ||
       layoutFeaturedZoneMode(layout) === "portrait-strip",
     offline: input.offline,
-  });
+  }).catch(() => null);
 
   const slotResult = input.offline
     ? {
@@ -227,6 +245,7 @@ async function runPipelineAttempt(input: {
         validationReasons: [] as string[],
       }
     : await writeSlotsWithRetries({
+        modelId: input.modelId,
         intent: input.plan,
         layout,
         dynamicLayout,
@@ -240,25 +259,10 @@ async function runPipelineAttempt(input: {
       });
 
   const primaryCopy = primaryCopyFromTextSlots(slotResult.draft.textSlots);
-  const alternativeVariants = input.offline
-    ? writeCopyVariantsOffline({
-        userMessage: input.userMessage,
-        rulesProfile: effectiveRules,
-      })
-    : await writeCopyVariants({
-        intent: input.plan,
-        userMessage: input.userMessage,
-        platformId: input.platformId,
-        brandSummary: input.brandSummary,
-        rulesProfile: effectiveRules,
-        themeAngle: input.themeAngle,
-        excludePrimary: primaryCopy,
-      });
-  const copyVariants = buildCopyVariantPool(
-    primaryCopy,
-    alternativeVariants,
-    effectiveRules,
-  );
+  // Deliver primary copy first; the chat service fills the optional pool later.
+  const copyVariants = [primaryCopy];
+  const stockPhoto = await stockPhotoPromise;
+  repairSteps.push(...slotResult.validationReasons.map(reason => `copy_validation: ${reason}`));
 
   const rationale = [ranked.rationale, recipeRationale, ...adapted.variantNotes]
     .filter(Boolean)
@@ -369,188 +373,105 @@ async function runPipelineAttempt(input: {
 }
 
 export async function runDesignPipeline(input: PipelineInput): Promise<PipelineResult> {
-  const userMessage = input.userMessage || getLatestUserMessage(input.messages);
+  const userMessage = resolveBriefContext(input.userMessage || getLatestUserMessage(input.messages), input.messages);
 
-  const preliminaryPlan = campaignPlanFromBrief(
-    userMessage,
-    input.platformId,
-    input.themeAngle,
-  );
+  let plan = input.offline
+    ? campaignPlanFromBrief(userMessage, input.platformId, input.themeAngle)
+    : await planCampaign({ ...input, userMessage });
+  const resolvedBrief = plan.resolvedBrief ?? userMessage;
   const artifactId = resolveArtifactId({
-    brief: userMessage,
-    artifactId: input.artifactId ?? preliminaryPlan.artifactId,
+    brief: resolvedBrief,
+    artifactId: input.artifactId,
     artifactCategory: input.artifactCategory,
     platformId: input.platformId,
   });
   const artifact = loadArtifactPlugin(artifactId);
-  const platformResolution = resolvePlatformForDesign({
-    brief: userMessage,
-    artifact,
-    fallbackPlatformId: input.platformId,
-  });
+  const platformResolution = resolvePlatformForDesign({ brief: resolvedBrief, artifact, fallbackPlatformId: input.platformId });
   const platformId = platformResolution.platformId;
-
-  let plan = input.offline
-    ? campaignPlanFromBrief(userMessage, platformId, input.themeAngle)
-    : await planCampaign({
-        userMessage,
-        messages: input.messages,
-        platformId,
-        themeAngle: input.themeAngle,
-      });
 
   plan = { ...plan, artifactId, platform: platformId };
 
-  const rulesProfile = resolveDesignRulesForPlan(plan, userMessage);
+  const rulesProfile = resolveDesignRulesForPlan(plan, resolvedBrief);
 
   let result = await runPipelineAttempt({
     ...input,
     platformId,
     platformReason: platformResolution.reason,
-    userMessage,
+    userMessage: resolvedBrief,
     plan,
     artifactId,
     rulesProfile,
   });
 
-  if (!result.score.visualBalancePassed) {
-    let repairedPlan = repairPlanCopyForBalance(result.validatedPlan, rulesProfile);
-    let repairedScore = scoreDesign(repairedPlan, plan, rulesProfile);
-    const steps = ["copy_truncate"];
-
-    if (!repairedScore.visualBalancePassed) {
-      repairedPlan = repairPlanDropOptionalSlots(repairedPlan, rulesProfile);
-      repairedScore = scoreDesign(repairedPlan, plan, rulesProfile);
-      steps.push("drop_optional_slots");
-    }
-
-    if (repairedScore.visualBalancePassed) {
-      result = {
-        ...result,
-        validatedPlan: repairedPlan,
-        score: repairedScore,
-        pipelineTrace: result.pipelineTrace
-          ? {
-              ...result.pipelineTrace,
-              scoreTotal: repairedScore.total,
-              repairSteps: [...(result.pipelineTrace.repairSteps ?? []), ...steps],
-            }
-          : result.pipelineTrace,
-      };
-    } else {
-      const meta = getLayoutRetrievalMeta(getLayoutById(result.layoutId));
-      if (meta.densityClass === "copyHeavy") {
-        result = await runPipelineAttempt({
-          ...input,
-          platformId,
-          platformReason: platformResolution.reason,
-          userMessage,
-          plan,
-          artifactId,
-          rulesProfile,
-          layoutRetry: true,
-          repairSteps: [...steps, "layout_retry"],
-        });
-      }
+  result = finalizePipelineResult(result);
+  // One bounded layout retry, shared by singles and variants. Keep the better result.
+  if (!result.score.visualBalancePassed && getLayoutRetrievalMeta(getLayoutById(result.layoutId)).densityClass === "copyHeavy") {
+    try {
+      const retry = finalizePipelineResult(await runPipelineAttempt({
+        ...input, variantIndex: undefined, userMessage: resolvedBrief, platformId,
+        platformReason: platformResolution.reason, plan, artifactId, rulesProfile,
+        layoutRetry: true, repairSteps: ["layout_retry"],
+      }));
+      if (retry.score.hardFailures.length < result.score.hardFailures.length ||
+          (retry.score.hardFailures.length === result.score.hardFailures.length && retry.score.total > result.score.total)) result = retry;
+    } catch {
+      // A failed optional repair must not discard a usable draft.
+      result.pipelineTrace?.repairSteps.push("layout_retry_failed");
     }
   }
-
   return result;
 }
 
 export async function runDesignPipelineVariants(
   input: PipelineInput,
 ): Promise<PipelineVariantsResult> {
-  const userMessage = input.userMessage || getLatestUserMessage(input.messages);
+  const userMessage = resolveBriefContext(input.userMessage || getLatestUserMessage(input.messages), input.messages);
   const themes = extractThemesFromBrief(userMessage).slice(0, 3);
 
-  const basePlan = input.offline
-    ? campaignPlanFromBrief(userMessage, input.platformId)
-    : await planCampaign({
-        userMessage,
-        messages: input.messages,
-        platformId: input.platformId,
-      });
-
-  const artifactId = resolveArtifactId({
-    brief: userMessage,
-    artifactId: input.artifactId ?? basePlan.artifactId,
-    artifactCategory: input.artifactCategory,
-    platformId: input.platformId,
-  });
-  const artifact = loadArtifactPlugin(artifactId);
-  const platformResolution = resolvePlatformForDesign({
-    brief: userMessage,
-    artifact,
-    fallbackPlatformId: input.platformId,
-  });
-  const platformId = platformResolution.platformId;
-
-  const planWithArtifact = { ...basePlan, artifactId, platform: platformId };
-
-  const rulesProfile = resolveDesignRulesForPlan(planWithArtifact, userMessage);
-  const angles = themes.length > 0 ? themes : [undefined];
-
-  // Run themed variants in parallel — sequential attempts were a common cause of
-  // FUNCTION_INVOCATION_TIMEOUT on /api/brief/chat (3× full pipeline wall-clock).
-  const variants = await Promise.all(
-    angles.map(async (theme): Promise<DesignVariant> => {
-      const plan = theme
-        ? {
-            ...planWithArtifact,
-            primaryMessage: `${planWithArtifact.primaryMessage} — ${theme}`,
-            themes: [...new Set([...planWithArtifact.themes, theme])],
-          }
-        : planWithArtifact;
-
-      let result = await runPipelineAttempt({
-        ...input,
-        platformId,
-        platformReason: platformResolution.reason,
-        userMessage,
-        plan,
-        artifactId,
-        rulesProfile,
-        themeAngle: theme,
-      });
-
-      if (!result.score.visualBalancePassed) {
-        const meta = getLayoutRetrievalMeta(getLayoutById(result.layoutId));
-        if (meta.densityClass === "copyHeavy") {
-          result = await runPipelineAttempt({
-            ...input,
-            platformId,
-            platformReason: platformResolution.reason,
-            userMessage,
-            plan,
-            artifactId,
-            rulesProfile,
-            themeAngle: theme,
-            layoutRetry: true,
-          });
-        }
-      }
-
-      return {
-        theme: theme ?? "default",
-        planInput: result.planInput,
-        validatedPlan: result.validatedPlan,
-        score: result.score,
-        summary: result.summary,
-        layoutId: result.layoutId,
-        rationale: result.rationale,
-        campaignPlan: result.campaignPlan,
-        recipeId: result.recipeId,
-        designSystemId: result.designSystemId,
-      };
-    }),
-  );
-
+  const angles = themes.length ? themes : ["Message first", "Visual first", "Balanced"];
+  const settled = await Promise.allSettled(angles.map(async (theme, variantIndex): Promise<DesignVariant> => {
+    const result = await runDesignPipeline({
+      ...input,
+      userMessage,
+      messages: [], // context was resolved above
+      themeAngle: theme,
+      variantIndex,
+    });
+    return { ...result, theme };
+  }));
+  const variants = settled.flatMap(result => result.status === "fulfilled" ? [result.value] : []);
+  if (!variants.length) throw new Error("No design variants could be generated.");
+  const first = variants[0];
   return {
-    intent: campaignPlanToIntent(planWithArtifact),
-    campaignPlan: planWithArtifact,
-    rulesProfile,
+    intent: first.intent,
+    campaignPlan: first.campaignPlan,
+    rulesProfile: first.rulesProfile,
     variants,
-    summary: `Generated ${variants.length} design variants from your brief.`,
+    summary: `Generated ${variants.length} design variants from your brief.${variants.length < angles.length ? " Some variants could not be generated; the successful designs are ready." : ""}`,
+  };
+}
+
+/** One canonical plan is used for application, reporting and scoring. */
+export function finalizePipelineResult(result: PipelineResult): PipelineResult {
+  const rules = result.rulesProfile;
+  const artifact = loadArtifactPlugin(result.artifactId);
+  const steps = [...(result.pipelineTrace?.repairSteps ?? [])];
+  // Copy rewrites happen before assembly. Do not cut already validated copy here.
+  const adjusted = repairPlanForArtifactConstraints(result.validatedPlan, artifact);
+  const revalidated = validateDesignPlan(adjusted, result.platformId, rules);
+  if (!revalidated.ok) throw new Error(revalidated.error);
+  const validatedPlan = revalidated.plan;
+  const score = scoreDesign(validatedPlan, result.campaignPlan, rules);
+  const primary = primaryCopyFromTextSlots(validatedPlan.textSlots);
+  validatedPlan.copyVariants = [primary];
+  validatedPlan.copyVariantIndex = 0;
+  const summary = `${result.rationale} Structural checks: ${score.total}/100.${score.visualBalancePassed ? "" : " This draft needs review: " + score.checks.filter(check => !check.passed).map(check => check.label).join(", ") + "."}`;
+  return {
+    ...result,
+    planInput: designPlanSchema.parse(validatedPlan),
+    validatedPlan,
+    score,
+    summary,
+    pipelineTrace: result.pipelineTrace ? { ...result.pipelineTrace, scoreTotal: score.total, repairSteps: steps } : undefined,
   };
 }

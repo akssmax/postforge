@@ -1,5 +1,7 @@
 "use client";
 
+import { mergeQualityChecks } from "@/lib/brand/renderedQuality";
+import { useRenderedQuality } from "@/lib/brand/useRenderedQuality";
 import { useMemo, useRef, useState, useEffect } from "react";
 import { ChevronDown, Download, Loader2 } from "lucide-react";
 import { Button } from "@heroui/react";
@@ -385,12 +387,12 @@ function ToolSocialWorkspace() {
         : brand.activeBackground.css.subText
       : undefined;
 
-  const contrastEnabled = showBrand && !exporting;
+  const contrastEnabled = !exporting;
   const featuredSvgMarkup = resolveFeaturedSvgForContrast({
     mode: featured.mode,
     image: featured.image,
   });
-  const contrastResults = useMemo(
+  const estimatedContrastResults = useMemo(
     () =>
       evaluateCanvasContrast({
         enabled: contrastEnabled,
@@ -443,6 +445,9 @@ function ToolSocialWorkspace() {
       brand.kit.activeBackgroundPresetId,
     ],
   );
+
+  const renderedChecks = useRenderedQuality(canvasRef, contrastEnabled, copy);
+  const contrastResults = useMemo(() => mergeQualityChecks(estimatedContrastResults, renderedChecks), [estimatedContrastResults, renderedChecks]);
 
   const contrastFailingCount = contrastResults.filter((r) => !r.passes).length;
 

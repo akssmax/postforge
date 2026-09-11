@@ -100,7 +100,7 @@ function turnApplyFingerprint(
   plan: ValidatedDesignPlan | null,
   patches: CanvasPatchResult[],
 ): string {
-  const payload = plan ?? (patches.length > 0 ? patches : null);
+  const payload = plan || patches.length ? { plan, patches } : null;
   return payload ? JSON.stringify(payload) : "";
 }
 
@@ -120,14 +120,18 @@ export function useBriefChat({
   onOpenFeaturedUpload,
 }: UseBriefChatOptions) {
   const lastAppliedRef = useRef<string>("");
+  const lastPlanAppliedRef = useRef<string>("");
+  const appliedPatchCountRef = useRef(0);
   const lastUserTurnRef = useRef(-1);
   const lastClientActionRef = useRef<string>("");
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onApplyPlanRef = useRef(onApplyPlan);
   const onApplyCanvasPatchRef = useRef(onApplyCanvasPatch);
-  onApplyPlanRef.current = onApplyPlan;
-  onApplyCanvasPatchRef.current = onApplyCanvasPatch;
+  useLayoutEffect(() => {
+    onApplyPlanRef.current = onApplyPlan;
+    onApplyCanvasPatchRef.current = onApplyCanvasPatch;
+  }, [onApplyPlan, onApplyCanvasPatch]);
   const [pendingVariants, setPendingVariants] = useState<DesignVariantResult[] | null>(null);
   const [activeVariantTheme, setActiveVariantTheme] = useState<string | null>(null);
   const hasRestoredRef = useRef(false);
@@ -136,8 +140,10 @@ export function useBriefChat({
     designSnapshot?.artifactCategory) as ArtifactCategoryId | undefined;
 
   const designSnapshotRef = useRef(designSnapshot);
-  designSnapshotRef.current = designSnapshot;
+  useLayoutEffect(() => { designSnapshotRef.current = designSnapshot; }, [designSnapshot]);
 
+  // The transport invokes prepareSendMessagesRequest on send, never during render.
+  /* eslint-disable react-hooks/refs */
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -168,6 +174,7 @@ export function useBriefChat({
     [platformId, resolvedArtifactCategory, brandSummary],
   );
 
+  /* eslint-enable react-hooks/refs */
   const { messages, sendMessage, status, error, setMessages, stop, clearError } = useChat({
     id: `brief-${designId}`,
     transport,
@@ -185,6 +192,8 @@ export function useBriefChat({
       const lastUserIndex = findLastUserIndex(restored);
       lastUserTurnRef.current = lastUserIndex;
       lastAppliedRef.current = "";
+      lastPlanAppliedRef.current = "";
+      appliedPatchCountRef.current = 0;
       lastClientActionRef.current = "";
 
       if (lastUserIndex < 0) {
@@ -203,6 +212,8 @@ export function useBriefChat({
       } else {
         setPendingVariants(null);
         lastAppliedRef.current = turnApplyFingerprint(plan, patches);
+        lastPlanAppliedRef.current = plan ? JSON.stringify(plan) : "";
+        appliedPatchCountRef.current = patches.length;
       }
 
       const action = extractLatestClientAction(restored);
@@ -239,6 +250,8 @@ export function useBriefChat({
     if (lastUserIndex !== lastUserTurnRef.current) {
       lastUserTurnRef.current = lastUserIndex;
       lastAppliedRef.current = "";
+      lastPlanAppliedRef.current = "";
+      appliedPatchCountRef.current = 0;
       lastClientActionRef.current = "";
     }
 
@@ -248,8 +261,8 @@ export function useBriefChat({
     );
 
     if (variants?.length) {
-      setPendingVariants(variants);
-      return;
+      const frame = requestAnimationFrame(() => setPendingVariants(variants));
+      return () => cancelAnimationFrame(frame);
     }
 
     // Apply patches individually so mixed targetArtboards don't collapse.
@@ -262,12 +275,14 @@ export function useBriefChat({
       lastAppliedRef.current = fingerprint;
       // Apply canvas patches even when a plan is present in the same turn —
       // otherwise updateCopy / layout tweaks after updateDesign are dropped.
-      if (plan) {
+      if (plan && JSON.stringify(plan) !== lastPlanAppliedRef.current) {
+        lastPlanAppliedRef.current = JSON.stringify(plan);
         onApplyPlanRef.current(plan, planOptions);
       }
-      for (const patch of patches) {
+      for (const patch of patches.slice(appliedPatchCountRef.current)) {
         onApplyCanvasPatchRef.current(patch);
       }
+      appliedPatchCountRef.current = patches.length;
     };
 
     // While tokens stream, debounce so we don't apply every partial tool payload.
@@ -311,7 +326,7 @@ export function useBriefChat({
   const applyVariant = useCallback(
     (variant: DesignVariantResult) => {
       setActiveVariantTheme(variant.theme);
-      onApplyPlan(variant.plan);
+      onApplyPlan(variant.plan, variant.applyOptions);
     },
     [onApplyPlan],
   );
@@ -405,6 +420,7 @@ export function useBriefChat({
       return true;
     },
     [
+      designId,
       designSnapshot,
       isGenerating,
       offline,

@@ -1,3 +1,5 @@
+import { artifactConstraintFailures, slotSatisfiesRequired } from "@/lib/llm/services/layoutValidator";
+import { tryGetArtifact } from "@/lib/design-config/registry";
 import type { CampaignIntent } from "@/lib/llm/schemas/campaignIntent";
 import {
   campaignPlanToIntent,
@@ -28,8 +30,10 @@ function asPlan(intentOrPlan: CampaignIntent | CampaignPlan): CampaignPlan | nul
 }
 
 export type DesignScore = {
+  scope: "structural";
+  hardFailures: string[];
   total: number;
-  checks: { label: string; passed: boolean; detail?: string }[];
+  checks: { label: string; passed: boolean; detail?: string; severity?: "error" | "warning" }[];
   visualBalancePassed: boolean;
 };
 
@@ -60,6 +64,14 @@ export function scoreDesign(
   const intent = asIntent(intentOrPlan);
   const campaignPlan = asPlan(intentOrPlan);
   const checks: DesignScore["checks"] = [];
+  const artifact = campaignPlan?.artifactId ? tryGetArtifact(campaignPlan.artifactId) : undefined;
+  for (const reason of artifact ? artifactConstraintFailures(plan, artifact) : []) {
+    checks.push({ label: reason, passed: false, severity: "error" });
+  }
+  for (const required of rulesProfile?.requiredSlots ?? []) {
+    checks.push({ label: `Required ${required}`, passed: slotSatisfiesRequired(required, plan), severity: "error" });
+  }
+
   const balance = rulesProfile?.visualBalance;
   const campaignRules = campaignPlan
     ? tryGetCampaignRules(campaignPlan.campaign.type)
@@ -69,12 +81,16 @@ export function scoreDesign(
     const constraint = getSlotConstraint(slot.role, rulesProfile);
     const length = slot.text.trim().length;
     const wordCount = countWords(slot.text);
+    if (/\[\[|\]\]/.test(slot.text.replace(/\[\[[^\[\]]+\]\]/g, ""))) {
+      checks.push({ label: `${constraint.label} accent markup`, passed: false, severity: "error" });
+    }
     const charPassed =
       length <= constraint.maxCharacters &&
-      (constraint.minCharacters === 0 || length >= constraint.minCharacters);
+      (length === 0 || constraint.minCharacters === 0 || length >= constraint.minCharacters);
     const wordPassed =
       constraint.maxWords == null || wordCount <= constraint.maxWords;
     checks.push({
+      severity: "error",
       label: `${constraint.label} length`,
       passed: charPassed && wordPassed,
       detail: `${length}/${constraint.maxCharacters} chars, ${wordCount} words`,
@@ -85,6 +101,7 @@ export function scoreDesign(
   const maxWords = rulesProfile?.copyBudget.maxTotalWords ?? 60;
   const wordShare = totalWords / maxWords;
   checks.push({
+    severity: "error",
     label: "Copy word budget",
     passed: totalWords <= maxWords,
     detail: `${totalWords}/${maxWords} words (${Math.round(wordShare * 100)}%)`,
@@ -107,6 +124,7 @@ export function scoreDesign(
 
   if (headlineClippingRisk(plan, rulesProfile)) {
     checks.push({
+      severity: "warning",
       label: "Headline clipping risk",
       passed: false,
       detail: "Headline may clip in tight text zone",
@@ -115,17 +133,17 @@ export function scoreDesign(
 
   const needsCta =
     rulesProfile?.requiredSlots.includes("caption") ||
-    intent.ctaRequired ||
-    rulesProfile?.copyBudget.ctaWords != null;
+    rulesProfile?.requiredSlots.includes("cta") ||
+    intent.ctaRequired;
 
   if (needsCta) {
     const ctaText =
-      plan.copy.extraFields.find((f) => f.value.trim())?.value ??
-      plan.textSlots.find((s) => s.role === "caption")?.text ??
+      plan.textSlots.find((s) => (s.role === "cta" || s.role === "caption") && s.text.trim())?.text ??
       "";
     const ctaWords = countWords(ctaText);
     const maxCta = rulesProfile?.copyBudget.ctaWords ?? 8;
     checks.push({
+      severity: "error",
       label: "CTA present",
       passed: ctaText.trim().length > 0 && ctaWords <= maxCta,
       detail: ctaText ? `${ctaWords} words` : "missing CTA",
@@ -179,8 +197,7 @@ export function scoreDesign(
 
   if (campaignRules?.cta?.required || campaignPlan?.cta.required) {
     const ctaText =
-      plan.copy.extraFields.find((f) => f.value.trim())?.value ??
-      plan.textSlots.find((s) => s.role === "caption")?.text ??
+      plan.textSlots.find((s) => (s.role === "cta" || s.role === "caption") && s.text.trim())?.text ??
       "";
     checks.push({
       label: "Campaign CTA required",
@@ -209,9 +226,9 @@ export function scoreDesign(
   const passedCount = checks.filter((check) => check.passed).length;
   const total = checks.length === 0 ? 100 : Math.round((passedCount / checks.length) * 100);
   const threshold = balance?.passThreshold ?? 80;
-  const visualBalancePassed = total >= threshold;
+  const visualBalancePassed = total >= threshold && !checks.some(check => check.severity === "error" && !check.passed);
 
-  return { total, checks, visualBalancePassed };
+  return { scope: "structural", hardFailures: checks.filter(check => check.severity === "error" && !check.passed).map(check => check.label), total, checks, visualBalancePassed };
 }
 
 function truncateToWords(text: string, maxWords: number): string {

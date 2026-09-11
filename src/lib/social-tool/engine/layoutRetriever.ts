@@ -1,3 +1,4 @@
+import type { ArtifactDefinition } from "@/lib/design-config/schemas";
 import {
   intentToCampaignPlan,
   type CampaignPlan,
@@ -277,11 +278,17 @@ export function retrieveLayouts(
   brief?: string,
   recipe?: RecipeConfig,
   system?: DesignSystemConfig,
+  artifact?: ArtifactDefinition,
 ): LayoutCandidate[] {
   const allowSplit = platformAllowsHorizontalSplit(platformId);
-  const pool = getApprovedShuffleLayouts(record, platformId).filter((layout) => {
+  // Artifact reference layouts need not be part of the social-post shuffle pool.
+  const approved = getApprovedShuffleLayouts(record, platformId);
+  const recommended = artifact ? POST_LAYOUTS.filter(layout =>
+    artifact.recommendedLayouts.includes(layout.id) && record[platformId]?.[layout.id]?.decision !== "rejected") : [];
+  const source = [...new Map([...approved, ...recommended].map(layout => [layout.id, layout])).values()];
+  const pool = source.filter((layout) => {
     if (!allowSplit && layoutUsesSplit(layout)) return false;
-    return system ? designSystemAllowsLayout(system, layout.id) : true;
+    return !artifact && system ? designSystemAllowsLayout(system, layout.id) : true;
   });
   const effectivePool = pool.length > 0
     ? pool
@@ -316,6 +323,7 @@ export function retrieveLayouts(
     .sort((a, b) => b.score - a.score);
 
   if (scored.length === 0) {
+    if (artifact) return [];
     const preferred = recipe?.preferredLayouts[0] as PostLayoutId | undefined;
     const fallback = getPostLayout(
       preferred && POST_LAYOUTS.some((l) => l.id === preferred)

@@ -1,3 +1,4 @@
+import type { OpenRouterChatModelId } from "@/lib/llm/models";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { sanitizeSvgMarkup } from "@/lib/brand/parseLogoFile";
@@ -100,15 +101,16 @@ function normalizeGeneratedBlock(
 
 export async function composeVisualBlocks(
   input: VisualBlockGenerateInput,
+  modelId?: OpenRouterChatModelId,
 ): Promise<VisualBlockRecord[]> {
   const count = Math.min(3, Math.max(1, input.count ?? 3));
   const theme = input.theme ?? input.headline ?? "visual block";
 
   try {
-    const model = createLlmModel();
+    const model = createLlmModel(modelId);
     const result = await generateObject({
       model,
-      providerOptions: getLlmProviderOptions(),
+      providerOptions: getLlmProviderOptions(modelId),
       schema: generateBlocksSchema,
       temperature: 0.5,
       abortSignal: llmAbortSignal(LLM_VISUAL_TIMEOUT_MS),
@@ -151,12 +153,13 @@ export async function composeVisualBlocks(
 
 export async function modifyVisualBlock(
   input: VisualBlockModifyInput,
+  modelId?: OpenRouterChatModelId,
 ): Promise<VisualBlockRecord | null> {
   try {
-    const model = createLlmModel();
+    const model = createLlmModel(modelId);
     const result = await generateObject({
       model,
-      providerOptions: getLlmProviderOptions(),
+      providerOptions: getLlmProviderOptions(modelId),
       schema: generatedBlockSchema,
       temperature: 0.4,
       abortSignal: llmAbortSignal(LLM_VISUAL_TIMEOUT_MS),

@@ -1,3 +1,4 @@
+import type { OpenRouterChatModelId } from "@/lib/llm/models";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { createLlmModel, getLlmProviderOptions, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
@@ -10,8 +11,8 @@ import type { DesignRulesProfile } from "@/lib/llm/rules/types";
 import { resolveDesignRulesForBrief, rulesProfilePrompt } from "@/lib/llm/rules";
 import type { CopyVariant } from "@/lib/social-tool/presets";
 import { COPY_VARIANT_POOL_SIZE } from "@/lib/social-tool/presets";
-import { countWords } from "@/lib/social-tool/slotLibrary";
-import { isEventArtifact, parseEventPosterBrief } from "@/lib/design-engine/eventBriefParser";
+import { countWords, getSlotConstraint } from "@/lib/social-tool/slotLibrary";
+import { parseEventPosterBrief } from "@/lib/design-engine/eventBriefParser";
 import { intentFromBrief } from "@/lib/social-tool/engine/intentFromBrief";
 import type { PlatformId } from "@/lib/social-tool/presets";
 
@@ -24,21 +25,16 @@ const copyVariantsResponseSchema = z.object({
   variants: z.array(copyVariantSchema).min(6).max(10),
 });
 
-function normalizeVariant(variant: CopyVariant, rulesProfile: DesignRulesProfile): CopyVariant {
-  let heading = variant.heading.trim();
-  let subheading = variant.subheading.trim();
+function normalizeVariant(variant: CopyVariant): CopyVariant {
+  return { heading: variant.heading.trim(), subheading: variant.subheading.trim() };
+}
 
-  if (countWords(heading) > rulesProfile.copyBudget.headlineWords) {
-    heading = heading.split(/\s+/).slice(0, rulesProfile.copyBudget.headlineWords).join(" ");
-  }
-  if (countWords(subheading) > rulesProfile.copyBudget.subheadingWords) {
-    subheading = subheading
-      .split(/\s+/)
-      .slice(0, rulesProfile.copyBudget.subheadingWords)
-      .join(" ");
-  }
-
-  return { heading, subheading };
+function validAlternative(variant: CopyVariant, rules: DesignRulesProfile): boolean {
+  return variant.heading.length <= getSlotConstraint("headline", rules).maxCharacters &&
+    variant.subheading.length <= getSlotConstraint("subheading", rules).maxCharacters &&
+    countWords(variant.heading) <= rules.copyBudget.headlineWords &&
+    countWords(variant.subheading) <= rules.copyBudget.subheadingWords &&
+    !/\[\[|\]\]/.test(`${variant.heading} ${variant.subheading}`.replace(/\[\[[^\[\]]+\]\]/g, ""));
 }
 
 function dedupeKey(variant: CopyVariant): string {
@@ -54,7 +50,7 @@ export function buildCopyVariantPool(
   const seen = new Set<string>();
 
   const push = (variant: CopyVariant) => {
-    const normalized = normalizeVariant(variant, rulesProfile);
+    const normalized = normalizeVariant(variant);
     if (!normalized.heading.trim()) return;
     const key = dedupeKey(normalized);
     if (seen.has(key)) return;
@@ -64,7 +60,7 @@ export function buildCopyVariantPool(
 
   push(primary);
   for (const variant of alternatives) {
-    push(variant);
+    if (validAlternative(variant, rulesProfile)) push(variant);
     if (pool.length >= COPY_VARIANT_POOL_SIZE) break;
   }
 
@@ -80,7 +76,7 @@ const OFFLINE_VARIANT_TEMPLATES: ReadonlyArray<{
     subheading: () => "Capture every interaction, automate every update.",
   },
   {
-    heading: (topic) => `Built for Teams That Move Fast`,
+    heading: () => `Built for Teams That Move Fast`,
     subheading: (topic) => `${topic} — one workspace for pipeline, outreach, and reporting.`,
   },
   {
@@ -138,6 +134,7 @@ export function buildCopyVariantsForBrief(
 }
 
 export function writeCopyVariantsOffline(input: {
+  modelId?: OpenRouterChatModelId;
   userMessage: string;
   rulesProfile: DesignRulesProfile;
 }): CopyVariant[] {
@@ -154,7 +151,7 @@ export function writeCopyVariantsOffline(input: {
       { heading: title, subheading: "Connect with local creators" },
       { heading: title, subheading: "Free to attend — RSVP required" },
       { heading: title, subheading: "Limited seats — register today" },
-    ].map((variant) => normalizeVariant(variant, input.rulesProfile));
+    ].map((variant) => normalizeVariant(variant));
   }
 
   if (input.rulesProfile.requiredSlots.includes("contact")) {
@@ -169,7 +166,7 @@ export function writeCopyVariantsOffline(input: {
       { heading: name, subheading: "Design Director" },
       { heading: name, subheading: "VP of Marketing" },
       { heading: name, subheading: "Consultant" },
-    ].map((variant) => normalizeVariant(variant, input.rulesProfile));
+    ].map((variant) => normalizeVariant(variant));
   }
 
   const topic = extractTopic(input.userMessage);
@@ -179,13 +176,13 @@ export function writeCopyVariantsOffline(input: {
         heading: template.heading(topic),
         subheading: template.subheading(topic),
       },
-      input.rulesProfile,
     ),
   );
 }
 
 export async function writeCopyVariants(input: {
   intent: CampaignIntent | CampaignPlan;
+  modelId?: OpenRouterChatModelId;
   userMessage: string;
   platformId: PlatformId;
   rulesProfile: DesignRulesProfile;
@@ -205,16 +202,17 @@ export async function writeCopyVariants(input: {
   const targetCount = COPY_VARIANT_POOL_SIZE - (input.excludePrimary ? 1 : 0);
 
   try {
-    const model = createLlmModel();
+    const model = createLlmModel(input.modelId);
     const result = await generateObject({
       model,
-      providerOptions: getLlmProviderOptions(),
+      providerOptions: getLlmProviderOptions(input.modelId),
       schema: copyVariantsResponseSchema,
       temperature: 0.65,
       abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),
       system: [
         "You write alternate marketing copy options for social posts.",
         "Each variant needs a distinct headline angle — never repeat phrasing.",
+        "Preserve supplied facts, names, dates, prices, percentages and contact details. Never invent claims or roles. Current instructions override earlier ones.",
         "Headlines may use [[accent]] markup for one highlighted phrase.",
         `Platform: ${input.platformId}`,
         input.brandSummary
@@ -245,14 +243,10 @@ export async function writeCopyVariants(input: {
         .join("\n"),
     });
 
-    return result.object.variants.map((variant) =>
-      normalizeVariant(variant, input.rulesProfile),
-    );
+    return result.object.variants.filter(variant => validAlternative(variant, input.rulesProfile)).map(variant => normalizeVariant(variant));
   } catch {
-    return writeCopyVariantsOffline({
-      userMessage: input.instruction ?? input.userMessage,
-      rulesProfile: input.rulesProfile,
-    });
+    console.warn("[pipeline:alternatives] Keeping primary copy after generation failure");
+    return [];
   }
 }
 

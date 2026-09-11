@@ -42,6 +42,7 @@ function scorePreset(
 
 export function resolveColorStrategy(input: {
   plan: CampaignPlan;
+  variationIndex?: number;
   rulesProfile: DesignRulesProfile;
   catalog?: { id: string; label?: string }[];
   recentPresetIds?: string[];
@@ -62,7 +63,7 @@ export function resolveColorStrategy(input: {
         scorePreset(b.id, b.label, colorMood, recent, input.brief ?? input.plan.primaryMessage) -
         scorePreset(a.id, a.label, colorMood, recent, input.brief ?? input.plan.primaryMessage),
     );
-    backgroundPresetId = ranked[0]?.id;
+    backgroundPresetId = ranked[(input.variationIndex ?? 0) % ranked.length]?.id;
   } else if (catalog.length) {
     backgroundPresetId = catalog[0]?.id;
   }

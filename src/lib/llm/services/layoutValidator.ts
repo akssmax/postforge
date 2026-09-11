@@ -74,15 +74,17 @@ function pickPattern(
   }, rulesProfile);
 }
 
-function slotSatisfiesRequired(
+export function slotSatisfiesRequired(
   required: string,
   plan: ValidatedDesignPlan,
 ): boolean {
+  if (required === "logo") return plan.showBrand;
+  if (required === "cta") {
+    return plan.textSlots.some(slot => (slot.role === "cta" || slot.role === "caption") && !!slot.text.trim());
+  }
   const role = required as TextSlotRole;
-  const textSlot = plan.textSlots.find(
-    (slot) => slot.role === role || slot.slotId.includes(required),
-  );
-  if (textSlot?.text.trim()) return true;
+  if (plan.textSlots.some(slot =>
+    (slot.role === role || slot.slotId.includes(required)) && !!slot.text.trim())) return true;
 
   if (required === "product_image" || required === "diagram") {
     return plan.featuredSlots.some((slot) => slot.visible);
@@ -102,7 +104,11 @@ export function repairPlanForArtifactConstraints(
   if (maxBlocks != null) {
     const filled = textSlots.filter((slot) => slot.text.trim());
     if (filled.length > maxBlocks) {
-      const keep = new Set(filled.slice(0, maxBlocks).map((slot) => slot.slotId));
+      const required = new Set(constraints.requiredSlots ?? []);
+      const prioritized = [...filled].sort((a, b) =>
+        Number(required.has(b.role) || (required.has("cta") && b.role === "caption")) -
+        Number(required.has(a.role) || (required.has("cta") && a.role === "caption")));
+      const keep = new Set(prioritized.slice(0, maxBlocks).map((slot) => slot.slotId));
       textSlots = textSlots.map((slot) =>
         keep.has(slot.slotId) ? slot : { ...slot, text: "" },
       );
@@ -114,12 +120,6 @@ export function repairPlanForArtifactConstraints(
     textSlots,
     copy: copyFromTextSlots(textSlots, plan.layout, plan.copy),
   };
-
-  for (const required of constraints.requiredSlots ?? []) {
-    if (!slotSatisfiesRequired(required, nextPlan)) {
-      continue;
-    }
-  }
 
   const hideFeatured =
     artifact.renderer === "print-doc" ||
@@ -148,7 +148,7 @@ export function validateDesignPlan(
 
   const input = parsed.data;
   const layoutRef = resolveLayoutRefForPlan(input.layoutRef as LayoutRef);
-  let layout =
+  const layout =
     layoutRef.source === "generated"
       ? normalizeGeneratedLayout(registerGeneratedLayout(layoutRef.layout))
       : resolveLayoutRef(layoutRef);
@@ -236,4 +236,13 @@ export function validateDesignPlan(
       copyVariantIndex: input.copyVariantIndex ?? 0,
     },
   };
+}
+
+export function artifactConstraintFailures(plan: ValidatedDesignPlan, artifact: ArtifactDefinition): string[] {
+  const failures = (artifact.constraints?.requiredSlots ?? [])
+    .filter(required => !slotSatisfiesRequired(required, plan))
+    .map(required => `Missing required ${required}`);
+  const max = artifact.constraints?.maxTextBlocks;
+  if (max != null && plan.textSlots.filter(slot => slot.text.trim()).length > max) failures.push(`Too many text blocks (maximum ${max})`);
+  return failures;
 }

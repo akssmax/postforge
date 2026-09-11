@@ -1,3 +1,4 @@
+import type { OpenRouterChatModelId } from "@/lib/llm/models";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { createLlmModel, getLlmProviderOptions, LLM_CLASSIFY_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
@@ -89,6 +90,7 @@ const routeSchema = z.object({
 export async function routeFollowUp(
   message: string,
   snapshot: DesignSnapshot,
+  modelId?: OpenRouterChatModelId,
 ): Promise<FollowUpRoute> {
   const heuristic = routeFollowUpHeuristic(message, snapshot);
   if (snapshot.onboardingPhase !== "ready") return heuristic;
@@ -99,10 +101,10 @@ export async function routeFollowUp(
   if (heuristic.mode === "edit") return heuristic;
 
   try {
-    const model = createLlmModel();
+    const model = createLlmModel(modelId);
     const result = await generateObject({
       model,
-      providerOptions: getLlmProviderOptions(),
+      providerOptions: getLlmProviderOptions(modelId),
       schema: routeSchema,
       temperature: 0,
       abortSignal: llmAbortSignal(LLM_CLASSIFY_TIMEOUT_MS),

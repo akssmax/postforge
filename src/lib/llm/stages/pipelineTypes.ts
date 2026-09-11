@@ -53,18 +53,7 @@ export type PipelineResult = {
   pipelineTrace?: PipelineTrace;
 };
 
-export type DesignVariant = {
-  theme: string;
-  planInput: DesignPlan;
-  validatedPlan: ValidatedDesignPlan;
-  score: DesignScore;
-  summary: string;
-  layoutId: PostLayoutId;
-  rationale: string;
-  campaignPlan?: CampaignPlan;
-  recipeId?: string;
-  designSystemId?: string;
-};
+export type DesignVariant = PipelineResult & { theme: string };
 
 export type PipelineVariantsResult = {
   /** @deprecated Prefer campaignPlan */

@@ -100,6 +100,8 @@ export const ctaTypeSchema = z.enum([
 ]);
 
 export const campaignPlanSchema = z.object({
+  /** Canonical user requirements after applying conversational corrections. */
+  resolvedBrief: z.string().optional(),
   campaign: z.object({
     type: v2CampaignTypeSchema,
     objective: campaignGoalSchema,

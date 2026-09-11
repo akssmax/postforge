@@ -1,6 +1,8 @@
+import type { OpenRouterChatModelId } from "@/lib/llm/models";
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
+  createUIMessageStream,
   isStepCount,
   streamText,
   tool,
@@ -133,6 +135,7 @@ function buildCanvasTools(
   snapshot: DesignSnapshot,
   rulesProfile: DesignRulesProfile,
   followUpMessage: string,
+  modelId?: OpenRouterChatModelId,
 ) {
   return {
     updateCopy: tool({
@@ -168,6 +171,7 @@ function buildCanvasTools(
           ? `Generate at least ${boardCount} clearly distinct headline/subheading pairs — each artboard will get a different one.`
           : undefined;
         const generated = await writeCopyVariants({
+          modelId,
           intent: {
             campaignType: "announcement",
             platform: snapshot.platformId,
@@ -258,7 +262,7 @@ function buildCanvasTools(
         const blocks =
           source === "library"
             ? composeVisualBlocksFromLibrary(payload, { libraryIds: normalized.libraryIds })
-            : await composeVisualBlocks({ ...payload, source: "generate" });
+            : await composeVisualBlocks({ ...payload, source: "generate" }, modelId);
         return attachArtboardTarget(
           computeGeneratedVisualBlocksPatch(snapshot, blocks, normalized.slotId),
           normalized,
@@ -320,7 +324,7 @@ function buildCanvasTools(
           blockId: blockForModify.id,
           instruction: input.instruction,
           block: blockForModify,
-        });
+        }, modelId);
         if (!modified) {
           return { success: false as const, error: "Could not modify visual block" };
         }
@@ -420,10 +424,11 @@ function buildCanvasTools(
 }
 
 export async function handleCanvasAgentRequest(input: {
+  modelId?: OpenRouterChatModelId;
   messages: UIMessage[];
   snapshot: DesignSnapshot;
 }) {
-  const model = createLlmModel();
+  const model = createLlmModel(input.modelId);
   const userMessage =
     input.messages
       .slice()
@@ -457,11 +462,11 @@ export async function handleCanvasAgentRequest(input: {
     userMessage,
   );
 
-  const tools = buildCanvasTools(input.snapshot, rulesProfile, userMessage);
+  const tools = buildCanvasTools(input.snapshot, rulesProfile, userMessage, input.modelId);
 
   const result = streamText({
     model,
-    providerOptions: getLlmProviderOptions(),
+    providerOptions: getLlmProviderOptions(input.modelId),
     temperature: 0.2,
     timeout: LLM_STREAM_TIMEOUT_MS,
     // Default stopWhen is isStepCount(1), which ends after the first tool call and
@@ -524,15 +529,13 @@ export async function handleCanvasAgentRequest(input: {
 }
 
 export async function handleClarifyRequest(question: string) {
-  const model = createLlmModel();
-  const result = streamText({
-    model,
-    providerOptions: getLlmProviderOptions(),
-    temperature: 0.3,
-    timeout: LLM_STREAM_TIMEOUT_MS,
-    prompt: `Ask the user this clarifying question in a friendly sentence: ${question}`,
-  });
-  return createUIMessageStreamResponse({
-    stream: result.toUIMessageStream({ onError: toBriefChatClientError }),
-  });
+  return createUIMessageStreamResponse({ stream: createUIMessageStream({
+    execute: ({ writer }) => {
+      writer.write({ type: "start" });
+      writer.write({ type: "text-start", id: "clarification" });
+      writer.write({ type: "text-delta", id: "clarification", delta: question });
+      writer.write({ type: "text-end", id: "clarification" });
+      writer.write({ type: "finish", finishReason: "stop" });
+    },
+  }) });
 }

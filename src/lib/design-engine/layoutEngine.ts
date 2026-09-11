@@ -27,14 +27,7 @@ export function filterLayoutCandidatesForArtifact(
     layoutMetaSupportsArtifact(c.layout.id, artifact.id),
   );
 
-  const pool =
-    filtered.length > 0
-      ? filtered
-      : recommended.size > 0
-        ? candidates.filter((c) => recommended.has(c.layout.id))
-        : candidates;
-
-  if (pool.length === 0) return candidates;
+  const pool = filtered;
 
   let rankedPool = pool;
   if (
@@ -65,15 +58,11 @@ export function filterLayoutCandidatesForArtifact(
   }
 
   const referenceLayout = referenceLayoutForArtifact(artifact.id);
-  if (referenceLayout) {
-    const refMatch = rankedPool.filter((c) => c.layout.id === referenceLayout);
-    if (refMatch.length > 0) rankedPool = refMatch;
-  }
 
   return rankedPool
     .map((c) => ({
       ...c,
-      score: c.score + (recommended.has(c.layout.id) ? 25 : 0),
+      score: c.score + (recommended.has(c.layout.id) ? 25 : 0) + (c.layout.id === referenceLayout ? 40 : 0),
     }))
     .sort((a, b) => b.score - a.score);
 }

@@ -12,7 +12,6 @@ import { variantNotesForLayout } from "@/lib/social-tool/engine/layoutVariants";
 import { resolvePipelineCanvasIcons } from "@/lib/social-tool/icons/placement";
 import type { VisualPolicy } from "@/lib/social-tool/engine/visualPolicy";
 import type { VisualStrategyResult } from "@/lib/social-tool/engine/visual/resolveVisualStrategy";
-import { catalogLayoutToDynamic } from "@/lib/social-tool/layoutAdapter";
 import type { PostLayout, PostLayoutId } from "@/lib/social-tool/postLayouts";
 import { normalizeProductPage } from "@/lib/social-tool/presets";
 import type { ProductPageId } from "@/lib/social-tool/presets";
@@ -51,7 +50,6 @@ export function assembleDesignPlan(input: {
   brandAccent?: string;
 }): DesignPlan {
   const intent = asIntent(input.intent);
-  const dynamicLayout = catalogLayoutToDynamic(input.layout);
   const variantNotes = variantNotesForLayout(
     input.layout,
     input.intent,
@@ -116,6 +114,11 @@ export function assembleDesignPlan(input: {
         ? normalizeProductPage(slot.productPage)
         : productPage,
     }));
+  }
+
+  if (input.layout.includeFeaturedSlot === false) {
+    featuredSlots = [];
+    showFeaturedImage = false;
   }
 
   const rationale = [

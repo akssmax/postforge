@@ -1,3 +1,4 @@
+import type { OpenRouterChatModelId } from "@/lib/llm/models";
 import { generateObject } from "ai";
 import { createLlmModel, getLlmProviderOptions, LLM_STAGE_TIMEOUT_MS, llmAbortSignal } from "@/lib/llm/mistral";
 import { slotDraftSchema, type SlotDraft } from "@/lib/llm/schemas/slotDraft";
@@ -36,7 +37,7 @@ function layoutCopyHints(layout: PostLayout): string[] {
     }
   }
   if (layout.listStyle === "numbered") {
-    hints.push("Do not generate numbered list item copy — structure placeholders only.");
+    hints.push("Write concise list items using supplied information; never invent numbered facts.");
   }
   return hints;
 }
@@ -107,9 +108,9 @@ function featuredInstructions(rulesProfile: DesignRulesProfile): string[] {
 
 function copyStructureInstructions(rulesProfile: DesignRulesProfile): string[] {
   const lines = [
-    "Structure: headline → one short subline → single CTA in extras/footer only.",
+    "Fill the requested slots in their semantic roles. Include a single CTA when required.",
     `Word limits: headline ≤${rulesProfile.copyBudget.headlineWords}, subheading ≤${rulesProfile.copyBudget.subheadingWords}, CTA ≤${rulesProfile.copyBudget.ctaWords}, total ≤${rulesProfile.copyBudget.maxTotalWords}.`,
-    "No body paragraphs. No long marketing prose in extras.",
+    rulesProfile.bannedSlots.includes("body") ? "No body paragraphs. No long marketing prose in extras." : "Use concise complete sentences in body slots and preserve required details.",
   ];
   if (rulesProfile.bannedSlots.includes("body")) {
     lines.push("Do not fill body-role slots.");
@@ -132,17 +133,8 @@ function sanitizeDraft(
     return true;
   });
 
-  const textSlots = filteredTextSlots.map((slot) => {
-    const constraint = getSlotConstraint(slot.role, rulesProfile);
-    let text = slot.text.trim();
-    if (constraint.maxWords != null && countWords(text) > constraint.maxWords) {
-      text = text.split(/\s+/).slice(0, constraint.maxWords).join(" ");
-    }
-    if (text.length > constraint.maxCharacters) {
-      text = text.slice(0, constraint.maxCharacters).trim();
-    }
-    return { ...slot, text };
-  });
+  // Preserve the original wording so validation can trigger a semantic rewrite.
+  const textSlots = filteredTextSlots.map(slot => ({ ...slot, text: slot.text.trim() }));
 
   const featuredPolicy = rulesProfile.featuredPolicy;
   let featuredSlots = draft.featuredSlots;
@@ -187,6 +179,9 @@ export function validateSlotDraft(
 
   for (const slot of draft.textSlots) {
     const constraint = getSlotConstraint(slot.role, rulesProfile);
+    if (/\[\[|\]\]/.test(slot.text.replace(/\[\[[^\[\]]+\]\]/g, ""))) {
+      reasons.push(`${slot.role} has unbalanced accent markup`);
+    }
     if (rulesProfile.bannedSlots.includes(slot.role) && slot.text.trim()) {
       reasons.push(`${slot.role} slot should be empty for ${rulesProfile.label}`);
     }
@@ -210,7 +205,7 @@ export function validateSlotDraft(
   }
 
   for (const required of rulesProfile.requiredSlots) {
-    const slot = draft.textSlots.find((s) => s.role === required);
+    const slot = draft.textSlots.find(s => s.role === required || (required === "cta" && s.role === "caption"));
     if (!slot?.text.trim()) {
       reasons.push(`Missing required ${required}`);
     }
@@ -226,6 +221,7 @@ export async function writeSlots(input: {
   intent: CampaignIntent | CampaignPlan;
   layout: PostLayout;
   dynamicLayout: DynamicLayout;
+  modelId?: OpenRouterChatModelId;
   userMessage: string;
   platformId: PlatformId;
   rulesProfile: DesignRulesProfile;
@@ -235,6 +231,7 @@ export async function writeSlots(input: {
     accent?: string;
   };
   retryReasons?: string[];
+  previousDraft?: SlotDraft;
   themeAngle?: string;
   recipe?: RecipeConfig;
   artifact?: ArtifactDefinition;
@@ -244,10 +241,10 @@ export async function writeSlots(input: {
   const slotPrompt = buildSlotPrompt(input.dynamicLayout, input.rulesProfile);
 
   try {
-    const model = createLlmModel();
+    const model = createLlmModel(input.modelId);
     const result = await generateObject({
       model,
-      providerOptions: getLlmProviderOptions(),
+      providerOptions: getLlmProviderOptions(input.modelId),
       schema: slotDraftSchema,
       temperature: input.retryReasons?.length ? 0.2 : 0.4,
       abortSignal: llmAbortSignal(LLM_STAGE_TIMEOUT_MS),
@@ -256,6 +253,8 @@ export async function writeSlots(input: {
           ? "You write copy for print business cards and contact cards."
           : "You write marketing copy for social post slots.",
         "Fill each slot with compelling copy — never mention layout, positioning, or geometry.",
+        "Preserve supplied names, dates, prices, percentages, contact details and CTA meaning exactly. Never invent facts, metrics or contact details.",
+        "The current request overrides earlier requirements; retain earlier facts unless explicitly corrected.",
         "Headlines may use [[accent]] markup for one highlighted phrase.",
         `Platform: ${input.platformId}`,
         input.brandSummary
@@ -288,9 +287,10 @@ export async function writeSlots(input: {
         JSON.stringify(plan ?? intent, null, 2),
         "",
         input.retryReasons?.length
-          ? `Previous attempt failed — rewrite SHORTER:\n${input.retryReasons.map((r) => `- ${r}`).join("\n")}`
+          ? `Previous attempt failed — rewrite only failing slots, preserving meaning and exact supplied facts:\n${input.retryReasons.map((r) => `- ${r}`).join("\n")}`
           : "",
         "",
+        input.previousDraft ? `Previous draft: ${JSON.stringify(input.previousDraft.textSlots)}` : "",
         "Slots to fill:",
         slotPrompt,
         "",
@@ -301,7 +301,8 @@ export async function writeSlots(input: {
     });
 
     return sanitizeDraft(result.object, input.rulesProfile, input.dynamicLayout);
-  } catch {
+  } catch (error) {
+    console.warn("[pipeline:slots] Using offline fallback", error instanceof Error ? error.name : "unknown");
     return sanitizeDraft(
       writeSlotsOffline({
         userMessage: input.userMessage,
@@ -320,6 +321,7 @@ export async function writeSlotsWithRetries(input: {
   intent: CampaignIntent | CampaignPlan;
   layout: PostLayout;
   dynamicLayout: DynamicLayout;
+  modelId?: OpenRouterChatModelId;
   userMessage: string;
   platformId: PlatformId;
   rulesProfile: DesignRulesProfile;
@@ -334,16 +336,18 @@ export async function writeSlotsWithRetries(input: {
 }): Promise<{ draft: SlotDraft; retries: number; validationReasons: string[] }> {
   let retryReasons: string[] | undefined;
   let retries = 0;
+  let previousDraft: SlotDraft | undefined;
   const maxRetries = input.rulesProfile.maxCopyRetries;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const draft = await writeSlots({ ...input, retryReasons });
+    const draft = await writeSlots({ ...input, retryReasons, previousDraft });
     const validation = validateSlotDraft(draft, input.rulesProfile);
     if (validation.ok) {
       return { draft: validation.draft, retries, validationReasons: [] };
     }
+    previousDraft = draft;
     retryReasons = validation.reasons;
-    retries = attempt + 1;
+    retries = Math.min(attempt + 1, maxRetries);
     if (attempt >= maxRetries) {
       return { draft, retries, validationReasons: validation.reasons };
     }
