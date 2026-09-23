@@ -1,4 +1,5 @@
 import type { LandingBrandId } from "@/components/landing/landingBrands";
+import { assetUrl } from "@/lib/assets/assetUrl";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import { legacyPatternRef } from "@/lib/social-tool/patterns/resolvePattern";
 import { libraryPatternRef } from "@/lib/social-tool/patterns/library";
@@ -28,7 +29,7 @@ export type LandingBrandContent = {
   defaultDesign: LandingBrandDefaultDesign;
 };
 
-const STORYSET = "/visuals/illustrations/storyset";
+const STORYSET = assetUrl("/visuals/illustrations/storyset");
 
 /**
  * Brand-true marketing copy for the offline landing playground.

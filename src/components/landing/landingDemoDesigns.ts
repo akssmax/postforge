@@ -1,5 +1,6 @@
 import type { LandingBrandId } from "@/components/landing/landingBrands";
 import { defaultLandingIllustration } from "@/components/landing/landingBrandContent";
+import { assetUrl } from "@/lib/assets/assetUrl";
 import type { PatternRef } from "@/lib/social-tool/patterns/types";
 import { legacyPatternRef } from "@/lib/social-tool/patterns/resolvePattern";
 import { libraryPatternRef } from "@/lib/social-tool/patterns/library";
@@ -27,7 +28,7 @@ export type LandingDemoDesign = {
   featuredTransform?: Pick<FeaturedImageTransform, "scale">;
 };
 
-const STORYSET = "/visuals/illustrations/storyset";
+const STORYSET = assetUrl("/visuals/illustrations/storyset");
 
 /** Hand-authored showcase designs — brand-true copy + Storyset illustrations. */
 export const LANDING_DEMO_DESIGNS: LandingDemoDesign[] = [

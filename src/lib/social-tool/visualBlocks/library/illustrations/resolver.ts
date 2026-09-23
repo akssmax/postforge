@@ -1,8 +1,7 @@
 import "server-only";
 
-import fs from "node:fs";
-import path from "node:path";
 import { sanitizeSvgMarkupServer } from "@/lib/social-tool/visualBlocks/sanitizeSvgServer";
+import { loadAssetText } from "@/lib/assets/loadAssetText";
 import type { IllustrationLibraryEntry } from "./manifest";
 import type { VisualTemplateContext } from "../templateContext";
 import {
@@ -20,14 +19,14 @@ export function frameIllustrationSvg(rawSvg: string): string {
   return normalizeIllustrationSvg(rawSvg);
 }
 
-export function resolveIllustrationSvg(
+export async function resolveIllustrationSvg(
   entry: IllustrationLibraryEntry,
   ctx: VisualTemplateContext,
-): string | null {
-  const publicPath = path.join(process.cwd(), "public", entry.assetPath.replace(/^\//, ""));
-  if (!fs.existsSync(publicPath)) return null;
+): Promise<string | null> {
+  const raw = await loadAssetText(entry.assetPath);
+  if (!raw) return null;
 
-  let svg = fs.readFileSync(publicPath, "utf8");
+  let svg = raw;
 
   if (entry.source === "storyset") {
     svg = recolorIllustrationForPreview(svg, ctx.primary, STORYSET_PRIMARY_ACCENTS);

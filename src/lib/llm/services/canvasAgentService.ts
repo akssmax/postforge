@@ -261,7 +261,7 @@ function buildCanvasTools(
         };
         const blocks =
           source === "library"
-            ? composeVisualBlocksFromLibrary(payload, { libraryIds: normalized.libraryIds })
+            ? await composeVisualBlocksFromLibrary(payload, { libraryIds: normalized.libraryIds })
             : await composeVisualBlocks({ ...payload, source: "generate" }, modelId);
         return attachArtboardTarget(
           computeGeneratedVisualBlocksPatch(snapshot, blocks, normalized.slotId),
@@ -295,7 +295,7 @@ function buildCanvasTools(
         if (!blockForModify.svgMarkup && blockForModify.libraryId) {
           const pattern = getLibraryPattern(blockForModify.libraryId);
           if (pattern) {
-            const reinstantiated = instantiateLibraryPattern(pattern, {
+            const reinstantiated = await instantiateLibraryPattern(pattern, {
               headline: snapshot.copy.heading,
               subheading: snapshot.copy.subheading,
               theme: snapshot.copy.heading,
@@ -345,7 +345,7 @@ function buildCanvasTools(
         if (!patch.success) {
           const pattern = getLibraryPattern(normalized.blockId);
           if (pattern) {
-            const instantiated = instantiateLibraryPattern(pattern, {
+            const instantiated = await instantiateLibraryPattern(pattern, {
               headline: snapshot.copy.heading,
               subheading: snapshot.copy.subheading,
               theme: snapshot.copy.heading,

@@ -1,5 +1,5 @@
 import type { VisualBlockKind } from "@/lib/social-tool/visualBlocks/types";
-import manifestJson from "../../../../../../public/visuals/3d/thiings/manifest.json";
+import manifestJson from "./thiings-manifest.json";
 
 export type ThreeDSource = "thiings";
 

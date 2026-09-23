@@ -5,14 +5,15 @@ import { Card, Chip, Link, Separator, Surface } from "@heroui/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { getLandingBrand } from "@/components/landing/landingBrands";
 import { useBrandRecoloredIllustration } from "@/components/landing/useLandingBrandAssets";
+import { assetUrl } from "@/lib/assets/assetUrl";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
 const VISUAL_THUMBS = [
-  "/visuals/illustrations/storyset/group-chat.svg",
-  "/visuals/illustrations/storyset/business-analytics.svg",
-  "/visuals/illustrations/storyset/chat.svg",
-  "/visuals/illustrations/storyset/sharing-ideas.svg",
+  assetUrl("/visuals/illustrations/storyset/group-chat.svg"),
+  assetUrl("/visuals/illustrations/storyset/business-analytics.svg"),
+  assetUrl("/visuals/illustrations/storyset/chat.svg"),
+  assetUrl("/visuals/illustrations/storyset/sharing-ideas.svg"),
 ] as const;
 
 const PILLARS = [

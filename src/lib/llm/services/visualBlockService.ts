@@ -82,11 +82,11 @@ export async function handleGenerateVisualBlocks(
   if (source === "library") {
     if (body.pickFeatured) {
       const block = body.excludeLibraryIds?.length
-        ? pickShuffleFeaturedVisual(body, body.excludeLibraryIds, { randomize: true })
-        : pickFeaturedVisualFromLibrary(body);
+        ? await pickShuffleFeaturedVisual(body, body.excludeLibraryIds, { randomize: true })
+        : await pickFeaturedVisualFromLibrary(body);
       return { blocks: block ? [block] : [] };
     }
-    const blocks = composeVisualBlocksFromLibrary(body, { libraryIds: body.libraryIds });
+    const blocks = await composeVisualBlocksFromLibrary(body, { libraryIds: body.libraryIds });
     return { blocks };
   }
 

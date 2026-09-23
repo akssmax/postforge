@@ -93,10 +93,10 @@ export function getLibraryPattern(id: string): VisualLibraryPattern | undefined 
 
 const FEATURED_SLOT_KINDS: VisualBlockKind[] = ["ui", "illustration", "3d"];
 
-function trySemanticFeaturedPick(
+async function trySemanticFeaturedPick(
   input: VisualBlockGenerateInput,
   excludeLibraryIds: string[],
-): VisualBlockRecord | null {
+): Promise<VisualBlockRecord | null> {
   const semantic = input.semantic;
   if (
     !semantic?.campaignType &&
@@ -140,7 +140,7 @@ function trySemanticFeaturedPick(
     return null;
   }
 
-  const block = instantiateLibraryPattern(pattern, input);
+  const block = await instantiateLibraryPattern(pattern, input);
   if (!block) return null;
 
   // Prefer primary part content from composer when present
@@ -173,22 +173,22 @@ function trySemanticFeaturedPick(
   return block;
 }
 
-export function pickFeaturedVisualFromLibrary(
+export async function pickFeaturedVisualFromLibrary(
   input: VisualBlockGenerateInput,
   options?: { excludeLibraryIds?: string[] },
-): VisualBlockRecord | null {
+): Promise<VisualBlockRecord | null> {
   return pickShuffleFeaturedVisual(input, options?.excludeLibraryIds ?? [], {
     randomize: false,
   });
 }
 
-export function pickShuffleFeaturedVisual(
+export async function pickShuffleFeaturedVisual(
   input: VisualBlockGenerateInput,
   excludeLibraryIds: string[] = [],
   options?: { randomize?: boolean },
-): VisualBlockRecord | null {
+): Promise<VisualBlockRecord | null> {
   const preferredKind = resolvePreferredVisualKind(input);
-  const semanticHit = trySemanticFeaturedPick(input, excludeLibraryIds);
+  const semanticHit = await trySemanticFeaturedPick(input, excludeLibraryIds);
   const semanticMatchesKind =
     !preferredKind ||
     (preferredKind === "illustration"
@@ -227,7 +227,7 @@ export function pickShuffleFeaturedVisual(
   if (candidates.length === 0) return null;
 
   const ranked = rankVisualPatterns(candidates, input);
-  const block = instantiateFirstAvailable(ranked, input, options);
+  const block = await instantiateFirstAvailable(ranked, input, options);
   if (block && semanticHit?.semantic && semanticMatchesKind) {
     block.semantic = {
       ...semanticHit.semantic,
@@ -240,17 +240,17 @@ export function pickShuffleFeaturedVisual(
   return semanticMatchesKind ? semanticHit : null;
 }
 
-function instantiateFirstAvailable(
+async function instantiateFirstAvailable(
   ranked: VisualLibraryPattern[],
   input: VisualBlockGenerateInput,
   options?: { randomize?: boolean },
-): VisualBlockRecord | null {
+): Promise<VisualBlockRecord | null> {
   const deployable = ranked.filter(isDeployableVisualPattern);
   if (deployable.length === 0) return null;
 
   if (options?.randomize === false) {
     for (const pattern of deployable) {
-      const block = instantiateLibraryPattern(pattern, input);
+      const block = await instantiateLibraryPattern(pattern, input);
       if (block) return block;
     }
     return null;
@@ -264,7 +264,7 @@ function instantiateFirstAvailable(
 
   for (let offset = 0; offset < pool.length; offset += 1) {
     const pattern = pool[(start + offset) % pool.length]!;
-    const block = instantiateLibraryPattern(pattern, input);
+    const block = await instantiateLibraryPattern(pattern, input);
     if (block) return block;
   }
 
@@ -280,10 +280,10 @@ export function pickFromLibrary(
   return pickWithKindDiversity(ranked, limit);
 }
 
-export function instantiateLibraryPattern(
+export async function instantiateLibraryPattern(
   pattern: VisualLibraryPattern,
   input: VisualBlockGenerateInput,
-): VisualBlockRecord | null {
+): Promise<VisualBlockRecord | null> {
   const ctx = buildTemplateContext(input);
 
   if (isParametricPattern(pattern) && isUiReactPattern(pattern.id)) {
@@ -302,7 +302,7 @@ export function instantiateLibraryPattern(
   const raw = isThreeDPattern(pattern)
     ? resolveThreeDSvg(pattern)
     : isIllustrationPattern(pattern)
-      ? resolveIllustrationSvg(pattern, ctx)
+      ? await resolveIllustrationSvg(pattern, ctx)
       : pattern.render(ctx);
   if (!raw) return null;
   const svgMarkup =
@@ -322,10 +322,10 @@ export function instantiateLibraryPattern(
   };
 }
 
-export function composeVisualBlocksFromLibrary(
+export async function composeVisualBlocksFromLibrary(
   input: VisualBlockGenerateInput,
   options?: { libraryIds?: string[] },
-): VisualBlockRecord[] {
+): Promise<VisualBlockRecord[]> {
   const count = Math.min(3, Math.max(1, input.count ?? 3));
   const patterns = options?.libraryIds?.length
     ? options.libraryIds
@@ -336,7 +336,7 @@ export function composeVisualBlocksFromLibrary(
 
   const blocks: VisualBlockRecord[] = [];
   for (const pattern of patterns) {
-    const block = instantiateLibraryPattern(pattern, input);
+    const block = await instantiateLibraryPattern(pattern, input);
     if (block) blocks.push(block);
     if (blocks.length >= count) break;
   }
@@ -348,7 +348,7 @@ export function composeVisualBlocksFromLibrary(
   const ranked = rankVisualPatterns(getDeployableVisualLibrary(), input);
   for (const pattern of ranked) {
     if (blocks.some((block) => block.libraryId === pattern.id)) continue;
-    const block = instantiateLibraryPattern(pattern, input);
+    const block = await instantiateLibraryPattern(pattern, input);
     if (!block) continue;
     blocks.push(block);
     if (blocks.length >= count) break;

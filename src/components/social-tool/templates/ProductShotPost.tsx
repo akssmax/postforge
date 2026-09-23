@@ -255,6 +255,23 @@ function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
 }
 
+function resolveFeaturedScaleZones(
+  zones: { textZone: number; productZone: number },
+  featuredScale: number,
+  enabled: boolean,
+) {
+  if (!enabled || zones.productZone <= 0) return zones;
+  const shift = clamp(
+    (clamp(featuredScale, 0.12, 4) - 1) * zones.productZone * 0.16,
+    -zones.productZone * 0.22,
+    zones.textZone * 0.16,
+  );
+  return {
+    textZone: Math.max(0, zones.textZone - shift),
+    productZone: Math.max(0, zones.productZone + shift),
+  };
+}
+
 /** SVG illustrations should sit on the post color — not a gray photo plate. */
 function isIllustrationFeaturedAsset(
   imageSrc: string | null | undefined,
@@ -383,6 +400,8 @@ export function ProductShotPost({
     spacing: PostLayoutSpacing;
     logoScale: number;
     copy: PostCopy;
+    typeScale: number;
+    featuredScale: number;
   } | null>(null);
   const canvasSizeRef = useRef({ width, height });
   canvasSizeRef.current = { width, height };
@@ -429,7 +448,7 @@ export function ProductShotPost({
       !layoutUsesSplit(liveLayout.layout) &&
       !layoutUsesCornerFeatured(liveLayout.layout)
     ) {
-      const zones = resolveFeaturedLayoutZones({
+      const zones = resolveFeaturedScaleZones(resolveFeaturedLayoutZones({
         width: w,
         height: h,
         footerH: liveLayout.footerH,
@@ -441,7 +460,7 @@ export function ProductShotPost({
         spacing: liveLayout.spacing,
         logoScale: liveLayout.logoScale,
         copy: liveLayout.copy,
-      });
+      }), liveLayout.featuredScale, liveLayout.showFeaturedImage);
       root.style.setProperty(
         "--sp-live-text-zone-height",
         `${Math.max(0, zones.textZone - liveLayout.layoutPadPx)}px`,
@@ -462,7 +481,7 @@ export function ProductShotPost({
     if (!root) return;
     root.style.removeProperty("--sp-live-text-zone-height");
     root.style.removeProperty("--sp-live-product-zone-height");
-  }, [typeScale, width, height]);
+  }, [typeScale, selectedFeaturedTransform.scale, width, height]);
 
   const previewLogoScale = useCallback(
     (scale: number, phase: "preview" | "commit" = "preview") => {
@@ -499,6 +518,35 @@ export function ProductShotPost({
       `.social-post-product-viewport[data-canvas-select="${selectAttr}"]`,
     );
     viewport?.style.setProperty("--fi-scale", String(scale));
+    const liveLayout = liveTypeLayoutRef.current;
+    if (
+      !liveLayout ||
+      layoutUsesSplit(liveLayout.layout) ||
+      layoutUsesCornerFeatured(liveLayout.layout)
+    ) {
+      return;
+    }
+    const zones = resolveFeaturedScaleZones(resolveFeaturedLayoutZones({
+      width: canvasSizeRef.current.width,
+      height: canvasSizeRef.current.height,
+      footerH: liveLayout.footerH,
+      layout: liveLayout.layout,
+      showFeaturedImage: liveLayout.showFeaturedImage,
+      isTallPrint: liveLayout.isTallPrint,
+      typeScale: liveLayout.typeScale,
+      showTopLogo: liveLayout.showLogo && liveLayout.logoPlacement === "top",
+      spacing: liveLayout.spacing,
+      logoScale: liveLayout.logoScale,
+      copy: liveLayout.copy,
+    }), scale, liveLayout.showFeaturedImage);
+    root.style.setProperty(
+      "--sp-live-text-zone-height",
+      `${Math.max(0, zones.textZone - liveLayout.layoutPadPx)}px`,
+    );
+    root.style.setProperty(
+      "--sp-live-product-zone-height",
+      `${Math.max(0, zones.productZone)}px`,
+    );
   }, []);
 
   const typeScaleSlider = useLiveSliderValue(
@@ -675,7 +723,7 @@ export function ProductShotPost({
   const isSplit = layoutUsesSplit(layout);
   const textSide = getLayoutTextSide(layout);
 
-  const { textZone, productZone } = resolveFeaturedLayoutZones({
+  const baseZones = resolveFeaturedLayoutZones({
     width,
     height,
     footerH,
@@ -688,6 +736,11 @@ export function ProductShotPost({
     logoScale: effectiveLogoScale,
     copy,
   });
+  const { textZone, productZone } = resolveFeaturedScaleZones(
+    baseZones,
+    selectedFeaturedTransform.scale,
+    showFeaturedImage && !isSplit && !layoutUsesCornerFeatured(layout),
+  );
 
   const splitZones = isSplit
     ? resolveSplitLayoutZones({
@@ -714,6 +767,8 @@ export function ProductShotPost({
     spacing,
     logoScale,
     copy,
+    typeScale: effectiveTypeScale,
+    featuredScale: selectedFeaturedTransform.scale,
   };
 
   const frameWidth =

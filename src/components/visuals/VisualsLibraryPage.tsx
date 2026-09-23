@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Search } from "lucide-react";
+import { assetUrl } from "@/lib/assets/assetUrl";
 import {
   ILLUSTRATION_SOURCE_LABELS,
   type IllustrationSource,
@@ -307,7 +308,7 @@ export function VisualsLibraryPage() {
                     ) : asset ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={pattern.assetPath}
+                        src={assetUrl(pattern.assetPath)}
                         alt=""
                         className="visuals-card__preview-img"
                       />

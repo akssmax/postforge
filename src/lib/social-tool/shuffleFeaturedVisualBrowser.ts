@@ -6,6 +6,7 @@ import {
   VISUAL_LIBRARY,
   type VisualLibraryPattern,
 } from "@/lib/social-tool/visualBlocks/library/catalog";
+import { assetUrl } from "@/lib/assets/assetUrl";
 import { buildDefaultUiContent, isUiReactPattern } from "@/lib/social-tool/visualBlocks/content";
 import { recolorIllustrationForPreview, normalizeIllustrationSvg } from "@/lib/social-tool/visualBlocks/library/illustrations/recolor";
 import type { IllustrationLibraryEntry } from "@/lib/social-tool/visualBlocks/library/illustrations/manifest";
@@ -40,9 +41,7 @@ function buildTemplateContext(input: VisualBlockGenerateInput): VisualTemplateCo
 
 function resolveThreeDSvgClient(entry: ThreeDLibraryEntry): string {
   const size = 768;
-  const href = entry.assetPath.startsWith("/")
-    ? entry.assetPath
-    : `/${entry.assetPath}`;
+  const href = assetUrl(entry.assetPath);
   const label = entry.label
     .replaceAll("&", "&amp;")
     .replaceAll('"', "&quot;")
@@ -70,7 +69,7 @@ async function fetchIllustrationSvg(
   if (!inflight) {
     inflight = (async () => {
       try {
-        const response = await fetch(entry.assetPath);
+        const response = await fetch(assetUrl(entry.assetPath));
         if (!response.ok) return null;
         const raw = normalizeIllustrationSvg(await response.text());
         if (!raw) return null;

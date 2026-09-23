@@ -1,0 +1,4 @@
+# Assets are served from Vercel Blob, not shipped with the deployment.
+# Keep these out of `vercel deploy` uploads even when present locally.
+/public/visuals/
+/data/

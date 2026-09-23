@@ -2,6 +2,7 @@ import "server-only";
 
 import fs from "node:fs";
 import path from "node:path";
+import { ASSET_BASE_URL } from "@/lib/assets/assetUrl";
 import {
   isAssetPattern,
   isIllustrationPattern,
@@ -15,8 +16,9 @@ export function assetPublicPath(entry: AssetLibraryEntry): string {
   return path.join(process.cwd(), "public", entry.assetPath.replace(/^\//, ""));
 }
 
-/** True when the asset file is present in this deployment. */
+/** True when the asset file is available — locally or from the asset CDN. */
 export function isAssetDeployed(entry: AssetLibraryEntry): boolean {
+  if (ASSET_BASE_URL) return true;
   try {
     return fs.existsSync(assetPublicPath(entry));
   } catch {

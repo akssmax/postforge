@@ -46,3 +46,8 @@ next-env.d.ts
 
 # Storyset local cache — full library fetched via `npm run fetch:storyset`
 /data/storyset-cache/
+.env*.local
+
+# Visual asset library is served from Vercel Blob, not bundled in the deployment.
+# Upload with `npm run assets:upload`; see scripts/upload-assets-to-blob.mjs
+/public/visuals/

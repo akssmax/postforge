@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { LandingBrand } from "@/components/landing/landingBrands";
+import { assetUrl } from "@/lib/assets/assetUrl";
 import {
   recolorIllustrationSvg,
   STORYSET_PRIMARY_ACCENTS,
@@ -11,12 +12,13 @@ import {
 const svgCache = new Map<string, string>();
 
 async function fetchSvg(path: string): Promise<string> {
-  const cached = svgCache.get(path);
+  const url = assetUrl(path);
+  const cached = svgCache.get(url);
   if (cached) return cached;
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`Failed to load ${path}`);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to load ${url}`);
   const text = stripSvgXmlDecl(await res.text());
-  svgCache.set(path, text);
+  svgCache.set(url, text);
   return text;
 }
 
