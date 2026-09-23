@@ -51,3 +51,4 @@ next-env.d.ts
 # Visual asset library is served from Vercel Blob, not bundled in the deployment.
 # Upload with `npm run assets:upload`; see scripts/upload-assets-to-blob.mjs
 /public/visuals/
+/.asset-upload-state.json
