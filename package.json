@@ -13,6 +13,8 @@
     "deploy:storyset": "node scripts/deploy-storyset-batch.mjs",
     "assets:upload": "node --env-file-if-exists=.env.local scripts/upload-assets-to-blob.mjs",
     "assets:upload:dry": "node --env-file-if-exists=.env.local scripts/upload-assets-to-blob.mjs --dry-run",
+    "assets:download": "node --env-file-if-exists=.env.local scripts/download-assets-from-blob.mjs",
+    "assets:download:dry": "node --env-file-if-exists=.env.local scripts/download-assets-from-blob.mjs --dry-run",
     "design:compile": "node scripts/compile-design-config.mjs",
     "test:golden-briefs": "npx --yes tsx --import ./scripts/register-test-runtime.mjs scripts/run-golden-briefs.ts",
     "test:export-artboards": "npx --yes tsx src/lib/social-tool/exportArtboards.test.ts",
