@@ -10,6 +10,7 @@ import {
   type SceneNode,
   type SceneOverlay,
 } from "@/lib/scene/schema";
+import { withMotion, withShaderBackground } from "@/lib/scene/motion";
 
 /**
  * What the AI writes: a shallow scene (root → sections → groups → leaves) with no
@@ -61,6 +62,11 @@ export const sceneSpecSchema = z.object({
   pad: spaceTokenSchema.default("6"),
   gap: spaceTokenSchema.default("4"),
   justify: z.enum(["start", "center", "end", "between"]).default("between"),
+  motion: z.enum(["none", "subtle", "lively"]).default("none").describe("Entrance animation for social video; none for a still post"),
+  backgroundShader: z
+    .enum(["none", "mesh-gradient", "aurora", "waves", "grain"])
+    .default("none")
+    .describe("Animated brand-colour background; none unless it suits the message"),
   sections: z
     .array(z.object({ ...frameFields, children: z.array(z.union([leafSchema, groupSchema])).max(8) }))
     .min(1)
@@ -71,7 +77,7 @@ type Leaf = z.infer<typeof leafSchema>;
 type Group = z.infer<typeof groupSchema>;
 type FrameFieldValues = Partial<Omit<Group, "type" | "children">>;
 
-export type SpecContext = Pick<SceneDocument, "kind" | "size" | "background" | "font" | "typeScale">;
+export type SpecContext = Pick<SceneDocument, "kind" | "size" | "background" | "font" | "typeScale"> & { durationMs?: number };
 
 /** Partial specs arrive while streaming; keep only leaves complete enough to draw. */
 function usableLeaf(leaf: Partial<Leaf> | undefined): leaf is Leaf {
@@ -163,6 +169,7 @@ export function specToScene(
   const scene: SceneDocument = {
     version: 1,
     ...context,
+    durationMs: context.durationMs ?? 0,
     origin,
     overlays,
     root: {
@@ -176,7 +183,8 @@ export function specToScene(
       children: sections,
     },
   };
-  const parsed = sceneDocumentSchema.safeParse(scene);
+  const animated = withShaderBackground(withMotion(scene, spec.motion ?? "none"), spec.backgroundShader ?? "none");
+  const parsed = sceneDocumentSchema.safeParse(animated);
   return parsed.success ? parsed.data : null;
 }
 
@@ -210,5 +218,5 @@ export function sceneToSpec(scene: SceneDocument): Omit<SceneSpec, "rationale"> 
     const bg = leaf(background.node);
     if (bg && bg.type === "visual") sections.unshift({ layout: "column", children: [{ ...bg, role: "background" }] });
   }
-  return { pad: scene.root.pad ?? "6", gap: scene.root.gap ?? "4", justify: scene.root.justify ?? "between", sections };
+  return { pad: scene.root.pad ?? "6", gap: scene.root.gap ?? "4", justify: scene.root.justify ?? "between", motion: "none", backgroundShader: "none", sections };
 }

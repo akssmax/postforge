@@ -34,6 +34,7 @@ function composePrompt(request: ComposeRequest, draft: EngineDraft): { system: s
     "Write copy only from facts in the brief: keep names, numbers, dates and the CTA exact; never invent metrics or claims. Headline ≤ 8 words with one [[accent]] phrase.",
     "Text styles: display (huge, short headlines), headline, title (subheading), body, label, caption. Include one logo unless the brief says otherwise.",
     "Use basis (0–1) to size a section or element along its parent's axis and grow to take the remaining space. Keep it simple: 2–4 sections.",
+    "Set motion (subtle or lively) only when the brief asks for video, motion, a reel or a story; set backgroundShader only when an animated brand background suits the message.",
   ].join("\n");
   const prompt = [
     `Canvas: ${request.size.width}×${request.size.height} (${draft.scene.kind}).`,

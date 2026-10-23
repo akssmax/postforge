@@ -63,3 +63,10 @@ test("the shortlist chooser picks among the top candidates and falls back to ran
   const fallback = await pickFeaturedVisualFromLibrary(input, { choose: async () => null });
   assert.equal(fallback?.kind, "3d");
 });
+
+test("visual content never shows headline accent markup", async () => {
+  const { pickFeaturedVisualFromLibrary } = await load();
+  const block = await pickFeaturedVisualFromLibrary({ headline: "New oat latte, [[20% off]] this week", brief: "coffee promo", preferredKind: "ui" });
+  assert.ok(block);
+  assert.ok(!JSON.stringify(block).includes("[["), "no [[ in the picked block");
+});

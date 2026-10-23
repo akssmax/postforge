@@ -11,6 +11,8 @@ import type { BrandColors } from "@/lib/brand/types";
 import { resizeScene, SCENE_SIZES } from "@/lib/scene/sizes";
 import { captureScenePng, copyScenePng, sceneFileName, withOffscreenScenes, zipFiles } from "@/lib/scene/export";
 import { downloadBlob } from "@/lib/social-tool/exportPost";
+import { withMotion, withShaderBackground, type MotionStyle, type ShaderPreset } from "@/lib/scene/motion";
+import { exportSceneVideo, pickVideoCodec, type VideoFormat } from "@/lib/scene/video";
 import type { SceneDocument } from "@/lib/scene/schema";
 import { catalogLayoutRef } from "@/lib/social-tool/layoutAdapter";
 import { POST_LAYOUTS, type PostLayoutId } from "@/lib/social-tool/postLayouts";
@@ -121,6 +123,40 @@ type ComposeState = {
 
 const IDLE_COMPOSE: ComposeState = { scene: null, colors: null, blocks: [], status: "idle", message: "" };
 
+/** Loops the scene clock while playing; undefined (the still frame) otherwise. */
+function useSceneClock(durationMs: number, playing: boolean): number | undefined {
+  const [time, setTime] = useState(0);
+  useEffect(() => {
+    if (!playing) return;
+    let frame = 0;
+    const started = performance.now();
+    const loop = (now: number) => {
+      setTime((now - started) % (Math.max(durationMs, 1000) + 1000));
+      frame = requestAnimationFrame(loop);
+    };
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
+  }, [durationMs, playing]);
+  return playing ? time : undefined;
+}
+
+const MOTION_CHOICES: Array<{ id: "auto" | MotionStyle; label: string }> = [
+  { id: "auto", label: "As composed" },
+  { id: "none", label: "None" },
+  { id: "subtle", label: "Subtle" },
+  { id: "lively", label: "Lively" },
+];
+const SHADER_CHOICES: Array<{ id: "auto" | "none" | ShaderPreset; label: string }> = [
+  { id: "auto", label: "As composed" },
+  { id: "none", label: "None" },
+  { id: "mesh-gradient", label: "Mesh gradient" },
+  { id: "aurora", label: "Aurora" },
+  { id: "waves", label: "Waves" },
+  { id: "grain", label: "Grain" },
+];
+
+const selectStyle = { font: "inherit", fontSize: 13, padding: "5px 8px", borderRadius: 8, border: "1px solid #c8ccd4", background: "transparent" } as const;
+
 function ComposePanel({ size }: { size: (typeof SIZES)[number] }) {
   const [brief, setBrief] = useState("LinkedIn ad for Acme analytics: close deals 2× faster with one workspace for pipeline and reporting. Book a demo.");
   const [state, setState] = useState<ComposeState>(IDLE_COMPOSE);
@@ -162,7 +198,31 @@ function ComposePanel({ size }: { size: (typeof SIZES)[number] }) {
     }
   }
 
-  const scene = state.scene ? attachBlocks(state.scene, state.blocks) : null;
+  const [motionChoice, setMotionChoice] = useState<(typeof MOTION_CHOICES)[number]["id"]>("auto");
+  const [shaderChoice, setShaderChoice] = useState<(typeof SHADER_CHOICES)[number]["id"]>("auto");
+  const [playing, setPlaying] = useState(false);
+  const [mp4Supported, setMp4Supported] = useState(false);
+  // Stable identity matters: the renderer ties its auto-fit to the scene object.
+  const composed = useMemo(() => (state.scene ? attachBlocks(state.scene, state.blocks) : null), [state.scene, state.blocks]);
+  const scene = useMemo(() => {
+    if (!composed) return null;
+    const moved = motionChoice === "auto" ? composed : withMotion(composed, motionChoice);
+    return shaderChoice === "auto" ? moved : withShaderBackground(moved, shaderChoice);
+  }, [composed, motionChoice, shaderChoice]);
+  const animated = !!scene && (scene.durationMs > 0 || scene.overlays.some((overlay) => overlay.node.type === "shader"));
+  const time = useSceneClock(scene?.durationMs ?? 0, playing && animated);
+  const sceneWidth = scene?.size.width;
+  const sceneHeight = scene?.size.height;
+  useEffect(() => {
+    if (!sceneWidth || !sceneHeight) return;
+    let cancelled = false;
+    void pickVideoCodec("mp4", sceneWidth, sceneHeight).then((choice) => {
+      if (!cancelled) setMp4Supported(!!choice);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sceneWidth, sceneHeight]);
   const previewRef = useRef<HTMLDivElement>(null);
   const [exportMessage, setExportMessage] = useState("");
   const previewRoot = () => previewRef.current?.querySelector<HTMLElement>("[data-scene-root]") ?? null;
@@ -211,6 +271,20 @@ function ComposePanel({ size }: { size: (typeof SIZES)[number] }) {
       return `${files.length} sizes downloaded as a ZIP.`;
     });
 
+  const exportVideo = (format: VideoFormat) => {
+    const name = format === "mp4" ? "MP4" : "WebM";
+    return runExport(`Rendering ${name}`, async () => {
+      if (!scene || !state.colors) throw new Error("nothing to export yet");
+      const started = performance.now();
+      const blob = await exportSceneVideo(
+        { scene, colors: state.colors, logo: { svgMarkup: SAMPLE_LOGO }, blocks: state.blocks },
+        { format, onProgress: (progress) => setExportMessage(`Rendering ${name}… ${Math.round(progress * 100)}%`) },
+      );
+      downloadBlob(blob, sceneFileName(scene, "", format));
+      return `${name} downloaded (${(blob.size / 1024 / 1024).toFixed(1)} MB, rendered in ${((performance.now() - started) / 1000).toFixed(1)} s).`;
+    });
+  };
+
   return (
     <section aria-labelledby="compose-heading" style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
       <form
@@ -253,13 +327,39 @@ function ComposePanel({ size }: { size: (typeof SIZES)[number] }) {
               colors={state.colors}
               logo={{ svgMarkup: SAMPLE_LOGO }}
               blocks={state.blocks}
+              time={time}
             />
+          </div>
+          <div role="group" aria-label="Playback" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", fontSize: 13 }}>
+            <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              Motion
+              <select value={motionChoice} onChange={(event) => setMotionChoice(event.target.value as typeof motionChoice)} style={selectStyle}>
+                {MOTION_CHOICES.map((choice) => <option key={choice.id} value={choice.id}>{choice.label}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              Background
+              <select value={shaderChoice} onChange={(event) => setShaderChoice(event.target.value as typeof shaderChoice)} style={selectStyle}>
+                {SHADER_CHOICES.map((choice) => <option key={choice.id} value={choice.id}>{choice.label}</option>)}
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={!animated}
+              aria-pressed={playing}
+              onClick={() => setPlaying((value) => !value)}
+              style={{ padding: "6px 12px", borderRadius: 999, border: "1px solid #c8ccd4", background: "transparent", cursor: "pointer" }}
+            >
+              {playing ? "Pause" : "Play"}
+            </button>
           </div>
           <div role="group" aria-label="Export" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             {[
               { label: "Download PNG", run: exportPng },
               { label: "Copy image", run: copyPng },
               { label: "All sizes (.zip)", run: exportAllSizes },
+              { label: "Video (WebM)", run: () => exportVideo("webm") },
+              ...(mp4Supported ? [{ label: "Video (MP4)", run: () => exportVideo("mp4") }] : []),
             ].map((action) => (
               <button
                 key={action.label}

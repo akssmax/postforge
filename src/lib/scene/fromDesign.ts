@@ -257,6 +257,7 @@ export function sceneFromDesign(session: DesignSessionPersisted): SceneDocument 
       : { kind: "color", color: "surface" },
     font: { heading: getSocialFont(doc.headingFont).family, body: getSocialFont(doc.subFont).family },
     typeScale: Math.min(2, Math.max(0.5, doc.typeScale || 1)),
+    durationMs: 0,
     overlays,
     root: { type: "frame", id: "root", layout: "column", gap: "4", pad: "6", align: "stretch", children },
   };

@@ -40,11 +40,24 @@ export const textRoleSchema = z.enum([
   "title",
 ]);
 
+/**
+ * Entrance animation. Only paint properties (opacity, transform, clip) move, so
+ * layout never changes mid-animation and every frame is a function of time.
+ */
+export const motionSchema = z.object({
+  preset: z.enum(["fade", "rise", "scale", "slide", "reveal"]),
+  /** Start, in ms from the beginning of the scene. */
+  delay: z.number().min(0).max(30_000),
+  duration: z.number().min(50).max(10_000),
+});
+export type SceneMotion = z.infer<typeof motionSchema>;
+
 const sizingSchema = {
   /** Share of free space along the parent's main axis (flex-grow). */
   grow: z.number().min(0).max(10).optional(),
   /** Fixed share of the parent's main axis, 0–1 (flex-basis). */
   basis: z.number().min(0).max(1).optional(),
+  motion: motionSchema.optional(),
 };
 
 export const textNodeSchema = z.object({
@@ -87,6 +100,7 @@ export const logoNodeSchema = z.object({
   id: z.string(),
   size: z.enum(["sm", "md", "lg"]),
   align: z.enum(["start", "center", "end"]).optional(),
+  motion: motionSchema.optional(),
 });
 
 export const buttonNodeSchema = z.object({
@@ -96,6 +110,7 @@ export const buttonNodeSchema = z.object({
   text: z.string(),
   variant: z.enum(["solid", "outline"]).default("solid"),
   align: z.enum(["start", "center", "end"]).optional(),
+  motion: motionSchema.optional(),
 });
 
 export const shapeNodeSchema = z.object({
@@ -103,6 +118,17 @@ export const shapeNodeSchema = z.object({
   id: z.string(),
   shape: z.enum(["bar", "dot", "rule"]),
   color: colorTokenSchema,
+});
+
+/** Animated WebGL fill: a preset driven by the scene clock and brand colours. */
+export const shaderNodeSchema = z.object({
+  type: z.literal("shader"),
+  id: z.string(),
+  preset: z.enum(["mesh-gradient", "aurora", "waves", "grain"]),
+  colors: z.tuple([colorTokenSchema, colorTokenSchema]),
+  speed: z.number().min(0).max(4).default(1),
+  intensity: z.number().min(0).max(1).default(0.6),
+  ...sizingSchema,
 });
 
 export const spacerNodeSchema = z.object({
@@ -127,6 +153,7 @@ export type FrameNode = {
   radius?: SpaceToken;
   grow?: number;
   basis?: number;
+  motion?: SceneMotion;
   children: SceneNode[];
 };
 
@@ -137,6 +164,7 @@ export type SceneNode =
   | z.infer<typeof logoNodeSchema>
   | z.infer<typeof buttonNodeSchema>
   | z.infer<typeof shapeNodeSchema>
+  | z.infer<typeof shaderNodeSchema>
   | z.infer<typeof spacerNodeSchema>;
 
 export const frameNodeSchema: z.ZodType<FrameNode> = z.lazy(() =>
@@ -153,6 +181,7 @@ export const frameNodeSchema: z.ZodType<FrameNode> = z.lazy(() =>
     radius: spaceTokenSchema.optional(),
     grow: sizingSchema.grow,
     basis: sizingSchema.basis,
+    motion: motionSchema.optional(),
     children: z.array(sceneNodeSchema),
   }),
 );
@@ -165,6 +194,7 @@ export const sceneNodeSchema: z.ZodType<SceneNode> = z.lazy(() =>
     logoNodeSchema,
     buttonNodeSchema,
     shapeNodeSchema,
+    shaderNodeSchema,
     spacerNodeSchema,
   ]),
 );
@@ -196,6 +226,8 @@ export const sceneDocumentSchema = z.object({
   font: z.object({ heading: z.string(), body: z.string() }),
   /** Multiplier on the type scale (the editor's type-size control). */
   typeScale: z.number().min(0.5).max(2).default(1),
+  /** Length of the animation in ms; 0 for a still design. */
+  durationMs: z.number().min(0).max(60_000).default(0),
   overlays: z.array(sceneOverlaySchema).default([]),
   root: frameNodeSchema,
 });
@@ -204,6 +236,7 @@ export type TextNode = z.infer<typeof textNodeSchema>;
 export type VisualNode = z.infer<typeof visualNodeSchema>;
 export type LogoNode = z.infer<typeof logoNodeSchema>;
 export type ButtonNode = z.infer<typeof buttonNodeSchema>;
+export type ShaderNode = z.infer<typeof shaderNodeSchema>;
 
 /** Depth-first walk over every node, overlays included. */
 export function walkScene(scene: SceneDocument, visit: (node: SceneNode) => void): void {

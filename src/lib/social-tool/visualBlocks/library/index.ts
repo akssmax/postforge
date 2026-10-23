@@ -50,6 +50,12 @@ export {
   type ThreeDSource,
 } from "./threeD/manifest";
 
+/** Accent markup is for headline rendering; visual content shows plain words. */
+function plainVisualInput(input: VisualBlockGenerateInput): VisualBlockGenerateInput {
+  const plain = (text: string | undefined) => text?.replace(/\[\[|\]\]/g, "");
+  return { ...input, headline: plain(input.headline), subheading: plain(input.subheading), theme: plain(input.theme), brief: plain(input.brief) };
+}
+
 function buildTemplateContext(input: VisualBlockGenerateInput): VisualTemplateContext {
   return {
     primary: input.brandColors?.primary ?? "#1E293B",
@@ -182,9 +188,10 @@ export type ShortlistChooser = (
 const SHORTLIST_SIZE = 8;
 
 export async function pickFeaturedVisualFromLibrary(
-  input: VisualBlockGenerateInput,
+  rawInput: VisualBlockGenerateInput,
   options?: { excludeLibraryIds?: string[]; choose?: ShortlistChooser },
 ): Promise<VisualBlockRecord | null> {
+  const input = plainVisualInput(rawInput);
   const excludeLibraryIds = options?.excludeLibraryIds ?? [];
   const preferredKind = resolvePreferredVisualKind(input);
   // Keyword ranking is weakest for illustrations and 3D; let the chooser read the shortlist.
@@ -236,10 +243,11 @@ function featuredCandidates(
 }
 
 export async function pickShuffleFeaturedVisual(
-  input: VisualBlockGenerateInput,
+  rawInput: VisualBlockGenerateInput,
   excludeLibraryIds: string[] = [],
   options?: { randomize?: boolean },
 ): Promise<VisualBlockRecord | null> {
+  const input = plainVisualInput(rawInput);
   const preferredKind = resolvePreferredVisualKind(input);
   const semanticHit = await trySemanticFeaturedPick(input, excludeLibraryIds);
   const semanticMatchesKind =
@@ -354,9 +362,10 @@ export async function instantiateLibraryPattern(
 }
 
 export async function composeVisualBlocksFromLibrary(
-  input: VisualBlockGenerateInput,
+  rawInput: VisualBlockGenerateInput,
   options?: { libraryIds?: string[] },
 ): Promise<VisualBlockRecord[]> {
+  const input = plainVisualInput(rawInput);
   const count = Math.min(3, Math.max(1, input.count ?? 3));
   const patterns = options?.libraryIds?.length
     ? options.libraryIds

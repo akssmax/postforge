@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { VisualBlockRenderer } from "@/components/social-tool/visualBlocks/VisualBlockRenderer";
+import { SceneShader } from "@/components/scene/SceneShader";
+import { motionStyle } from "@/lib/scene/motion";
 import type { BrandColors } from "@/lib/brand/types";
 import { buildBackgroundPresets, getActiveBackgroundPreset } from "@/lib/brand/backgroundPresets";
 import { readableSubTextOnBackground, readableTextOnBackground, resolveBackgroundHex } from "@/lib/brand/contrast";
@@ -29,6 +31,10 @@ export type SceneRendererProps = {
   scale?: number;
   /** Step type down until nothing spills outside the artboard (default on). */
   autoFit?: boolean;
+  /** Scene clock in ms. Omit for the finished still frame. */
+  time?: number;
+  /** Fixed fit (from a settled render), e.g. for video frames where motion would skew measurement. */
+  fit?: number;
 };
 
 /** Auto-fit shrinks type in 6% steps and stops at 70% of the design's scale. */
@@ -67,6 +73,7 @@ type Theme = {
   muted: string;
   fonts: SceneDocument["font"];
   typeScale: number;
+  time?: number;
   props: SceneRendererProps;
 };
 
@@ -129,6 +136,7 @@ function SceneText({ node, theme }: { node: TextNode; theme: Theme }) {
       data-scene-text={node.role}
       style={{
         ...flexItem(node),
+        ...motionStyle(node.motion, theme.time, theme.unit),
         margin: 0,
         fontFamily: heading ? theme.fonts.heading : theme.fonts.body,
         fontSize: type.size * short * theme.typeScale,
@@ -194,6 +202,7 @@ function SceneVisual({ node, theme }: { node: VisualNode; theme: Theme }) {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    ...motionStyle(node.motion, theme.time, theme.unit),
   };
   let content: ReactNode;
   if (node.source.kind === "block") {
@@ -250,6 +259,7 @@ function SceneLogo({ node, theme }: { node: Extract<SceneNode, { type: "logo" }>
         objectFit: "contain",
         alignSelf: node.align ? ALIGN[node.align] : undefined,
         flex: "0 0 auto",
+        ...motionStyle(node.motion, theme.time, theme.unit),
       }}
     />
   );
@@ -277,6 +287,7 @@ function SceneButton({ node, theme }: { node: Extract<SceneNode, { type: "button
         background: solid ? theme.colors.accent : "transparent",
         color: solid ? readableTextOnBackground(theme.colors.accent) : theme.colors.accent,
         border: `${Math.max(1, theme.unit * 0.3)}px solid ${theme.colors.accent}`,
+        ...motionStyle(node.motion, theme.time, theme.unit),
       }}
     >
       {node.text}
@@ -298,6 +309,7 @@ function SceneFrame({ node, theme }: { node: FrameNode; theme: Theme }) {
     justifyContent: JUSTIFY[node.justify ?? "start"],
     background: fill,
     borderRadius: space(theme, node.radius),
+    ...motionStyle(node.motion, theme.time, theme.unit),
   };
   const children = (
     <div data-scene-node={node.id} style={style}>
@@ -316,6 +328,16 @@ function SceneNodeView({ node, theme }: { node: SceneNode; theme: Theme }) {
     case "logo": return <SceneLogo node={node} theme={theme} />;
     case "button": return <SceneButton node={node} theme={theme} />;
     case "spacer": return <div aria-hidden style={{ flex: `${node.grow} 1 0` }} />;
+    case "shader":
+      return (
+        <div aria-hidden style={{ ...flexItem(node), flex: node.grow != null || node.basis != null ? flexItem(node).flex : "1 1 auto", alignSelf: "stretch", ...motionStyle(node.motion, theme.time, theme.unit) }}>
+          <SceneShader
+            node={node}
+            time={theme.time ?? 0}
+            colors={[color(theme, ink, node.colors[0]) ?? theme.colors.primary, color(theme, ink, node.colors[1]) ?? theme.colors.accent]}
+          />
+        </div>
+      );
     case "shape": {
       const fill = color(theme, ink, node.color);
       const size = theme.unit * (node.shape === "dot" ? 2 : 1);
@@ -355,18 +377,21 @@ function overlayBox(overlay: SceneOverlay, theme: Theme): CSSProperties {
 
 /** Draws a scene document at its native size with flex/grid; geometry comes from the browser. */
 export function SceneRenderer(props: SceneRendererProps) {
-  const { scene, colors, scale = 1, autoFit = true } = props;
+  const { scene, colors, scale = 1, autoFit = true, time, fit: fixedFit } = props;
   const { width, height } = scene.size;
   const rootRef = useRef<HTMLDivElement>(null);
   // Fit is tied to the scene it was measured for, so a new scene starts at full size.
   const [fitState, setFitState] = useState<{ scene: SceneDocument; fit: number }>({ scene, fit: 1 });
-  const fit = fitState.scene === scene ? fitState.fit : 1;
+  const measuredFit = fitState.scene === scene ? fitState.fit : 1;
+  const fit = fixedFit ?? measuredFit;
+  // Motion moves nodes with transforms, so only measure finished (still) frames.
+  const measure = autoFit && fixedFit == null && (time == null || time >= scene.durationMs);
   useLayoutEffect(() => {
     const root = rootRef.current;
-    if (!autoFit || !root || fit <= FIT_FLOOR || !sceneOverflows(root)) return;
+    if (!measure || !root || fit <= FIT_FLOOR || !sceneOverflows(root)) return;
     const frame = requestAnimationFrame(() => setFitState({ scene, fit: Math.max(FIT_FLOOR, fit * FIT_STEP) }));
     return () => cancelAnimationFrame(frame);
-  }, [autoFit, fit, scene]);
+  }, [measure, fit, scene]);
   const unit = Math.min(width, height) / 100;
   const background =
     scene.background.kind === "brand-preset"
@@ -376,7 +401,7 @@ export function SceneRenderer(props: SceneRendererProps) {
         : (color({ colors } as Theme, { text: "", muted: "" }, scene.background.color) ?? "#ffffff");
   const backgroundHex = resolveBackgroundHex(background);
   const ink = inkOn(backgroundHex);
-  const theme: Theme = { unit, colors, text: ink.text, muted: ink.muted, fonts: scene.font, typeScale: scene.typeScale * fit, props };
+  const theme: Theme = { unit, colors, text: ink.text, muted: ink.muted, fonts: scene.font, typeScale: scene.typeScale * fit, time, props };
   const overlays = (layer: "below" | "above") =>
     scene.overlays
       .filter((overlay) => overlay.layer === layer)

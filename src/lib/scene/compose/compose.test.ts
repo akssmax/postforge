@@ -20,6 +20,8 @@ const spec: SceneSpec = {
   pad: "6",
   gap: "4",
   justify: "between",
+  motion: "none",
+  backgroundShader: "none",
   sections: [
     { layout: "column", children: [{ type: "visual", role: "background", query: "sales dashboard", visualKind: "ui" }] },
     { layout: "row", children: [{ type: "logo", size: "md" }] },
