@@ -149,7 +149,7 @@ export async function seedReadyDesign(page: Page, options: SeedOptions) {
 }
 
 /** Sessions load from IndexedDB; copy the seeded sessions there before opening the editor. */
-async function copySeededSessionsToIndexedDb(page: Page) {
+export async function copySeededSessionsToIndexedDb(page: Page) {
   await page.goto("/designs");
   await page.evaluate(async () => {
     const prefix = "postforge:design:";

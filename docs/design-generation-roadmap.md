@@ -57,7 +57,9 @@ Architecture reference (diagrams): https://claude.ai/artifact/EhbAeP1hNg2dTcntqV
 - **Licensing:** attribution metadata per pack, shown in exports when required. Replace bulk-scraped unDraw with permitted sources (Humaaans, Open Peeps CC0) or licensed packs.
 - **Generated visuals:** limit AI SVG to diagrams and charts, where it is reliable. Later, optional image generation for hero photos, behind a flag.
 
-### Phase 4 — Scene document and generic renderer
+### Phase 4 — Scene document and generic renderer *(first slice done in this branch)*
+- Done: scene schema (`src/lib/scene/schema.ts`), converter from any saved design or catalog layout (`fromDesign.ts`), four scene-native compositions the slot layouts cannot express (`compositions.ts`), a flex/grid renderer (`src/components/scene/SceneRenderer.tsx`), and a preview at `/scene` (all 30 layouts + compositions at 1:1, 4:5, 9:16 and landscape; `?design=<id>` renders a saved design). Unit tests check every layout converts with its content and structure; an e2e test checks nothing overflows its artboard at any size.
+- Open: the editor still renders and edits with the v2 template (scene is preview-only); text measurement for per-node font fitting; patterns/decorations, shapes and icons are not converted yet; pixel-level parity with the v2 renderer is not a goal of the converter.
 - Zod schema for an auto-layout tree (frame, text, media, visual, shape, shader, chart, component), tokens only, no coordinates.
 - One DOM renderer behind a flag; convert the ~30 layouts into reference compositions; screenshot parity tests.
 - Old v2 sessions keep the existing renderer.

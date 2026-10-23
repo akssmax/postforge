@@ -20,7 +20,7 @@
     "test:export-artboards": "npx --yes tsx src/lib/social-tool/exportArtboards.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:pipeline": "npx --yes tsx --import ./scripts/register-test-runtime.mjs --test src/lib/llm/stages/pipeline.test.ts src/lib/llm/stages/pipelineStreaming.test.ts src/lib/llm/stages/generationImprovements.test.ts src/lib/social-tool/visualBlocks/library/visualPicking.test.ts"
+    "test:pipeline": "npx --yes tsx --import ./scripts/register-test-runtime.mjs --test src/lib/llm/stages/pipeline.test.ts src/lib/llm/stages/pipelineStreaming.test.ts src/lib/llm/stages/generationImprovements.test.ts src/lib/social-tool/visualBlocks/library/visualPicking.test.ts src/lib/scene/scene.test.ts"
   },
   "dependencies": {
     "@ai-sdk/mistral": "^4.0.14",
