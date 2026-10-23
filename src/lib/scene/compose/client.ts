@@ -9,13 +9,14 @@ export type ComposeStreamEvent =
   | { type: "final"; scene: SceneDocument; source: "ai" | "draft"; rationale?: string; note?: string; ms: number }
   | { type: "error"; message: string };
 
-/** POST a brief to /api/scene/compose and hand each streamed event to `onEvent`. */
-export async function streamComposeScene(
-  body: { brief: string; size: { width: number; height: number }; brandColors?: BrandColors; modelId?: string },
-  onEvent: (event: ComposeStreamEvent) => void,
+/** POST JSON and hand each newline-delimited JSON event in the streamed reply to `onEvent`. */
+export async function streamNdjson<E extends { type: string }>(
+  url: string,
+  body: unknown,
+  onEvent: (event: E | { type: "error"; message: string }) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const response = await fetch("/api/scene/compose", {
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -23,7 +24,7 @@ export async function streamComposeScene(
   });
   if (!response.ok || !response.body) {
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-    onEvent({ type: "error", message: payload?.error ?? "Compose failed. Try again." });
+    onEvent({ type: "error", message: payload?.error ?? "The request failed. Try again." });
     return;
   }
   const reader = response.body.getReader();
@@ -36,11 +37,20 @@ export async function streamComposeScene(
     while (newline >= 0) {
       const line = buffer.slice(0, newline).trim();
       buffer = buffer.slice(newline + 1);
-      if (line) onEvent(JSON.parse(line) as ComposeStreamEvent);
+      if (line) onEvent(JSON.parse(line) as E);
       newline = buffer.indexOf("\n");
     }
     if (done) break;
   }
+}
+
+/** POST a brief to /api/scene/compose and hand each streamed event to `onEvent`. */
+export function streamComposeScene(
+  body: { brief: string; size: { width: number; height: number }; brandColors?: BrandColors; modelId?: string },
+  onEvent: (event: ComposeStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return streamNdjson<ComposeStreamEvent>("/api/scene/compose", body, onEvent, signal);
 }
 
 /** Fill unresolved visual nodes (queries, placeholders) with picked blocks, in order. */

@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import JSZip from "jszip";
 import { SceneRenderer, type SceneRendererProps } from "@/components/scene/SceneRenderer";
-import { capturePostImage } from "@/lib/social-tool/exportPost";
+import { capturePostImage, exportMultiPagePdf } from "@/lib/social-tool/exportPost";
 import type { SceneDocument } from "@/lib/scene/schema";
 
 /** Capture a rendered scene root at its native size (the preview may be scaled down). */
@@ -71,4 +71,15 @@ export async function zipFiles(files: Array<{ name: string; blob: Blob }>): Prom
 
 export function sceneFileName(scene: SceneDocument, suffix: string, extension: string): string {
   return `postforge-${scene.origin.id}-${scene.size.width}x${scene.size.height}${suffix ? `-${suffix}` : ""}.${extension}`;
+}
+
+/** Capture rendered pages and save them as one PDF (decks, LinkedIn carousels). */
+export async function exportScenesPdf(roots: HTMLElement[], scenes: SceneDocument[], filename: string): Promise<void> {
+  const pages = [];
+  for (const [index, root] of roots.entries()) {
+    const scene = scenes[index]!;
+    const { blob, dataUrl } = await capturePostImage({ node: root, format: "png", width: scene.size.width, height: scene.size.height, scale: 1 });
+    pages.push({ blob, dataUrl, width: scene.size.width, height: scene.size.height });
+  }
+  await exportMultiPagePdf({ pages, filename });
 }

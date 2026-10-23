@@ -64,18 +64,26 @@ Architecture reference (diagrams): https://claude.ai/artifact/EhbAeP1hNg2dTcntqV
 - One DOM renderer behind a flag; convert the ~30 layouts into reference compositions; screenshot parity tests.
 - Old v2 sessions keep the existing renderer.
 
-### Phase 5 — Hybrid streaming compose
+### Phase 5 — Hybrid streaming compose *(done in this branch — see notes)*
+- Done: `/api/scene/compose` streams the engine draft (ms, no AI), the server visual pick, partial AI scenes and the final scene; the AI writes a shallow spec (`src/lib/scene/compose/spec.ts`) with the draft and two compositions as references; renderer auto-fit; offline copy now read from the brief instead of a template.
+- Open: the editor (`/design/[id]`) still uses the brief-chat pipeline and v2 renderer; prompt caching and a model benchmark need a key to measure.
 - Pass 1: engine draft in <300 ms (the existing offline pipeline). Pass 2: one streamed compose call replaces planner, ranker and slot writer.
 - Per-node validation; server-side asset resolver; DOM fit and contrast pass; prompt caching; model benchmark.
 
-### Phase 6 — Export compositor
+### Phase 6 — Export compositor *(done in this branch — see notes)*
+- Done: native-size PNG, copy to clipboard, every size as a ZIP (one auto-layout tree resized), PDF for multi-page.
+- Open: the canvas paint compositor (measure once, paint frames) — DOM capture with html-to-image is used for now; Figma export from the scene tree.
 - Measure layout once in the DOM, paint frames on canvas/WebGL. PNG/JPG at 1–4×, copy to clipboard, multi-size reflow, Figma from the tree.
 
-### Phase 7 — Motion and shaders
+### Phase 7 — Motion and shaders *(done in this branch — see notes)*
+- Done: motion presets on paint-only properties driven by one clock, WebGL shader presets (mesh gradient, aurora, waves, grain), play/pause, WebM (VP9/VP8) and MP4 (H.264 where the browser encodes it) export via WebCodecs; AI spec can choose motion and a shader.
+- Open: GIF, server (headless Chromium) render fallback, speed — a 6 s 1080×1920 WebM took ~33 s in headless Chromium because each frame is a DOM capture.
 - Shared clock; motion presets on paint-only properties; a `shader` node with presets (starting from `HeroShaderCanvas` and `CtaShaderCanvas`).
 - MP4/WebM via WebCodecs and a muxer; GIF; headless Chromium as server fallback.
 
-### Phase 8 — Decks and carousels
+### Phase 8 — Decks and carousels *(done in this branch — see notes)*
+- Done: offline outline from the brief and one AI outline call (invented stats dropped), masters per page type, 16:9 decks and 4:5 carousels, PDF and PNG ZIP export.
+- Open: PPTX, chart/diagram nodes, moving `/slides` onto the scene document, per-page AI composition.
 - Outline call, then pages composed in parallel; masters; chart and diagram nodes; PDF/PPTX.
 - Move `/slides` onto the scene document.
 

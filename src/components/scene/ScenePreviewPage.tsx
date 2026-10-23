@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SceneRenderer } from "@/components/scene/SceneRenderer";
+import { DeckPanel } from "@/components/scene/DeckPanel";
 import { createBlankSession, ensureDesignSessionLoaded } from "@/lib/design/designSession";
 import type { DesignSessionPersisted } from "@/lib/design/types";
 import { composeScene, SCENE_COMPOSITIONS } from "@/lib/scene/compositions";
@@ -444,6 +445,8 @@ export function ScenePreviewPage() {
       </header>
 
       <ComposePanel size={size} />
+
+      <DeckPanel logoSvg={SAMPLE_LOGO} />
 
       <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <h2 style={{ margin: 0, fontSize: 17 }}>Scene compositions</h2>
