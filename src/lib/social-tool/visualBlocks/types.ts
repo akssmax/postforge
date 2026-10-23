@@ -68,6 +68,8 @@ export type VisualBlockGenerateInput = {
   };
   /** Override featured slot kind when picking from library. */
   preferredKind?: "ui" | "illustration" | "3d";
+  /** Illustration style already used in this design; picks stay in it. */
+  stylePack?: VisualStylePack;
   slotWidth?: number;
   slotHeight?: number;
   count?: number;
@@ -84,3 +86,6 @@ export type VisualBlockModifyInput = {
     accent?: string;
   };
 };
+
+/** Asset pack an illustration or 3D visual comes from (one visual style). */
+export type VisualStylePack = "storyset" | "undraw" | "open-doodles" | "thiings";

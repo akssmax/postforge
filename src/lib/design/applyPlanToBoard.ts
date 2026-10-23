@@ -6,7 +6,8 @@ import {
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
 import { applyFeaturedVisualBlockToSession } from "@/lib/social-tool/applyFeaturedVisualBlock";
 import { inferFeaturedVisualKind, type FeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
-import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
+import type { VisualBlockRecord, VisualStylePack } from "@/lib/social-tool/visualBlocks/types";
+import { stylePackFitsKind } from "@/lib/social-tool/visualBlocks/library/scoring";
 import { visualBlockPickPayload, withLogoAwareShowBrand } from "@/lib/design/visualPickPayload";
 
 function planBrief(plan: ValidatedDesignPlan): string {
@@ -83,6 +84,7 @@ export async function pickFeaturedVisualForBoard(
   plan: ValidatedDesignPlan,
   options: DesignPlanApplyOptions | undefined,
   excludeLibraryIds: string[] = [],
+  stylePack?: VisualStylePack,
 ): Promise<{ session: DesignSessionPersisted; libraryId?: string }> {
   if (!planNeedsFeaturedLibrary(plan, options)) return { session };
   const kind = planFeaturedVisualKind(plan, options, session.document.artifactCategory);
@@ -98,6 +100,7 @@ export async function pickFeaturedVisualForBoard(
           brief: planBrief(plan),
           preferredKind: kind,
           visualSemantic: options?.visualSemantic,
+          stylePack: stylePackFitsKind(stylePack, kind),
         }),
         pickFeatured: true,
         source: "library",

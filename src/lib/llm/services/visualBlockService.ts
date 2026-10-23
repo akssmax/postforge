@@ -6,6 +6,7 @@ import {
   pickShuffleFeaturedVisual,
 } from "@/lib/social-tool/visualBlocks/library";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
+import { chooseVisualFromShortlist } from "@/lib/llm/stages/visualPicker";
 
 export const generateVisualBlocksBodySchema = z.object({
   headline: z.string().optional(),
@@ -26,6 +27,7 @@ export const generateVisualBlocksBodySchema = z.object({
   source: z.enum(["library", "generate"]).optional(),
   libraryIds: z.array(z.string()).optional(),
   preferredKind: z.enum(["ui", "illustration", "3d"]).optional(),
+  stylePack: z.enum(["storyset", "undraw", "open-doodles", "thiings"]).optional(),
   intent: z
     .object({
       primaryIntent: z.string().optional(),
@@ -51,6 +53,9 @@ export const generateVisualBlocksBodySchema = z.object({
       featuredKind: z.enum(["ui", "illustration", "3d"]).optional(),
       proof: z.string().optional(),
       platformId: z.string().optional(),
+      artifactId: z.string().optional(),
+      artifactCategory: z.string().optional(),
+      bundleId: z.string().optional(),
     })
     .optional(),
 });
@@ -83,7 +88,7 @@ export async function handleGenerateVisualBlocks(
     if (body.pickFeatured) {
       const block = body.excludeLibraryIds?.length
         ? await pickShuffleFeaturedVisual(body, body.excludeLibraryIds, { randomize: true })
-        : await pickFeaturedVisualFromLibrary(body);
+        : await pickFeaturedVisualFromLibrary(body, { choose: chooseVisualFromShortlist });
       return { blocks: block ? [block] : [] };
     }
     const blocks = await composeVisualBlocksFromLibrary(body, { libraryIds: body.libraryIds });

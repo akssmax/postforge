@@ -27,8 +27,8 @@ import { getPostLayout } from "@/lib/social-tool/postLayouts";
 import { inferFeaturedVisualKind, isFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import type { FeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import { activeVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
-import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
-import { pickShuffleFeaturedVisualBrowser } from "@/lib/social-tool/shuffleFeaturedVisualBrowser";
+import { requestFeaturedVisualPick } from "@/lib/social-tool/pickFeaturedVisualClient";
+import { stylePackForKind, visualStyleFromLibraryId } from "@/lib/social-tool/visualBlocks/library/scoring";
 import { buildBackgroundPresets } from "@/lib/brand/backgroundPresets";
 import {
   defaultBackgroundPresetIdForColors,
@@ -58,6 +58,8 @@ export function buildFeaturedVisualPickInput(
   const headline = copy?.headline ?? session.document.copy.heading;
   const subheading = copy?.subheading ?? session.document.copy.subheading;
   const planned = session.document.visualSemantic;
+  const active = activeVisualBlock(session.featured.visualBlocks ?? [], session.featured.activeBlockId);
+  const stylePack = stylePackForKind(active?.libraryId, activeKind);
   return {
     headline,
     subheading,
@@ -68,6 +70,7 @@ export function buildFeaturedVisualPickInput(
       accent: session.brand.colors.accent,
     },
     preferredKind: activeKind,
+    ...(stylePack ? { stylePack } : {}),
     intent: {
       featuredVisualKind: activeKind,
       ...(planned?.keywords?.length ? { themes: planned.keywords } : {}),
@@ -120,30 +123,10 @@ export async function shuffleFeaturedVisualForSession(
   ];
 
   try {
-    let newBlock: VisualBlockRecord | null = null;
-
-    if (typeof window !== "undefined") {
-      newBlock = await pickShuffleFeaturedVisualBrowser(
-        buildFeaturedVisualPickInput(session, activeKind),
-        localExclude,
-      );
-    } else {
-      const response = await fetch("/api/visual-blocks/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...buildFeaturedVisualPickInput(session, activeKind),
-          pickFeatured: true,
-          excludeLibraryIds: localExclude,
-          source: "library",
-        }),
-      });
-      if (response.ok) {
-        const payload = (await response.json()) as { blocks: VisualBlockRecord[] };
-        newBlock = payload.blocks[0] ?? null;
-      }
-    }
-
+    const newBlock = await requestFeaturedVisualPick(
+      buildFeaturedVisualPickInput(session, activeKind),
+      localExclude,
+    );
     if (!newBlock) return { session };
 
     return {
@@ -402,13 +385,18 @@ export async function buildPlannedVariantBoards(
   existingBoards: DesignSessionPersisted[],
 ): Promise<DesignSessionPersisted[]> {
   const usedLibraryIds = libraryIdsOf(existingBoards);
+  // One illustration style per design: siblings follow the base board, or the first pick.
+  let stylePack = visualStyleFromLibraryId(
+    activeVisualBlock(base.featured.visualBlocks ?? [], base.featured.activeBlockId)?.libraryId,
+  ) ?? undefined;
   const created: DesignSessionPersisted[] = [];
   for (const variant of variants) {
     const designId = createDesignId();
     const options = { ...variant.applyOptions, designId };
     const applied = applyPlanToBoardSession(cloneDesignSession(base, designId), variant.plan, options).session;
-    const picked = await pickFeaturedVisualForBoard(applied, variant.plan, options, usedLibraryIds);
+    const picked = await pickFeaturedVisualForBoard(applied, variant.plan, options, usedLibraryIds, stylePack);
     if (picked.libraryId) usedLibraryIds.push(picked.libraryId);
+    stylePack ??= visualStyleFromLibraryId(picked.libraryId) ?? undefined;
     persistBoardSession(picked.session);
     seedShufflePreferencesAllOn(designId);
     created.push(picked.session);

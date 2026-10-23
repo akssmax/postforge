@@ -46,7 +46,9 @@ Architecture reference (diagrams): https://claude.ai/artifact/EhbAeP1hNg2dTcntqV
 - Variant axes the user can choose: layout · visual · copy · palette · motion (later).
 - Clear errors and a message at the 7-board cap. Per-board copy controls read each board's own document.
 
-### Phase 3 — Visuals v2, step 2: art direction
+### Phase 3 — Visuals v2, step 2: art direction *(partly done in this branch)*
+- Done: style lock per design (picks stay in the design's pack; variant siblings follow the first pick), rare-tag weighting instead of an LLM re-tag pass, an AI shortlist pick for illustrations and 3D (server, optional, falls back to ranking), asset manifest moved off the editor bundle (shuffle picks go through the API), API schema now keeps artifact and bundle context.
+- Open: palette-aware recolouring, pack licensing/attribution (needs a product decision), visual roles beyond the hero (Phase 4), limiting AI SVG to diagrams.
 - **Style lock per design/brand:** choose one illustration family (Storyset rafiki, unDraw, Doodles, 3D, UI) at plan time. Variants vary within it unless the user asks otherwise.
 - **Clean index:** re-tag Storyset offline with an LLM pass into a controlled vocabulary of ~150 tags. Build a server-only search index (move the 1.5 MB manifest off the client; the browser shuffle calls the API).
 - **LLM-picked visuals:** the planner emits a `visualBrief` (subject, metaphor, mood). Retrieval returns the top 12 by index, and a small model picks 1–3 from thumbnails or tags.

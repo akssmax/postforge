@@ -6,8 +6,12 @@ import type {
   VisualSemanticContext,
 } from "@/lib/design/types";
 import { artifactWantsLogoPlaceholderById } from "@/lib/design-engine/artifactRules";
-import type { VisualBlockGenerateInput } from "@/lib/social-tool/visualBlocks/types";
-import { buildVisualPickIntentFromText } from "@/lib/social-tool/visualBlocks/library/scoring";
+import type { VisualBlockGenerateInput, VisualStylePack } from "@/lib/social-tool/visualBlocks/types";
+import {
+  buildVisualPickIntentFromText,
+  stylePackForKind,
+} from "@/lib/social-tool/visualBlocks/library/scoring";
+import { activeVisualBlock } from "@/lib/social-tool/visualBlocks/storage";
 import { inferFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import { campaignPlanFromBrief } from "@/lib/social-tool/engine/campaignPlanFromBrief";
 import { retrieveDesignSystem } from "@/lib/social-tool/engine/designSystemRetriever";
@@ -24,6 +28,8 @@ export function visualBlockPickPayload(
     preferredKind?: "ui" | "illustration" | "3d";
     /** Campaign-plan context; defaults to the one saved on the document. */
     visualSemantic?: VisualSemanticContext;
+    /** Illustration style to stay in; defaults to the style of the board's current visual. */
+    stylePack?: VisualStylePack;
   },
 ) {
   const headline = input?.headline ?? session.document.copy.heading;
@@ -39,6 +45,8 @@ export function visualBlockPickPayload(
 
   // Prefer the applied campaign plan's context; derive it offline from copy only as a fallback.
   const planned = input?.visualSemantic ?? session.document.visualSemantic;
+  const currentVisual = activeVisualBlock(session.featured.visualBlocks ?? [], session.featured.activeBlockId);
+  const stylePack = input?.stylePack ?? stylePackForKind(currentVisual?.libraryId, featuredVisualKind);
   let semantic: VisualBlockGenerateInput["semantic"];
   if (planned) {
     semantic = {
@@ -97,6 +105,7 @@ export function visualBlockPickPayload(
       accent: session.brand.colors.accent,
     },
     preferredKind: featuredVisualKind,
+    ...(stylePack ? { stylePack } : {}),
     intent: {
       ...buildVisualPickIntentFromText(headline, subheading, theme, brief),
       featuredVisualKind,

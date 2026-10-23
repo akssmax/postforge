@@ -124,7 +124,7 @@ import { getIconCatalogEntry } from "@/lib/social-tool/icons/catalog";
 import { createCanvasIconRecord } from "@/lib/social-tool/icons/instantiate";
 import { MAX_CANVAS_ICONS } from "@/lib/social-tool/icons/types";
 import { buildFeaturedVisualPickInput } from "@/lib/social-tool/generateDesignVariants";
-import { pickShuffleFeaturedVisualBrowser } from "@/lib/social-tool/shuffleFeaturedVisualBrowser";
+import { requestFeaturedVisualPick } from "@/lib/social-tool/pickFeaturedVisualClient";
 import {
   activeVisualBlock,
   appendVisualBlocks,
@@ -1638,7 +1638,7 @@ export function useDesignSession(
         const doc = session.document;
         const headline = copyOverride?.headline ?? doc.copy.heading;
         const subheading = copyOverride?.subheading ?? doc.copy.subheading;
-        const newBlock = await pickShuffleFeaturedVisualBrowser(
+        const newBlock = await requestFeaturedVisualPick(
           buildFeaturedVisualPickInput(session, activeKind, {
             headline,
             subheading,
