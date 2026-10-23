@@ -27,7 +27,26 @@ export type SceneRendererProps = {
   assets?: Record<string, string | null | undefined>;
   /** Display scale; the scene always lays out at its native size. */
   scale?: number;
+  /** Step type down until nothing spills outside the artboard (default on). */
+  autoFit?: boolean;
 };
+
+/** Auto-fit shrinks type in 6% steps and stops at 70% of the design's scale. */
+const FIT_STEP = 0.94;
+const FIT_FLOOR = 0.7;
+
+function sceneOverflows(root: HTMLElement): boolean {
+  const frame = root.getBoundingClientRect();
+  const slack = 1;
+  for (const node of root.querySelectorAll<HTMLElement>("[data-scene-node]")) {
+    const box = node.getBoundingClientRect();
+    if (box.width === 0 && box.height === 0) continue;
+    if (box.bottom > frame.bottom + slack || box.right > frame.right + slack) return true;
+    // Clamped text hides its overflow; scrollHeight still reports it.
+    if (node.dataset.sceneText && node.scrollHeight > node.clientHeight + 1) return true;
+  }
+  return false;
+}
 
 /** Font size per text style, as a share of the artboard's short side. */
 const TYPE_SCALE: Record<TextStyle, { size: number; lineHeight: number; weight: number }> = {
@@ -336,8 +355,18 @@ function overlayBox(overlay: SceneOverlay, theme: Theme): CSSProperties {
 
 /** Draws a scene document at its native size with flex/grid; geometry comes from the browser. */
 export function SceneRenderer(props: SceneRendererProps) {
-  const { scene, colors, scale = 1 } = props;
+  const { scene, colors, scale = 1, autoFit = true } = props;
   const { width, height } = scene.size;
+  const rootRef = useRef<HTMLDivElement>(null);
+  // Fit is tied to the scene it was measured for, so a new scene starts at full size.
+  const [fitState, setFitState] = useState<{ scene: SceneDocument; fit: number }>({ scene, fit: 1 });
+  const fit = fitState.scene === scene ? fitState.fit : 1;
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!autoFit || !root || fit <= FIT_FLOOR || !sceneOverflows(root)) return;
+    const frame = requestAnimationFrame(() => setFitState({ scene, fit: Math.max(FIT_FLOOR, fit * FIT_STEP) }));
+    return () => cancelAnimationFrame(frame);
+  }, [autoFit, fit, scene]);
   const unit = Math.min(width, height) / 100;
   const background =
     scene.background.kind === "brand-preset"
@@ -347,7 +376,7 @@ export function SceneRenderer(props: SceneRendererProps) {
         : (color({ colors } as Theme, { text: "", muted: "" }, scene.background.color) ?? "#ffffff");
   const backgroundHex = resolveBackgroundHex(background);
   const ink = inkOn(backgroundHex);
-  const theme: Theme = { unit, colors, text: ink.text, muted: ink.muted, fonts: scene.font, typeScale: scene.typeScale, props };
+  const theme: Theme = { unit, colors, text: ink.text, muted: ink.muted, fonts: scene.font, typeScale: scene.typeScale * fit, props };
   const overlays = (layer: "below" | "above") =>
     scene.overlays
       .filter((overlay) => overlay.layer === layer)
@@ -360,7 +389,9 @@ export function SceneRenderer(props: SceneRendererProps) {
   return (
     <div style={{ width: width * scale, height: height * scale, overflow: "hidden", flex: "0 0 auto" }}>
       <div
+        ref={rootRef}
         data-scene-root={scene.origin.id}
+        data-scene-fit={fit.toFixed(2)}
         style={{
           width,
           height,

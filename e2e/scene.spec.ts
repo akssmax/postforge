@@ -43,4 +43,18 @@ test.describe("Scene renderer", () => {
     await expect(page.locator("[data-scene-card]")).toHaveCount(5);
     await expect(page.locator('[data-scene-text="headline"]', { hasText: "Saved design headline" })).toHaveCount(5);
   });
+
+  test("composing from a brief shows the engine draft at once, then the final design", async ({ page }) => {
+    await page.goto("/scene");
+    const brief = page.getByLabel(/The engine draft appears at once/);
+    await brief.fill("Instagram post for Northwind Coffee: new oat latte, 20% off this week. Order now.");
+    await page.getByRole("button", { name: "Compose" }).click();
+    const status = page.locator("[data-compose-status]");
+    await expect(status).toHaveAttribute("data-compose-status", "done", { timeout: 30_000 });
+    // Without an AI key in this environment the engine draft is the final design.
+    await expect(status).toContainText(/engine draft|AI composition/);
+    const preview = page.locator("[data-compose-preview] [data-scene-root]");
+    await expect(preview).toBeVisible();
+    await expect(preview.locator('[data-scene-text="headline"]')).toHaveCount(1);
+  });
 });

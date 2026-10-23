@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SceneRenderer } from "@/components/scene/SceneRenderer";
 import { createBlankSession, ensureDesignSessionLoaded } from "@/lib/design/designSession";
 import type { DesignSessionPersisted } from "@/lib/design/types";
 import { composeScene, SCENE_COMPOSITIONS } from "@/lib/scene/compositions";
 import { sceneFromDesign } from "@/lib/scene/fromDesign";
+import { attachBlocks, streamComposeScene, type ComposeStreamEvent } from "@/lib/scene/compose/client";
+import type { BrandColors } from "@/lib/brand/types";
 import type { SceneDocument } from "@/lib/scene/schema";
 import { catalogLayoutRef } from "@/lib/social-tool/layoutAdapter";
 import { POST_LAYOUTS, type PostLayoutId } from "@/lib/social-tool/postLayouts";
@@ -111,6 +113,106 @@ function SceneCard({ title, subtitle, scene, session }: { title: string; subtitl
   );
 }
 
+type ComposeState = {
+  scene: SceneDocument | null;
+  colors: BrandColors | null;
+  blocks: VisualBlockRecord[];
+  status: "idle" | "draft" | "composing" | "done" | "error";
+  message: string;
+};
+
+const IDLE_COMPOSE: ComposeState = { scene: null, colors: null, blocks: [], status: "idle", message: "" };
+
+function ComposePanel({ size }: { size: (typeof SIZES)[number] }) {
+  const [brief, setBrief] = useState("LinkedIn ad for Acme analytics: close deals 2× faster with one workspace for pipeline and reporting. Book a demo.");
+  const [state, setState] = useState<ComposeState>(IDLE_COMPOSE);
+  const abortRef = useRef<AbortController | null>(null);
+  const busy = state.status === "draft" || state.status === "composing";
+
+  async function compose() {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setState({ ...IDLE_COMPOSE, status: "composing", message: "Drafting…" });
+    const onEvent = (event: ComposeStreamEvent) =>
+      setState((prev) => {
+        switch (event.type) {
+          case "draft":
+            return { ...prev, scene: event.scene, colors: event.colors, status: "draft", message: `Engine draft in ${event.ms} ms · AI composing…` };
+          case "blocks":
+            return { ...prev, blocks: event.blocks };
+          case "partial":
+            return { ...prev, scene: event.scene, status: "composing", message: `AI composing… ${(event.ms / 1000).toFixed(1)} s` };
+          case "final":
+            return {
+              ...prev,
+              scene: event.scene,
+              status: "done",
+              message:
+                event.source === "ai"
+                  ? `AI composition in ${(event.ms / 1000).toFixed(1)} s${event.rationale ? ` · ${event.rationale}` : ""}`
+                  : (event.note ?? "Showing the engine draft."),
+            };
+          case "error":
+            return { ...prev, status: "error", message: event.message };
+        }
+      });
+    try {
+      await streamComposeScene({ brief, size: { width: size.width, height: size.height } }, onEvent, controller.signal);
+    } catch (error) {
+      if (!controller.signal.aborted) setState((prev) => ({ ...prev, status: "error", message: error instanceof Error ? error.message : "Compose failed." }));
+    }
+  }
+
+  const scene = state.scene ? attachBlocks(state.scene, state.blocks) : null;
+  return (
+    <section aria-labelledby="compose-heading" style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void compose();
+        }}
+        style={{ display: "flex", flexDirection: "column", gap: 10, flex: "1 1 320px", maxWidth: 520 }}
+      >
+        <h2 id="compose-heading" style={{ margin: 0, fontSize: 17 }}>Compose from a brief</h2>
+        <label htmlFor="compose-brief" style={{ fontSize: 13, opacity: 0.75 }}>
+          The engine draft appears at once; one AI call then composes the design ({size.label}).
+        </label>
+        <textarea
+          id="compose-brief"
+          value={brief}
+          onChange={(event) => setBrief(event.target.value)}
+          rows={4}
+          style={{ font: "inherit", fontSize: 14, padding: 10, borderRadius: 8, border: "1px solid #c8ccd4", resize: "vertical" }}
+        />
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            type="submit"
+            disabled={brief.trim().length < 3}
+            style={{ padding: "8px 16px", borderRadius: 999, border: 0, background: "#1f3a5f", color: "#fff", cursor: "pointer" }}
+          >
+            {busy ? "Compose again" : "Compose"}
+          </button>
+          <span role="status" aria-live="polite" data-compose-status={state.status} style={{ fontSize: 13, opacity: 0.8 }}>
+            {state.message}
+          </span>
+        </div>
+      </form>
+      {scene && state.colors ? (
+        <div data-compose-preview={state.status} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}>
+          <SceneRenderer
+            scene={scene}
+            scale={420 / Math.max(scene.size.width, scene.size.height)}
+            colors={state.colors}
+            logo={{ svgMarkup: SAMPLE_LOGO }}
+            blocks={state.blocks}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export function ScenePreviewPage() {
   const [sizeId, setSizeId] = useState<(typeof SIZES)[number]["id"]>("square");
   const [loaded, setLoaded] = useState<DesignSessionPersisted | null>(null);
@@ -174,6 +276,8 @@ export function ScenePreviewPage() {
           ))}
         </div>
       </header>
+
+      <ComposePanel size={size} />
 
       <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <h2 style={{ margin: 0, fontSize: 17 }}>Scene compositions</h2>
