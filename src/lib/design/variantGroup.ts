@@ -20,6 +20,8 @@ export type DesignVariantGroup = {
   activeDesignId: string;
   /** Optional custom display names keyed by board designId. Empty/whitespace falls back to index. */
   boardNames?: Record<string, string>;
+  /** Chat variant sets already turned into boards (see plannedVariantSetKey). */
+  importedVariantSets?: string[];
   updatedAt: number;
 };
 

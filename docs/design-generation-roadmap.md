@@ -40,7 +40,7 @@ Architecture reference (diagrams): https://claude.ai/artifact/EhbAeP1hNg2dTcntqV
 - Fix `scoreVisualPattern`: whole-word tag matching (multi-word tags match as phrases).
 - Files: `src/lib/llm/services/briefChatService.ts`, `src/lib/llm/stages/pipelineTypes.ts`, `src/lib/design/useDesignSession.ts`, `src/lib/social-tool/visualBlocks/library/scoring.ts`.
 
-### Phase 2 — Variants-first experience
+### Phase 2 — Variants-first experience *(done in this branch, except variant axes)*
 - Chat variants become artboards in the variant group, replacing the chips. Each variant gets its own featured pick and copy pool.
 - "More like this" on any board: `generateDesignVariants` takes a source board, shuffles with a lighter touch (keep layout family, vary visual, copy and palette), and appends.
 - Variant axes the user can choose: layout · visual · copy · palette · motion (later).

@@ -120,3 +120,28 @@ test("a failed copy stage is flagged and explained instead of silently using tem
     },
   );
 });
+
+test("a chat variant applied to a non-active board carries its plan's visual decisions", async () => {
+  const { createBlankSession } = await import("@/lib/design/designSession");
+  const { applyPlanToBoardSession, planNeedsFeaturedLibrary } = await import("@/lib/design/applyPlanToBoard");
+  const { plannedVariantSetKey } = await import("@/lib/social-tool/generateDesignVariants");
+  const result = await runDesignPipeline({ userMessage: brief, platformId: "linkedin-square", messages: [], offline: true });
+  const options = visualContextFromPipeline(result);
+  const base = createBlankSession("board-a");
+  const basePhase = base.document.onboarding.phase;
+  const { session } = applyPlanToBoardSession(base, result.validatedPlan, options);
+  assert.equal(session.designId, "board-a");
+  assert.equal(session.document.onboarding.phase, "ready");
+  assert.equal(session.document.copy.heading, result.validatedPlan.copy.heading);
+  assert.equal(session.document.featuredVisualKind, options.featuredVisualKind);
+  assert.deepEqual(session.document.visualSemantic, options.visualSemantic);
+  if (planNeedsFeaturedLibrary(result.validatedPlan, options)) {
+    assert.deepEqual(session.featured.visualBlocks, [], "stale visuals are cleared for the library pick");
+  }
+  assert.notEqual(basePhase, "ready");
+  assert.equal(base.document.onboarding.phase, basePhase, "the base board is not mutated");
+
+  const variants = [{ theme: "Speed", plan: result.validatedPlan }, { theme: "Trust", plan: result.validatedPlan }];
+  assert.equal(plannedVariantSetKey(variants), plannedVariantSetKey(variants.map(v => ({ ...v }))));
+  assert.notEqual(plannedVariantSetKey(variants), plannedVariantSetKey([variants[0]!]));
+});

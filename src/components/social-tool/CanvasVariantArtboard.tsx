@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Trash2 } from "lucide-react";
+import { Copy, Trash2, WandSparkles } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Button, Tooltip } from "@heroui/react";
 import {
@@ -66,6 +66,8 @@ type Props = {
   onDeleteArtboard?: () => void;
   canDuplicateArtboard?: boolean;
   onDuplicateArtboard?: () => void;
+  /** Generate close variations of this board (same layout and palette). */
+  onMoreLikeThis?: () => void;
   onShuffle: (prefs: ShufflePreferences) => void;
   shufflePending?: boolean;
   onGenerateVariants: () => void;
@@ -142,6 +144,7 @@ function CanvasVariantArtboardInner({
   onDeleteArtboard,
   canDuplicateArtboard = false,
   onDuplicateArtboard,
+  onMoreLikeThis,
   onShuffle,
   shufflePending = false,
   onGenerateVariants,
@@ -389,6 +392,32 @@ function CanvasVariantArtboardInner({
               }`}
               aria-hidden={!isActive}
             >
+              {canDuplicateArtboard && onMoreLikeThis ? (
+                <Tooltip delay={500}>
+                  <Tooltip.Trigger>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      isIconOnly
+                      aria-label="More like this"
+                      className="canvas-artboard-action-btn"
+                      isDisabled={generatingVariants}
+                      onPress={() => {
+                        onActivate();
+                        onMoreLikeThis();
+                      }}
+                    >
+                      <WandSparkles className="size-3.5" strokeWidth={2.25} aria-hidden />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content placement="bottom" offset={8}>
+                    <p className="layout-shuffle-tooltip-title">More like this</p>
+                    <p className="layout-shuffle-tooltip-body">
+                      Two close variations: same layout, new copy, background and visual
+                    </p>
+                  </Tooltip.Content>
+                </Tooltip>
+              ) : null}
               {canDuplicateArtboard && onDuplicateArtboard ? (
                 <Tooltip delay={500}>
                   <Tooltip.Trigger>

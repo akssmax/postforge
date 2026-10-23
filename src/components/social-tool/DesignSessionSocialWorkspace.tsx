@@ -72,7 +72,11 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useCanvasPreviewViewport } from "@/lib/social-tool/useCanvasPreviewViewport";
 import type { ShufflePreferences } from "@/lib/social-tool/shufflePreferences";
 import { applyShuffleToSession } from "@/lib/social-tool/applyShuffle";
-import { shuffleFeaturedVisualForSession } from "@/lib/social-tool/generateDesignVariants";
+import {
+  plannedVariantSetKey,
+  shuffleFeaturedVisualForSession,
+} from "@/lib/social-tool/generateDesignVariants";
+import type { DesignVariantResult } from "@/lib/llm/extractDesignPlan";
 import { useDesignVariantGroup } from "@/lib/design/useDesignVariantGroup";
 import { loadDesignSession } from "@/lib/design/designSession";
 import {
@@ -812,6 +816,18 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     const boardId = pendingDeleteBoardRef.current ?? pendingDeleteBoardId;
     if (!boardId) return;
     void performDeleteBoard(boardId);
+  }
+
+  async function handleMoreLikeThis(boardId: string) {
+    const source =
+      session.session?.designId === boardId
+        ? session.session
+        : variantGroup.boards.find((b) => b.designId === boardId);
+    if (!source) return;
+    if (session.session) variantGroup.syncBoard(session.session);
+    setAdjustSpacing(false);
+    clearInspectorSelection();
+    await variantGroup.generateSimilar(source);
   }
 
   function handleDuplicateBoard(boardId: string) {
@@ -1594,6 +1610,52 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
     },
   });
 
+  // AI chat variants become artboards. A blank board takes the first variant;
+  // an existing design is kept and each variant gets its own board.
+  const importingVariantSetRef = useRef<string | null>(null);
+  const pendingChatVariants = briefChat.pendingVariants;
+  useEffect(() => {
+    if (!pendingChatVariants || pendingChatVariants.length <= 1) return;
+    const live = session.session;
+    if (!live || variantGroup.generating) return;
+    const planned = pendingChatVariants.map((variant) => ({
+      theme: variant.theme,
+      plan: variant.plan,
+      applyOptions: variant.applyOptions,
+    }));
+    const setKey = plannedVariantSetKey(planned);
+    if (importingVariantSetRef.current === setKey) return;
+    if (variantGroup.isVariantSetImported(setKey)) {
+      importingVariantSetRef.current = setKey;
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      importingVariantSetRef.current = setKey;
+      const blank = live.document.onboarding.phase !== "ready";
+      if (blank) briefChat.applyVariant(pendingChatVariants[0]!);
+      void variantGroup.addPlannedBoards(live, blank ? planned.slice(1) : planned, {
+        setKey,
+        baseIsLive: blank,
+        baseName: blank ? planned[0]!.theme : undefined,
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingChatVariants, session.session, variantGroup, briefChat]);
+
+  /** Chat variant chips jump to their artboard; without one they apply to the active board. */
+  function handlePickChatVariant(variant: DesignVariantResult) {
+    const boardNames = variantGroup.group.boardNames ?? {};
+    const boardId = variantGroup.boards.find(
+      (board) => boardNames[board.designId] === variant.theme,
+    )?.designId;
+    if (boardId) {
+      handleActivateBoard(boardId);
+      return;
+    }
+    briefChat.applyVariant(variant);
+  }
+
   const handleExplainContrastInChat = useCallback(
     (result: ContrastResult) => {
       setAsideTab("chat");
@@ -1982,9 +2044,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             mode={exporting === "figma" ? "figma" : "raster"}
             figmaPhase={figmaPhase}
           />
-          {figmaToast ? (
+          {figmaToast || variantGroup.notice ? (
             <div className="figma-export-toast is-visible" aria-live="polite">
-              {figmaToast}
+              {figmaToast ?? variantGroup.notice}
             </div>
           ) : null}
           <CanvasTopRightChrome
@@ -2192,6 +2254,9 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       onDuplicateArtboard={() =>
                         handleDuplicateBoard(board.designId)
                       }
+                      onMoreLikeThis={() => {
+                        void handleMoreLikeThis(board.designId);
+                      }}
                       canDeleteArtboard={
                         isReady &&
                         !isOrigin &&
@@ -2230,14 +2295,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                       onTypeScaleChange={handleTypeScaleChange}
                       onLogoScaleChange={handleLogoScaleChange}
                       onTextAlignChange={handleTextAlignChange}
-                      copyVariantIndex={doc.copyVariantIndex ?? 0}
-                      copyVariantCount={
-                        doc.copyVariants && doc.copyVariants.length > 0
-                          ? doc.copyVariants.length
-                          : 0
-                      }
+                      copyVariantIndex={liveBoard.document.copyVariantIndex ?? 0}
+                      copyVariantCount={liveBoard.document.copyVariants?.length ?? 0}
                       onCycleCopyVariant={
-                        doc.copyVariants && doc.copyVariants.length > 1
+                        isActive &&
+                        (liveBoard.document.copyVariants?.length ?? 0) > 1
                           ? cycleCopyVariant
                           : undefined
                       }
@@ -2332,8 +2394,11 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
             {briefChat.pendingVariants?.length ? (
               <VariantPicker
                 variants={briefChat.pendingVariants}
-                activeTheme={briefChat.activeVariantTheme}
-                onApply={briefChat.applyVariant}
+                activeTheme={
+                  variantGroup.group.boardNames?.[variantGroup.activeDesignId] ??
+                  briefChat.activeVariantTheme
+                }
+                onApply={handlePickChatVariant}
               />
             ) : null}
           </div>
