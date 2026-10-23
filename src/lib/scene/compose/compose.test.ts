@@ -132,3 +132,20 @@ test("compose streams draft, partials and the AI scene; without a key it keeps t
     else process.env.OPENROUTER_API_KEY = oldKey;
   }
 });
+
+test("offline copy is read from the brief, not a template", async () => {
+  const { copyFromFreeTextBrief } = await import("@/lib/design-engine/artifactBriefParser");
+  assert.deepEqual(copyFromFreeTextBrief("LinkedIn ad for Acme analytics: close deals 2× faster. Book a demo."), {
+    heading: "Close deals [[2× faster]]",
+    subheading: "Acme analytics",
+    cta: "Book a demo",
+  });
+  assert.deepEqual(copyFromFreeTextBrief("Instagram post for Northwind Coffee: new oat latte, 20% off this week. Order now."), {
+    heading: "New oat latte, [[20% off]] this week",
+    subheading: "Northwind Coffee",
+    cta: "Order now",
+  });
+  assert.equal(copyFromFreeTextBrief("Create a LinkedIn ad announcing our AI-native CRM replacing Salesforce. Book a demo.").heading, "AI-native CRM replacing Salesforce");
+  const draft = engineDraft({ brief: "LinkedIn ad for Acme analytics: close deals 2× faster. Book a demo.", size });
+  assert.ok(all(draft.scene).some((node) => node.type === "text" && node.text === "Close deals [[2× faster]]"));
+});

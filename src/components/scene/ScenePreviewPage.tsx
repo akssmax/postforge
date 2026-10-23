@@ -8,18 +8,16 @@ import { composeScene, SCENE_COMPOSITIONS } from "@/lib/scene/compositions";
 import { sceneFromDesign } from "@/lib/scene/fromDesign";
 import { attachBlocks, streamComposeScene, type ComposeStreamEvent } from "@/lib/scene/compose/client";
 import type { BrandColors } from "@/lib/brand/types";
+import { resizeScene, SCENE_SIZES } from "@/lib/scene/sizes";
+import { captureScenePng, copyScenePng, sceneFileName, withOffscreenScenes, zipFiles } from "@/lib/scene/export";
+import { downloadBlob } from "@/lib/social-tool/exportPost";
 import type { SceneDocument } from "@/lib/scene/schema";
 import { catalogLayoutRef } from "@/lib/social-tool/layoutAdapter";
 import { POST_LAYOUTS, type PostLayoutId } from "@/lib/social-tool/postLayouts";
 import { buildDefaultUiContent } from "@/lib/social-tool/visualBlocks/content";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 
-const SIZES = [
-  { id: "square", label: "Square 1:1", width: 1080, height: 1080 },
-  { id: "portrait", label: "Portrait 4:5", width: 1080, height: 1350 },
-  { id: "story", label: "Story 9:16", width: 1080, height: 1920 },
-  { id: "landscape", label: "Landscape", width: 1200, height: 627 },
-] as const;
+const SIZES = SCENE_SIZES;
 
 const SAMPLE_BLOCK: VisualBlockRecord = {
   id: "sample-visual",
@@ -165,6 +163,54 @@ function ComposePanel({ size }: { size: (typeof SIZES)[number] }) {
   }
 
   const scene = state.scene ? attachBlocks(state.scene, state.blocks) : null;
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [exportMessage, setExportMessage] = useState("");
+  const previewRoot = () => previewRef.current?.querySelector<HTMLElement>("[data-scene-root]") ?? null;
+
+  async function runExport(label: string, task: () => Promise<string>) {
+    setExportMessage(`${label}…`);
+    try {
+      setExportMessage(await task());
+    } catch (error) {
+      setExportMessage(`${label} failed: ${error instanceof Error ? error.message : "try again"}`);
+    }
+  }
+
+  const exportPng = () =>
+    runExport("Exporting PNG", async () => {
+      const root = previewRoot();
+      if (!root || !scene) throw new Error("nothing to export yet");
+      downloadBlob(await captureScenePng(root, scene), sceneFileName(scene, "", "png"));
+      return "PNG downloaded.";
+    });
+
+  const copyPng = () =>
+    runExport("Copying", async () => {
+      const root = previewRoot();
+      if (!root || !scene) throw new Error("nothing to copy yet");
+      await copyScenePng(root, scene);
+      return "Image copied. Paste it anywhere.";
+    });
+
+  const exportAllSizes = () =>
+    runExport("Rendering every size", async () => {
+      if (!scene || !state.colors) throw new Error("nothing to export yet");
+      const colors = state.colors;
+      const sized = SCENE_SIZES.map((entry) => resizeScene(scene, entry));
+      const files = await withOffscreenScenes(
+        sized.map((item) => ({ scene: item, colors, logo: { svgMarkup: SAMPLE_LOGO }, blocks: state.blocks })),
+        async (roots) => {
+          const out: Array<{ name: string; blob: Blob }> = [];
+          for (const [index, root] of roots.entries()) {
+            out.push({ name: sceneFileName(sized[index]!, SCENE_SIZES[index]!.id, "png"), blob: await captureScenePng(root, sized[index]!) });
+          }
+          return out;
+        },
+      );
+      downloadBlob(await zipFiles(files), sceneFileName(scene, "all-sizes", "zip"));
+      return `${files.length} sizes downloaded as a ZIP.`;
+    });
+
   return (
     <section aria-labelledby="compose-heading" style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
       <form
@@ -199,14 +245,34 @@ function ComposePanel({ size }: { size: (typeof SIZES)[number] }) {
         </div>
       </form>
       {scene && state.colors ? (
-        <div data-compose-preview={state.status} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}>
-          <SceneRenderer
-            scene={scene}
-            scale={420 / Math.max(scene.size.width, scene.size.height)}
-            colors={state.colors}
-            logo={{ svgMarkup: SAMPLE_LOGO }}
-            blocks={state.blocks}
-          />
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div ref={previewRef} data-compose-preview={state.status} style={{ borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.12)", alignSelf: "flex-start" }}>
+            <SceneRenderer
+              scene={scene}
+              scale={420 / Math.max(scene.size.width, scene.size.height)}
+              colors={state.colors}
+              logo={{ svgMarkup: SAMPLE_LOGO }}
+              blocks={state.blocks}
+            />
+          </div>
+          <div role="group" aria-label="Export" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {[
+              { label: "Download PNG", run: exportPng },
+              { label: "Copy image", run: copyPng },
+              { label: "All sizes (.zip)", run: exportAllSizes },
+            ].map((action) => (
+              <button
+                key={action.label}
+                type="button"
+                disabled={busy}
+                onClick={() => void action.run()}
+                style={{ padding: "6px 12px", borderRadius: 999, border: "1px solid #c8ccd4", background: "transparent", cursor: "pointer" }}
+              >
+                {action.label}
+              </button>
+            ))}
+            <span role="status" aria-live="polite" data-export-status style={{ fontSize: 13, opacity: 0.8 }}>{exportMessage}</span>
+          </div>
         </div>
       ) : null}
     </section>

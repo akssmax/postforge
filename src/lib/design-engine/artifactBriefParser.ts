@@ -230,24 +230,76 @@ export function parseProposalCoverBrief(brief: string): PostCopy | null {
   };
 }
 
+const CTA_PATTERN =
+  /\b(book (?:a|your) (?:demo|call|seat|table)|book now|order (?:now|today)|shop (?:now|the sale)|sign up(?: today| now| free)?|start (?:your )?free trial|get started|learn more|register(?: now| today)?|apply(?: now| today)?|join (?:us|now|the waitlist|today)|download(?: now)?|try (?:it )?(?:free|now)|reserve (?:your )?(?:seat|spot|table)|rsvp|subscribe(?: now)?|contact us|buy now|claim (?:your )?(?:offer|discount|spot))\b/i;
+
+/** Format prefixes like "LinkedIn ad for Acme analytics:" — the product name follows "for". */
+const FORMAT_PREFIX =
+  /^(?:please\s+)?(?:create|make|design|write)?\s*(?:an?\s+)?(?:[\w-]+\s+){0,3}?(?:ad|post|story|banner|carousel|flyer|poster|announcement|graphic|creative)\s+(?:for|about)\s+([^:.—–]+?)\s*[:.—–]\s*(.*)$/i;
+
+/** "LinkedIn ad announcing our AI-native CRM" — the message follows the verb. */
+const FORMAT_VERB_PREFIX =
+  /^(?:please\s+)?(?:create|make|design|write)?\s*(?:an?\s+)?(?:[\w-]+\s+){0,3}?(?:ad|post|story|banner|carousel|flyer|poster|graphic|creative)\s+(?:announcing|introducing|launching|promoting|celebrating)\s+(?:our\s+|the\s+)?(.*)$/i;
+
+const ACCENT_PHRASE = /(\d+(?:[.,]\d+)?\s?(?:×|x|%)(?:\s+(?:off|faster|more|less|cheaper|better|growth|savings?))?)/i;
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * Deterministic copy from a free-text brief (no AI): headline from the first
+ * clause, a number phrase as the accent, the CTA from imperative phrases and the
+ * remaining sentences as the subheading. Uses only words from the brief.
+ */
+export function copyFromFreeTextBrief(brief: string): { heading?: string; subheading?: string; cta?: string } {
+  const text = brief.replace(/\s+/g, " ").trim();
+  if (!text) return {};
+  const prefixed = text.match(FORMAT_PREFIX);
+  const verbPrefixed = prefixed ? null : text.match(FORMAT_VERB_PREFIX);
+  const product = prefixed?.[1]?.trim();
+  const body = (prefixed ? prefixed[2] : verbPrefixed ? verbPrefixed[1] : text) ?? "";
+  const ctaMatch = body.match(CTA_PATTERN);
+  const cta = ctaMatch ? capitalize(ctaMatch[0]) : undefined;
+  const sentences = body
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence && !(ctaMatch && sentence.replace(/[.!?]+$/, "").trim().toLowerCase() === ctaMatch[0].toLowerCase()));
+  const first = sentences[0]?.replace(/[.!?]+$/, "").trim();
+  if (!first) return { cta, subheading: product };
+
+  let heading = first;
+  let lead = "";
+  if (heading.split(" ").length > 8) {
+    const [clause, ...rest] = heading.split(/,\s*|\s+with\s+|\s+[—–]\s+/);
+    heading = clause ?? heading;
+    lead = rest.join(", ");
+  }
+  heading = capitalize(heading.replace(ACCENT_PHRASE, "[[$1]]"));
+  const subheading = [lead && capitalize(lead) + ".", ...sentences.slice(1)].filter(Boolean).join(" ").trim() || product;
+  return { heading, subheading, cta };
+}
+
 export function parseSocialAdBrief(brief: string): PostCopy | null {
   const lower = brief.toLowerCase();
   if (!lower.includes("linkedin") && !lower.includes("instagram") && !lower.includes(" ad")) {
     return null;
   }
+  const free = copyFromFreeTextBrief(brief);
+  const cta = extractMarkdownField(brief, ["CTA", "Call to action"]) ?? free.cta ?? "Start free trial";
   return {
     heading:
       extractMarkdownField(brief, ["Headline", "Title", "Benefit"]) ??
+      free.heading ??
       "Ship campaigns 10× faster",
     subheading:
       extractMarkdownField(brief, ["Subheading", "Subline", "Proof"]) ??
-      "One workspace for briefs, variants, and on-brand exports.",
+      // Copy read from the brief beats an unrelated template line, even when empty.
+      (free.heading ? (free.subheading ?? "") : "One workspace for briefs, variants, and on-brand exports."),
     extraFields: [
-      {
-        id: "extras-footer",
-        label: "CTA",
-        value: extractMarkdownField(brief, ["CTA", "Call to action"]) ?? "Start free trial",
-      },
+      { id: "extras-footer", label: "CTA", value: cta },
+      // Button-CTA layouts read the cta-primary slot.
+      { id: "cta-primary", label: "CTA", value: cta },
     ],
   };
 }
