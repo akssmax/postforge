@@ -114,12 +114,40 @@ function kindIntentBonus(
   return bonus;
 }
 
+type MatchContext = { phrase: string; tokens: string[] };
+
+/** Ranking sorts thousands of patterns against one input; tokenize it once. */
+const matchContextCache = new WeakMap<VisualBlockGenerateInput, MatchContext>();
+
+function matchContext(input: VisualBlockGenerateInput): MatchContext {
+  const cached = matchContextCache.get(input);
+  if (cached) return cached;
+  const haystack = buildMatchHaystack(input);
+  const context = {
+    // Space-padded word sequence so tags match whole words only ("ai" must not match "email").
+    phrase: ` ${haystack.split(/[^a-z0-9]+/).filter(Boolean).join(" ")} `,
+    tokens: tokenize(haystack),
+  };
+  matchContextCache.set(input, context);
+  return context;
+}
+
+function phraseContains(phrase: string, tag: string): boolean {
+  const words = tag.split(/[^a-z0-9]+/).filter(Boolean).join(" ");
+  return words.length > 0 && phrase.includes(` ${words} `);
+}
+
+/** Loose stem match ("analytic" ~ "analytics"); short tags must match exactly. */
+function stemMatch(a: string, b: string): boolean {
+  if (a.length < 4 || b.length < 4) return false;
+  return a.startsWith(b) || b.startsWith(a);
+}
+
 export function scoreVisualPattern(
   pattern: VisualLibraryPattern,
   input: VisualBlockGenerateInput,
 ): number {
-  const haystack = buildMatchHaystack(input);
-  const tokens = tokenize(haystack);
+  const { phrase, tokens } = matchContext(input);
   let score = kindIntentBonus(pattern.kind, input.intent);
 
   const preferredKind = resolvePreferredVisualKind(input);
@@ -140,7 +168,7 @@ export function scoreVisualPattern(
     const normalized = tag.toLowerCase();
     if (META_TAGS.has(normalized)) continue;
 
-    if (haystack.includes(normalized)) {
+    if (phraseContains(phrase, normalized)) {
       score += 6;
       intentTagHits += 1;
     }
@@ -149,7 +177,7 @@ export function scoreVisualPattern(
       if (normalized === token) {
         score += 4;
         intentTagHits += 1;
-      } else if (normalized.includes(token) || token.includes(normalized)) {
+      } else if (stemMatch(normalized, token)) {
         score += 1;
       }
     }
@@ -159,10 +187,13 @@ export function scoreVisualPattern(
   const description = pattern.description.toLowerCase();
   const id = pattern.id.toLowerCase();
 
+  const labelWords = ` ${label.split(/[^a-z0-9]+/).filter(Boolean).join(" ")} `;
+  const descriptionWords = ` ${description.split(/[^a-z0-9]+/).filter(Boolean).join(" ")} `;
+  const idWords = ` ${id.split(/[^a-z0-9]+/).filter(Boolean).join(" ")} `;
   for (const token of tokens) {
-    if (label.includes(token)) score += 3;
-    if (description.includes(token)) score += 2;
-    if (id.includes(token)) score += 2;
+    if (labelWords.includes(` ${token} `)) score += 3;
+    if (descriptionWords.includes(` ${token} `)) score += 2;
+    if (idWords.includes(` ${token} `)) score += 2;
   }
 
   if (

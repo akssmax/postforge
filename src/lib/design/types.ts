@@ -85,6 +85,8 @@ export type DesignDocument = {
   canvasSpec?: CanvasSpec;
   bundleId?: string;
   platformReason?: string;
+  /** Campaign-plan signals for featured visual picks, set when an AI plan is applied. */
+  visualSemantic?: VisualSemanticContext;
   /** Decorative shapes with absolute canvas positioning (max 3). */
   canvasShapes?: CanvasShapeRecord[];
   /** Lucide icons with absolute canvas positioning (max 5). */
@@ -104,3 +106,16 @@ export type DesignSessionPersisted = {
 };
 
 export const DESIGN_SESSION_VERSION = 1 as const;
+
+export type VisualSemanticContext = {
+  campaignType?: string;
+  recipeId?: string;
+  patternId?: string;
+  designSystemId?: string;
+  contentDensity?: "low" | "medium" | "high";
+  readingPattern?: "F" | "Z" | "center";
+  colorMood?: string;
+  brandTone?: string;
+  proof?: string;
+  keywords?: string[];
+};

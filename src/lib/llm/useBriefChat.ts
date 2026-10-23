@@ -21,6 +21,7 @@ import {
 import { validatedPlanFromBriefResult } from "@/lib/llm/briefResultAdapter";
 import { isBriefChatOfflineError } from "@/lib/llm/streamErrors";
 import { runDesignPipelineOffline } from "@/lib/llm/stages/pipelineOrchestratorOffline";
+import { visualContextFromPipeline } from "@/lib/llm/stages/visualContext";
 import { runCanvasAgentOffline } from "@/lib/llm/stages/canvasAgentOffline";
 import type { DesignSnapshot } from "@/lib/llm/schemas/designSnapshot";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
@@ -387,7 +388,7 @@ export function useBriefChat({
             platformReason: pipeline.platformReason,
             bundleId: pipeline.bundleId,
             assumedBrandColors: hasLogo ? undefined : offlineBrandContext.brandColors,
-            decorationLevel: pipeline.campaignPlan.visual.decorationLevel,
+            ...visualContextFromPipeline(pipeline),
             designId,
             brandColors: hasLogo
               ? {

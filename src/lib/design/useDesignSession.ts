@@ -66,6 +66,7 @@ import type {
   DesignDocument,
   DesignOnboardingPhase,
   DesignSessionPersisted,
+  VisualSemanticContext,
 } from "@/lib/design/types";
 import {
   defaultBackgroundPresetIdForColors,
@@ -154,6 +155,8 @@ function visualBlockPickPayload(
     theme?: string;
     brief?: string;
     preferredKind?: "ui" | "illustration" | "3d";
+    /** Campaign-plan context; defaults to the one saved on the document. */
+    visualSemantic?: VisualSemanticContext;
   },
 ) {
   const headline = input?.headline ?? session.document.copy.heading;
@@ -167,9 +170,27 @@ function visualBlockPickPayload(
       artifactCategory: session.document.artifactCategory,
     });
 
-  // Derive semantic pick context from brief (campaign-first block retrieval)
+  // Prefer the applied campaign plan's context; derive it offline from copy only as a fallback.
+  const planned = input?.visualSemantic ?? session.document.visualSemantic;
   let semantic: VisualBlockGenerateInput["semantic"];
-  try {
+  if (planned) {
+    semantic = {
+      campaignType: planned.campaignType,
+      recipeId: planned.recipeId,
+      patternId: planned.patternId,
+      designSystemId: planned.designSystemId,
+      contentDensity: planned.contentDensity,
+      readingPattern: planned.readingPattern,
+      colorMood: planned.colorMood,
+      brandTone: planned.brandTone,
+      featuredKind: featuredVisualKind,
+      proof: planned.proof,
+      platformId: session.document.platformId,
+      artifactId: session.document.artifactId,
+      artifactCategory: session.document.artifactCategory,
+      bundleId: session.document.bundleId,
+    };
+  } else try {
     const plan = campaignPlanFromBrief(brief, session.document.platformId);
     const system = retrieveDesignSystem(plan);
     const { recipe, pattern } = resolveRecipe(plan, system);
@@ -212,6 +233,7 @@ function visualBlockPickPayload(
     intent: {
       ...buildVisualPickIntentFromText(headline, subheading, theme, brief),
       featuredVisualKind,
+      ...(planned?.keywords?.length ? { themes: planned.keywords } : {}),
     },
     semantic,
   };
@@ -1014,13 +1036,15 @@ export function useDesignSession(
         plan.featuredSlots.some(
           (slot) => slot.visible && slot.mode === "composed",
         );
-      const featuredVisualKind = inferFeaturedVisualKind(
+      // The campaign plan already chose the visual kind; regex inference is the fallback.
+      const featuredVisualKind = options?.featuredVisualKind ?? inferFeaturedVisualKind(
         [plan.copy.heading, plan.copy.subheading, plan.rationale].filter(Boolean).join(" "),
         {
           artifactCategory:
             options?.artifactCategory ?? sessionRef.current?.document.artifactCategory,
         },
       );
+      const visualSemantic = options?.visualSemantic;
 
       updateSession((prev) => {
         const applied = applyDesignPlanToSession(plan, prev.document, {
@@ -1034,7 +1058,7 @@ export function useDesignSession(
             .join(" "),
         });
         const document = withLogoAwareShowBrand(
-          { ...prev.document, ...applied.document, featuredVisualKind },
+          { ...prev.document, ...applied.document, featuredVisualKind, visualSemantic },
           prev.brand,
         );
         if (applied.featuredImageSrc) {
@@ -1080,6 +1104,7 @@ export function useDesignSession(
                   .filter(Boolean)
                   .join(" "),
                 preferredKind: featuredVisualKind,
+                visualSemantic,
               }),
               pickFeatured: true,
               source: "library",
