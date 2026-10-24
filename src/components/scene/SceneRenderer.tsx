@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createContext, createElement, useContext, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { VisualBlockRenderer } from "@/components/social-tool/visualBlocks/VisualBlockRenderer";
 import { SceneShader } from "@/components/scene/SceneShader";
 import { motionStyle } from "@/lib/scene/motion";
@@ -332,17 +332,17 @@ function SceneNodeView({ node, theme }: { node: SceneNode; theme: Theme }) {
     case "button": return <SceneButton node={node} theme={theme} />;
     case "spacer": return <div aria-hidden style={{ flex: `${node.grow} 1 0` }} />;
     case "icon": {
-      const Icon = resolveLucideIcon(node.name);
+      const icon = resolveLucideIcon(node.name);
       const size = { sm: 4, md: 6, lg: 9 }[node.size] * theme.unit;
-      return Icon ? (
-        <Icon
+      // createElement on the static registry entry: the icon component isn't created during render.
+      return icon ? (
+        <span
           data-scene-node={node.id}
           aria-hidden
-          width={size}
-          height={size}
-          strokeWidth={2}
-          style={{ flex: "0 0 auto", color: color(theme, ink, node.color) ?? theme.colors.accent, alignSelf: node.align ? ALIGN[node.align] : undefined, ...motionStyle(node.motion, theme.time, theme.unit) }}
-        />
+          style={{ display: "inline-flex", flex: "0 0 auto", color: color(theme, ink, node.color) ?? theme.colors.accent, alignSelf: node.align ? ALIGN[node.align] : undefined, ...motionStyle(node.motion, theme.time, theme.unit) }}
+        >
+          {createElement(icon, { width: size, height: size, strokeWidth: 2 })}
+        </span>
       ) : null;
     }
     case "pattern":
