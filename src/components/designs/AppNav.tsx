@@ -10,13 +10,17 @@ import { createDesignId } from "@/lib/design/ids";
 
 const NAV_LINKS = [
   { label: "Designs", href: "/designs" },
-  { label: "Design system", href: "/design-system" },
+  { label: "Canvas", href: "/canvas" },
+  { label: "Design systems", href: "/canvas/systems" },
+  { label: "UI style guide", href: "/design-system" },
   { label: "Home", href: "/" },
 ] as const;
 
 function isActivePath(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(`${href}/`);
+  const matches = (candidate: string) => pathname === candidate || pathname.startsWith(`${candidate}/`);
+  // A more specific link wins (/canvas/systems over /canvas).
+  return matches(href) && !NAV_LINKS.some((link) => link.href.length > href.length && link.href.startsWith(href) && matches(link.href));
 }
 
 type NavLinkProps = {

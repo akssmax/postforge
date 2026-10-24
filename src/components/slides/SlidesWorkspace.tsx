@@ -12,7 +12,12 @@ import {
   Type,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Button, Label, TextArea, TextField } from "@heroui/react";
+import { Button, Label, TextArea, TextField, Tooltip } from "@heroui/react";
+import { LayoutTemplate } from "lucide-react";
+import { canvasFromDeck } from "@/lib/canvas/convert";
+import { DEFAULT_CANVAS_BRAND } from "@/lib/canvas/blank";
+import { saveCanvasRecord } from "@/lib/canvas/localStore";
+import { loadBrandKitPersisted } from "@/lib/brand/storage";
 import "@/components/social-tool/social-tool.css";
 import {
   DesignToolHeader,
@@ -253,6 +258,26 @@ export function SlidesWorkspace({ deckId: _deckId }: Props = {}) {
   return (
     <div className="social-tool slides-workspace flex flex-col">
       <DesignToolHeader>
+        <Tooltip delay={500}>
+          <Tooltip.Trigger>
+            <Button
+              variant="secondary"
+              isIconOnly
+              aria-label="Open in canvas"
+              onPress={async () => {
+                const design = canvasFromDeck(deck, { ...DEFAULT_CANVAS_BRAND, colors: loadBrandKitPersisted().colors }, "Slides");
+                await saveCanvasRecord({ design, blocks: [] });
+                window.location.assign(`/canvas/${design.id}`);
+              }}
+            >
+              <LayoutTemplate className="size-4" strokeWidth={2.25} aria-hidden />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content placement="bottom" offset={8}>
+            <p className="layout-shuffle-tooltip-title">Open in canvas</p>
+            <p className="layout-shuffle-tooltip-body">Copy this deck into the multi-artboard canvas editor</p>
+          </Tooltip.Content>
+        </Tooltip>
         <div ref={exportMenuRef} className="relative">
           <Button
             variant="primary"

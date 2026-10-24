@@ -25,6 +25,7 @@ import { loadFromCloud, useCloudSync } from "@/lib/canvas/useCloudSync";
 import { CanvasCloudControls } from "@/components/canvas/CanvasCloudControls";
 import { exportScenesPdf, sceneFileName, withOffscreenScenes, zipFiles, captureScenePng } from "@/lib/scene/export";
 import { exportSceneVideo } from "@/lib/scene/video";
+import { copyDesignToFigma, exportCodeZip, exportPptx } from "@/lib/handoff/exporters";
 import { downloadBlob } from "@/lib/social-tool/exportPost";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 
@@ -84,15 +85,17 @@ function ExportMenu({ design, artboard, blocks }: { design: CanvasDesign; artboa
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const boards = allArtboards(design);
   const base = slug(design.title);
 
   const run = async (label: string, action: () => Promise<void>) => {
     setBusy(label);
     setError(null);
+    setNotice(null);
     try {
       await action();
-      setOpen(false);
+      if (label !== "figma") setOpen(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Export failed.");
     } finally {
@@ -136,6 +139,28 @@ function ExportMenu({ design, artboard, blocks }: { design: CanvasDesign; artboa
         ),
     },
     {
+      id: "code",
+      label: "Code · HTML + React (zip)",
+      action: async () => downloadBlob(await exportCodeZip(design, blocks), `${base}-code.zip`),
+    },
+    {
+      id: "pptx",
+      label: "PowerPoint · editable text (.pptx)",
+      action: async () => downloadBlob(await exportPptx(design, blocks), `${base}.pptx`),
+    },
+    {
+      id: "figma",
+      label: "Copy to Figma",
+      action: async () => {
+        const result = await copyDesignToFigma(design, blocks);
+        if (!result.ok) {
+          result.download?.();
+          throw new Error(result.message);
+        }
+        setNotice(`Copied ${result.frames} frame${result.frames === 1 ? "" : "s"}. Paste in Figma.`);
+      },
+    },
+    {
       id: "webm",
       label: "Selected artboard · Video (WebM)",
       disabled: !artboard,
@@ -166,6 +191,11 @@ function ExportMenu({ design, artboard, blocks }: { design: CanvasDesign; artboa
             </Button>
           ))}
           {error ? <p className="px-2 pt-1 text-xs text-danger">{error}</p> : null}
+          {notice ? (
+            <p role="status" className="px-2 pt-1 text-xs text-text-secondary">
+              {notice}
+            </p>
+          ) : null}
         </Popover.Dialog>
       </Popover.Content>
     </Popover>
