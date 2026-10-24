@@ -88,3 +88,18 @@ test("coalesced slider steps undo to the state before the drag", () => {
   assert.equal(undone.design.pages[0]!.artboards[0]!.scene.typeScale, original.pages[0]!.artboards[0]!.scene.typeScale);
   assert.equal(redo(undone.design, undone.history)!.design.pages[0]!.artboards[0]!.scene.typeScale, 1.5);
 });
+
+test("rebasing keeps unsent ops that still fit and drops ones whose target is gone", async () => {
+  const { applyLenient } = await import("@/lib/canvas/useCloudSync");
+  const base = blankCanvasDesign();
+  const artboardId = base.pages[0]!.artboards[0]!.id;
+  // Someone else deleted the subheading on the server.
+  const server = applyOps(base, [{ op: "remove", artboardId, nodeId: "subheading" }]).design;
+  const pending = [
+    { op: "set" as const, artboardId, nodeId: "subheading", path: "text", value: "Lost edit" },
+    { op: "set" as const, artboardId, nodeId: "headline", path: "text", value: "Kept edit" },
+  ];
+  const rebased = applyLenient(server, pending);
+  assert.deepEqual(rebased.kept, [pending[1]]);
+  assert.equal((locateNode(rebased.design.pages[0]!.artboards[0]!.scene, "headline")!.node as { text: string }).text, "Kept edit");
+});

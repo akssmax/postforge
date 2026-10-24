@@ -34,7 +34,33 @@ OPENROUTER_MODEL=openai/gpt-4o-mini
 OpenRouter is preferred when configured. Existing `MISTRAL_API_KEY` and
 `MISTRAL_MODEL` settings remain supported as a fallback.
 
+## Cloud sync (optional)
+
+Canvas designs (`/canvas`) always save on the device. With a database and
+sign-in configured they also sync to Postgres, open on other devices, and can
+be shared by link (view, comment or edit) with saved versions.
+
+```bash
+# Neon connection string (any other Postgres URL also works, over TCP)
+DATABASE_URL=postgres://user:pass@ep-example.neon.tech/postforge?sslmode=require
+# Auth.js: `npx auth secret` generates one
+AUTH_SECRET=...
+# One or more sign-in providers
+AUTH_GITHUB_ID=...
+AUTH_GITHUB_SECRET=...
+AUTH_GOOGLE_ID=...
+AUTH_GOOGLE_SECRET=...
+# Local development only: passwordless sign-in by email (ignored in production)
+AUTH_DEV_LOGIN=1
+```
+
+Create the tables with `npm run db:migrate`. `TEST_DATABASE_URL=… npm run test:db`
+runs the store's integration tests against a throwaway database (its tables are
+dropped). `e2e/canvas-cloud.spec.ts` runs when the server has cloud sync and
+`AUTH_DEV_LOGIN=1`.
+
 ## Routes
 
 - `/` — product landing
 - `/tool` — design tool (social posts + slides)
+- `/canvas` — multi-artboard canvas designs; `/canvas/[id]` is the editor

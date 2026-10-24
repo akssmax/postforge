@@ -27,6 +27,8 @@ export const canvasOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("renameArtboard"), artboardId: z.string(), name: z.string().max(80) }),
   z.object({ op: z.literal("addPage"), index: z.number().int().min(0), page: z.unknown() }),
   z.object({ op: z.literal("removePage"), pageId: z.string() }),
+  /** Swap every page at once (restoring a version). */
+  z.object({ op: z.literal("replacePages"), pages: z.unknown() }),
   /** Design-level fields: "title", "brand.colors.accent", "systemId". */
   z.object({ op: z.literal("setDesign"), path: z.string(), value: z.unknown() }),
 ]);
@@ -227,6 +229,10 @@ export function applyOp(design: CanvasDesign, rawOp: CanvasOp): AppliedOp {
       if (index < 0) throw new CanvasOpError(`No page ${op.pageId}`);
       if (design.pages.length === 1) throw new CanvasOpError("A design needs at least one page");
       return { design: touched({ ...design, pages: design.pages.filter((page) => page.id !== op.pageId) }), inverse: [{ op: "addPage", index, page: design.pages[index] }] };
+    }
+    case "replacePages": {
+      const pages = z.array(pageSchema).min(1).parse(op.pages);
+      return { design: touched({ ...design, pages }), inverse: [{ op: "replacePages", pages: design.pages }] };
     }
     case "setDesign": {
       if (!DESIGN_PATHS.test(op.path)) throw new CanvasOpError(`"${op.path}" is not a design field`);

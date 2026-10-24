@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRightLeft, Plus, Trash2 } from "lucide-react";
 import { CanvasIconButton } from "@/components/canvas/CanvasIconButton";
+import { cloud, fetchCloudStatus, type CloudStatus } from "@/lib/canvas/cloud";
 import { deleteCanvasRecord, listCanvasSummaries, type CanvasSummary } from "@/lib/canvas/localStore";
 import { designRepository, type DesignSummary } from "@/lib/design/repository";
 
@@ -15,6 +16,23 @@ function formatDate(ms: number) {
 export function CanvasHome() {
   const [designs, setDesigns] = useState<CanvasSummary[] | null>(null);
   const [legacy, setLegacy] = useState<DesignSummary[]>([]);
+  const [remote, setRemote] = useState<Array<{ id: string; title: string; updatedAt: string }>>([]);
+  const [account, setAccount] = useState<CloudStatus | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCloudStatus().then(async (status) => {
+      if (cancelled) return;
+      setAccount(status);
+      if (status.enabled && status.user) {
+        const list = await cloud.list().catch(() => []);
+        if (!cancelled) setRemote(list);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const refresh = useCallback(
     () =>
@@ -45,10 +63,23 @@ export function CanvasHome() {
             <h1 className="text-xl font-semibold">Canvas</h1>
             <p className="text-sm text-text-secondary">Multi-artboard designs: posts, sizes, carousels and slides in one place.</p>
           </div>
+          <div className="flex items-center gap-3">
+          {account?.enabled ? (
+            account.user ? (
+              <Link prefetch={false} href="/api/auth/signout" className="text-sm text-text-secondary hover:underline">
+                Sign out {account.user.email ?? account.user.name ?? ""}
+              </Link>
+            ) : (
+              <Link prefetch={false} href="/api/auth/signin?callbackUrl=%2Fcanvas" className="text-sm text-text-secondary hover:underline">
+                Sign in to sync
+              </Link>
+            )
+          ) : null}
           <Link href="/canvas/new" className="inline-flex items-center gap-1.5 rounded-lg bg-surface-invert px-3 py-2 text-sm font-medium text-white">
             <Plus className="size-4" strokeWidth={2} aria-hidden />
             New design
           </Link>
+          </div>
         </header>
 
         <section className="space-y-3">
@@ -79,6 +110,26 @@ export function CanvasHome() {
             </ul>
           )}
         </section>
+
+        {(() => {
+          const onDevice = new Set((designs ?? []).map((design) => design.id));
+          const elsewhere = remote.filter((design) => !onDevice.has(design.id));
+          return elsewhere.length ? (
+            <section className="space-y-3">
+              <h2 className="social-tool-section-title">In your account</h2>
+              <ul className="divide-y divide-overlay-border overflow-hidden rounded-xl border border-overlay-border bg-surface-primary" data-cloud-list>
+                {elsewhere.map((design) => (
+                  <li key={design.id} className="px-4 py-3">
+                    <Link href={`/canvas/${design.id}`} className="block">
+                      <p className="truncate text-sm font-medium">{design.title}</p>
+                      <p className="text-xs text-text-tertiary">Saved in the cloud · edited {formatDate(Date.parse(design.updatedAt))}</p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null;
+        })()}
 
         {legacy.length ? (
           <section className="space-y-3">

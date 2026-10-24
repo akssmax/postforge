@@ -3,6 +3,7 @@ import { CanvasEditor } from "@/components/canvas/CanvasEditor";
 
 type Props = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
 export const metadata: Metadata = {
@@ -10,7 +11,8 @@ export const metadata: Metadata = {
   description: "Edit a multi-artboard design.",
 };
 
-export default async function CanvasDesignPage({ params }: Props) {
+export default async function CanvasDesignPage({ params, searchParams }: Props) {
   const { id } = await params;
-  return <CanvasEditor designId={id} />;
+  const { share } = await searchParams;
+  return <CanvasEditor designId={id} shareToken={typeof share === "string" ? share : null} />;
 }

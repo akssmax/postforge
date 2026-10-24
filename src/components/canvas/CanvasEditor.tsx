@@ -13,6 +13,8 @@ import { allArtboards, createId, findArtboard, type Artboard, type CanvasDesign 
 import { cloneWithNewIds } from "@/lib/canvas/nodes";
 import { locateNode, type CanvasOp } from "@/lib/canvas/ops";
 import { useCanvasEditor, type CanvasEditor as Editor } from "@/lib/canvas/useCanvasEditor";
+import { loadFromCloud, useCloudSync } from "@/lib/canvas/useCloudSync";
+import { CanvasCloudControls } from "@/components/canvas/CanvasCloudControls";
 import { exportScenesPdf, sceneFileName, withOffscreenScenes, zipFiles, captureScenePng } from "@/lib/scene/export";
 import { exportSceneVideo } from "@/lib/scene/video";
 import { downloadBlob } from "@/lib/social-tool/exportPost";
@@ -200,8 +202,18 @@ function ArtboardView({
   );
 }
 
-export function CanvasEditor({ designId }: { designId: string }) {
-  const editor = useCanvasEditor(designId);
+export function CanvasEditor({ designId, shareToken = null }: { designId: string; shareToken?: string | null }) {
+  const commitRef = useRef<((ops: CanvasOp[]) => void) | null>(null);
+  const readOnlyRef = useRef(false);
+  const onCommit = useCallback((ops: CanvasOp[]) => commitRef.current?.(ops), []);
+  const fallbackLoad = useCallback(() => loadFromCloud(designId, shareToken), [designId, shareToken]);
+  const isReadOnly = useCallback(() => readOnlyRef.current, []);
+  const editor = useCanvasEditor(designId, { onCommit, fallbackLoad, isReadOnly });
+  const sync = useCloudSync({ designId, shareToken, editor, commitRef });
+  const readOnly = sync.role === "view" || sync.role === "comment";
+  useEffect(() => {
+    readOnlyRef.current = readOnly;
+  }, [readOnly]);
   const { design, blocks, selection, setSelection, dispatch } = editor;
   const [zoom, setZoom] = useState("fit");
   const inspectorRef = useRef<HTMLElement>(null);
@@ -348,6 +360,7 @@ export function CanvasEditor({ designId }: { designId: string }) {
               {editor.lastError}
             </p>
           ) : null}
+          <CanvasCloudControls designId={design.id} sync={sync} dispatch={dispatch} />
           <CanvasIconButton label={playback.playing ? "Stop preview" : "Play motion"} icon={playback.playing ? Pause : Play} isDisabled={!artboard} onPress={playback.toggle} />
           <div className="w-24">
             <InspectorSelect label="Zoom" hideLabel value={zoom} options={ZOOMS} onChange={setZoom} />
@@ -402,7 +415,11 @@ export function CanvasEditor({ designId }: { designId: string }) {
           </div>
         </main>
         <aside ref={inspectorRef} data-canvas-inspector className="w-80 shrink-0 overflow-y-auto border-l border-overlay-border bg-surface-primary">
-          {artboard ? (
+          {readOnly ? (
+            <p className="px-4 py-6 text-sm text-text-tertiary" data-canvas-readonly>
+              {sync.role === "comment" ? "You can comment on this design but not edit it." : "You can view this design but not edit it."}
+            </p>
+          ) : artboard ? (
             <CanvasInspector
               artboard={artboard}
               nodeId={selection?.nodeId ?? null}

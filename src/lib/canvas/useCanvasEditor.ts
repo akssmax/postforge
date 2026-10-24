@@ -40,6 +40,17 @@ export type CanvasEditor = {
   applyExternal: (ops: CanvasOp[]) => boolean;
   /** Replace the whole document (e.g. after a server reload). */
   replace: (record: CanvasRecord) => void;
+  /** Swap in a rebased document but keep undo history (after a sync conflict). */
+  rebase: (design: CanvasDesign) => void;
+};
+
+export type CanvasEditorOptions = {
+  /** Receives each applied op batch, local edits and undo/redo (for server sync). */
+  onCommit?: (ops: CanvasOp[], design: CanvasDesign) => void;
+  /** Called when the design isn't on this device (e.g. opened from a share link). */
+  fallbackLoad?: () => Promise<CanvasRecord | null>;
+  /** View-only while this returns true: dispatch, undo and redo are refused. */
+  isReadOnly?: () => boolean;
 };
 
 /**
@@ -47,21 +58,27 @@ export type CanvasEditor = {
  * undo/redo replays inverse ops, and the record is saved to IndexedDB.
  * `onCommit` receives each applied op batch (for server sync).
  */
-export function useCanvasEditor(designId: string, onCommit?: (ops: CanvasOp[], design: CanvasDesign) => void): CanvasEditor {
+export function useCanvasEditor(designId: string, options: CanvasEditorOptions = {}): CanvasEditor {
+  const { onCommit, fallbackLoad, isReadOnly } = options;
   const [state, setState] = useState<EditorState | null>(null);
   const [status, setStatus] = useState<CanvasEditor["status"]>("loading");
   const [selection, setSelection] = useState<CanvasSelection>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const lastCoalesce = useRef<{ key: string; at: number } | null>(null);
   const onCommitRef = useRef(onCommit);
+  const fallbackRef = useRef(fallbackLoad);
+  const readOnlyRef = useRef(isReadOnly);
   const stateRef = useRef(state);
   useEffect(() => {
     onCommitRef.current = onCommit;
-  }, [onCommit]);
+    fallbackRef.current = fallbackLoad;
+    readOnlyRef.current = isReadOnly;
+  }, [onCommit, fallbackLoad, isReadOnly]);
 
   useEffect(() => {
     let cancelled = false;
-    void loadCanvasRecord(designId).then((record) => {
+    void loadCanvasRecord(designId).then(async (local) => {
+      const record = local ?? (await fallbackRef.current?.().catch(() => null)) ?? null;
       if (cancelled) return;
       if (!record) {
         setStatus("missing");
@@ -89,6 +106,10 @@ export function useCanvasEditor(designId: string, onCommit?: (ops: CanvasOp[], d
   const dispatch = useCallback((ops: CanvasOp[], options?: DispatchOptions) => {
     const current = stateRef.current;
     if (!current || ops.length === 0) return false;
+    if (readOnlyRef.current?.()) {
+      setLastError("This design is view-only.");
+      return false;
+    }
     try {
       const now = Date.now();
       const merge =
@@ -123,7 +144,7 @@ export function useCanvasEditor(designId: string, onCommit?: (ops: CanvasOp[], d
 
   const step = useCallback((direction: "undo" | "redo") => {
     const current = stateRef.current;
-    if (!current) return;
+    if (!current || readOnlyRef.current?.()) return;
     const result = direction === "undo" ? undoHistory(current.design, current.history) : redoHistory(current.design, current.history);
     if (!result) return;
     const next = { ...current, design: result.design, history: result.history };
@@ -152,6 +173,14 @@ export function useCanvasEditor(designId: string, onCommit?: (ops: CanvasOp[], d
     setStatus("ready");
   }, []);
 
+  const rebase = useCallback((design: CanvasDesign) => {
+    const current = stateRef.current;
+    if (!current) return;
+    const next = { ...current, design };
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
   return {
     status,
     design: state?.design ?? null,
@@ -167,5 +196,6 @@ export function useCanvasEditor(designId: string, onCommit?: (ops: CanvasOp[], d
     lastError,
     applyExternal,
     replace,
+    rebase,
   };
 }
