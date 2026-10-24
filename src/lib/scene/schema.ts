@@ -69,6 +69,8 @@ export const textNodeSchema = z.object({
   text: z.string(),
   align: z.enum(["start", "center", "end"]).optional(),
   color: colorTokenSchema.optional(),
+  /** Exact colour for imported content (slides); designs should prefer tokens. */
+  colorHex: z.string().regex(/^#[0-9a-fA-F]{3,8}$/).optional(),
   maxLines: z.number().int().min(1).max(12).optional(),
   ...sizingSchema,
 });
@@ -131,6 +133,27 @@ export const shaderNodeSchema = z.object({
   ...sizingSchema,
 });
 
+/** An icon from the app's Lucide set (see lucideRegistry). */
+export const iconNodeSchema = z.object({
+  type: z.literal("icon"),
+  id: z.string(),
+  name: z.string(),
+  size: z.enum(["sm", "md", "lg"]).default("md"),
+  color: colorTokenSchema.optional(),
+  align: z.enum(["start", "center", "end"]).optional(),
+  motion: motionSchema.optional(),
+});
+
+/** A repeating background pattern from the pattern library. */
+export const patternNodeSchema = z.object({
+  type: z.literal("pattern"),
+  id: z.string(),
+  patternId: z.string(),
+  opacity: z.number().min(0).max(1).default(0.25),
+  scale: z.number().min(0.25).max(4).default(1),
+  ...sizingSchema,
+});
+
 export const spacerNodeSchema = z.object({
   type: z.literal("spacer"),
   id: z.string(),
@@ -165,6 +188,8 @@ export type SceneNode =
   | z.infer<typeof buttonNodeSchema>
   | z.infer<typeof shapeNodeSchema>
   | z.infer<typeof shaderNodeSchema>
+  | z.infer<typeof iconNodeSchema>
+  | z.infer<typeof patternNodeSchema>
   | z.infer<typeof spacerNodeSchema>;
 
 export const frameNodeSchema: z.ZodType<FrameNode> = z.lazy(() =>
@@ -195,16 +220,39 @@ export const sceneNodeSchema: z.ZodType<SceneNode> = z.lazy(() =>
     buttonNodeSchema,
     shapeNodeSchema,
     shaderNodeSchema,
+    iconNodeSchema,
+    patternNodeSchema,
     spacerNodeSchema,
   ]),
 );
 
+/**
+ * A slider or picker the agent declares. `nodeId` + `path` address a node field
+ * (e.g. basis, style, maxLines); without `nodeId` the path is a scene field
+ * (typeScale). `kind: "token"` picks a colour token.
+ */
+export const tweakSchema = z.object({
+  id: z.string(),
+  label: z.string().max(40),
+  nodeId: z.string().optional(),
+  path: z.string().regex(/^[a-zA-Z][\w.]*$/),
+  kind: z.enum(["number", "token", "choice"]),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  step: z.number().positive().optional(),
+  options: z.array(z.string()).max(12).optional(),
+});
+export type SceneTweak = z.infer<typeof tweakSchema>;
+
 /** A node pinned over the main flow (corner visuals, badges, full-bleed backgrounds). */
 export const sceneOverlaySchema = z.object({
-  anchor: z.enum(["fill", "top-left", "top-right", "bottom-left", "bottom-right", "center"]),
+  /** "free" places the node at x/y (fractions of the artboard), for imported slides and hand placement. */
+  anchor: z.enum(["fill", "top-left", "top-right", "bottom-left", "bottom-right", "center", "free"]),
   /** Size as a share of the artboard (ignored for "fill"). */
   width: z.number().min(0).max(1).optional(),
   height: z.number().min(0).max(1).optional(),
+  x: z.number().min(-1).max(2).optional(),
+  y: z.number().min(-1).max(2).optional(),
   inset: spaceTokenSchema.optional(),
   /** Below the main flow (backgrounds) or above it (badges). */
   layer: z.enum(["below", "above"]).default("above"),
@@ -222,12 +270,16 @@ export const sceneDocumentSchema = z.object({
   background: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("brand-preset"), presetId: z.string().nullable() }),
     z.object({ kind: z.literal("color"), color: colorTokenSchema }),
+    /** A CSS background carried over from imported content. */
+    z.object({ kind: z.literal("css"), value: z.string().max(2000) }),
   ]),
   font: z.object({ heading: z.string(), body: z.string() }),
   /** Multiplier on the type scale (the editor's type-size control). */
   typeScale: z.number().min(0.5).max(2).default(1),
   /** Length of the animation in ms; 0 for a still design. */
   durationMs: z.number().min(0).max(60_000).default(0),
+  /** Controls the model declared for this design; moving one is a plain edit, no model call. */
+  tweaks: z.array(z.lazy(() => tweakSchema)).default([]),
   overlays: z.array(sceneOverlaySchema).default([]),
   root: frameNodeSchema,
 });
@@ -237,6 +289,8 @@ export type VisualNode = z.infer<typeof visualNodeSchema>;
 export type LogoNode = z.infer<typeof logoNodeSchema>;
 export type ButtonNode = z.infer<typeof buttonNodeSchema>;
 export type ShaderNode = z.infer<typeof shaderNodeSchema>;
+export type IconNode = z.infer<typeof iconNodeSchema>;
+export type PatternNode = z.infer<typeof patternNodeSchema>;
 
 /** Depth-first walk over every node, overlays included. */
 export function walkScene(scene: SceneDocument, visit: (node: SceneNode) => void): void {

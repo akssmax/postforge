@@ -4,6 +4,9 @@ import { createContext, useContext, useLayoutEffect, useRef, useState, type CSSP
 import { VisualBlockRenderer } from "@/components/social-tool/visualBlocks/VisualBlockRenderer";
 import { SceneShader } from "@/components/scene/SceneShader";
 import { motionStyle } from "@/lib/scene/motion";
+import { PostPattern } from "@/components/social-tool/PostPattern";
+import { resolveLucideIcon } from "@/lib/social-tool/icons/lucideRegistry";
+import type { PatternId } from "@/lib/social-tool/presets";
 import type { BrandColors } from "@/lib/brand/types";
 import { buildBackgroundPresets, getActiveBackgroundPreset } from "@/lib/brand/backgroundPresets";
 import { readableSubTextOnBackground, readableTextOnBackground, resolveBackgroundHex } from "@/lib/brand/contrast";
@@ -143,7 +146,7 @@ function SceneText({ node, theme }: { node: TextNode; theme: Theme }) {
         lineHeight: type.lineHeight,
         fontWeight: type.weight,
         letterSpacing: heading ? "-0.02em" : undefined,
-        color: color(theme, ink, node.color) ?? ink.text,
+        color: node.colorHex ?? color(theme, ink, node.color) ?? ink.text,
         textAlign: TEXT_ALIGN[node.align ?? "start"],
         textWrap: heading ? "balance" : "pretty",
         overflowWrap: "break-word",
@@ -328,6 +331,26 @@ function SceneNodeView({ node, theme }: { node: SceneNode; theme: Theme }) {
     case "logo": return <SceneLogo node={node} theme={theme} />;
     case "button": return <SceneButton node={node} theme={theme} />;
     case "spacer": return <div aria-hidden style={{ flex: `${node.grow} 1 0` }} />;
+    case "icon": {
+      const Icon = resolveLucideIcon(node.name);
+      const size = { sm: 4, md: 6, lg: 9 }[node.size] * theme.unit;
+      return Icon ? (
+        <Icon
+          data-scene-node={node.id}
+          aria-hidden
+          width={size}
+          height={size}
+          strokeWidth={2}
+          style={{ flex: "0 0 auto", color: color(theme, ink, node.color) ?? theme.colors.accent, alignSelf: node.align ? ALIGN[node.align] : undefined, ...motionStyle(node.motion, theme.time, theme.unit) }}
+        />
+      ) : null;
+    }
+    case "pattern":
+      return (
+        <div data-scene-node={node.id} aria-hidden style={{ ...flexItem(node), flex: node.grow != null || node.basis != null ? flexItem(node).flex : "1 1 auto", alignSelf: "stretch", position: "relative", overflow: "hidden" }}>
+          <PostPattern pattern={node.patternId as PatternId} theme={ink.text === "#f4f4f4" ? "dark" : "light"} opacity={node.opacity} scale={node.scale} />
+        </div>
+      );
     case "shader":
       return (
         <div aria-hidden style={{ ...flexItem(node), flex: node.grow != null || node.basis != null ? flexItem(node).flex : "1 1 auto", alignSelf: "stretch", ...motionStyle(node.motion, theme.time, theme.unit) }}>
@@ -368,6 +391,7 @@ function overlayBox(overlay: SceneOverlay, theme: Theme): CSSProperties {
     display: "flex",
   };
   if (overlay.anchor === "center") return { ...box, left: "50%", top: "50%", transform: "translate(-50%, -50%)" };
+  if (overlay.anchor === "free") return { ...box, left: `${(overlay.x ?? 0) * 100}%`, top: `${(overlay.y ?? 0) * 100}%` };
   if (overlay.anchor.startsWith("top")) box.top = inset;
   else box.bottom = inset;
   if (overlay.anchor.endsWith("left")) box.left = inset;
@@ -396,9 +420,11 @@ export function SceneRenderer(props: SceneRendererProps) {
   const background =
     scene.background.kind === "brand-preset"
       ? getActiveBackgroundPreset(buildBackgroundPresets(colors), scene.background.presetId).css.background
-      : scene.background.color === "surface"
-        ? "#ffffff"
-        : (color({ colors } as Theme, { text: "", muted: "" }, scene.background.color) ?? "#ffffff");
+      : scene.background.kind === "css"
+        ? scene.background.value
+        : scene.background.color === "surface"
+          ? "#ffffff"
+          : (color({ colors } as Theme, { text: "", muted: "" }, scene.background.color) ?? "#ffffff");
   const backgroundHex = resolveBackgroundHex(background);
   const ink = inkOn(backgroundHex);
   const theme: Theme = { unit, colors, text: ink.text, muted: ink.muted, fonts: scene.font, typeScale: scene.typeScale * fit, time, props };

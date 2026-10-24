@@ -136,6 +136,7 @@ export function deckFromOutline(outline: DeckOutline, kind: DeckKind, font: Scen
     font,
     typeScale: kind === "deck" ? 0.85 : 1,
     durationMs: 0,
+    tweaks: [],
     overlays: [],
     root: pageRoot(page, { kind, index, total: outline.pages.length, size, font }),
   }));
