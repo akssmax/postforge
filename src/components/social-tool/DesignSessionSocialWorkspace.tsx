@@ -3,7 +3,8 @@
 import { mergeQualityChecks } from "@/lib/brand/renderedQuality";
 import { useRenderedQuality } from "@/lib/brand/useRenderedQuality";
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
-import { ChevronDown, Download, Loader2, MessageSquare, PanelLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, Download, LayoutTemplate, Loader2, MessageSquare, PanelLeft } from "lucide-react";
 import { Button, Modal, Tooltip, useOverlayState } from "@heroui/react";
 import {
   DesignInspector,
@@ -145,6 +146,7 @@ type Props = {
 };
 
 export function DesignSessionSocialWorkspace({ designId }: Props) {
+  const router = useRouter();
   const originDesignId = designId;
   const variantGroup = useDesignVariantGroup(originDesignId);
   const boardsRef = useRef(variantGroup.boards);
@@ -2061,6 +2063,28 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
               ) : null
             }
             exportControl={
+              <div className="flex items-center gap-2">
+              <Tooltip delay={500}>
+                <Tooltip.Trigger>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    isIconOnly
+                    aria-label="Open in canvas"
+                    className="canvas-tool-pill-btn canvas-zoom-icon-btn"
+                    isDisabled={!isReady}
+                    onPress={() => router.push(`/canvas/new?from=${encodeURIComponent(designId)}`)}
+                  >
+                    <LayoutTemplate className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content placement="bottom" offset={8}>
+                  <p className="layout-shuffle-tooltip-title">Open in canvas</p>
+                  <p className="layout-shuffle-tooltip-body">
+                    Copy this design and its variants into the new multi-artboard editor
+                  </p>
+                </Tooltip.Content>
+              </Tooltip>
               <div ref={exportMenuRef} className="relative">
                 <Button
                   variant="primary"
@@ -2096,6 +2120,7 @@ export function DesignSessionSocialWorkspace({ designId }: Props) {
                     onCopyToFigma={handleCopyToFigma}
                   />
                 ) : null}
+              </div>
               </div>
             }
           />

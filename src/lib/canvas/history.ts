@@ -16,6 +16,18 @@ export function commit(design: CanvasDesign, history: CanvasHistory, ops: Canvas
   return { design: applied.design, history: { past: [...history.past, transaction].slice(-HISTORY_LIMIT), future: [] }, transaction };
 }
 
+/**
+ * Apply ops and fold them into the latest step (a slider drag): redo replays
+ * both, undo restores the state before the first. Commits normally if empty.
+ */
+export function commitMerged(design: CanvasDesign, history: CanvasHistory, ops: CanvasOp[]) {
+  const previous = history.past.at(-1);
+  if (!previous) return commit(design, history, ops);
+  const applied = applyOps(design, ops);
+  const transaction: Transaction = { ...previous, ops: [...previous.ops, ...ops], inverse: [...applied.inverse, ...previous.inverse], at: Date.now() };
+  return { design: applied.design, history: { past: [...history.past.slice(0, -1), transaction], future: [] }, transaction };
+}
+
 export function undo(design: CanvasDesign, history: CanvasHistory) {
   const last = history.past.at(-1);
   if (!last) return null;

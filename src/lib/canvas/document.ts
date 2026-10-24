@@ -14,7 +14,8 @@ export const canvasBrandSchema = z.object({
   colors: z.object({ primary: hexColor, secondary: hexColor, accent: hexColor, neutral: hexColor }),
   /** Inline SVG logo (rendered as an image, never as markup). */
   logoSvg: z.string().max(200_000).nullable().default(null),
-  logoSrc: z.string().max(2_000).nullable().default(null),
+  // A URL, or a data URL for uploads imported from this device.
+  logoSrc: z.string().max(3_000_000).nullable().default(null),
 });
 export type CanvasBrand = z.infer<typeof canvasBrandSchema>;
 

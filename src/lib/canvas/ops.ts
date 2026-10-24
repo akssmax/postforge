@@ -34,7 +34,7 @@ export type CanvasOp = z.infer<typeof canvasOpSchema>;
 
 export class CanvasOpError extends Error {}
 
-const SCENE_PATHS = new Set(["typeScale", "background", "size", "overlays", "tweaks", "durationMs", "font", "kind"]);
+const SCENE_PATHS = new Set(["typeScale", "background", "size", "overlays", "tweaks", "durationMs", "font", "kind", "root"]);
 const DESIGN_PATHS = /^(title|systemId|brand\.(colors\.(primary|secondary|accent|neutral)|logoSvg|logoSrc))$/;
 const FORBIDDEN_NODE_PATHS = new Set(["id", "type", "children"]);
 
@@ -66,7 +66,9 @@ function getPath(target: unknown, path: string): unknown {
 
 function setPath<T extends object>(target: T, path: string, value: unknown): T {
   const keys = path.split(".");
-  const clone = (input: unknown): Record<string, unknown> => ({ ...(input && typeof input === "object" ? (input as Record<string, unknown>) : {}) });
+  // Arrays stay arrays so tuple fields ("colors.0") remain valid.
+  const clone = (input: unknown): Record<string, unknown> =>
+    (Array.isArray(input) ? [...input] : { ...(input && typeof input === "object" ? (input as Record<string, unknown>) : {}) }) as Record<string, unknown>;
   const root = clone(target);
   let cursor = root;
   keys.forEach((key, i) => {
