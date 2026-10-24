@@ -52,3 +52,4 @@ next-env.d.ts
 # Upload with `npm run assets:upload`; see scripts/upload-assets-to-blob.mjs
 /public/visuals/
 /.asset-upload-state.json
+agent-eval-results.json

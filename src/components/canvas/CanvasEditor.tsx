@@ -6,6 +6,8 @@ import { Button, Input, Popover, Spinner } from "@heroui/react";
 import { ArrowDown, ArrowLeft, ArrowUp, CopyPlus, Download, Pause, Play, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import { CanvasIconButton } from "@/components/canvas/CanvasIconButton";
 import { CanvasInspector } from "@/components/canvas/CanvasInspector";
+import { CanvasAgentPanel } from "@/components/canvas/CanvasAgentPanel";
+import { InspectorTextSegment } from "@/components/social-tool/InspectorControls";
 import { CanvasLayers } from "@/components/canvas/CanvasLayers";
 import { SceneRenderer } from "@/components/scene/SceneRenderer";
 import { InspectorSelect } from "@/components/social-tool/InspectorControls";
@@ -211,12 +213,22 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
   const editor = useCanvasEditor(designId, { onCommit, fallbackLoad, isReadOnly });
   const sync = useCloudSync({ designId, shareToken, editor, commitRef });
   const readOnly = sync.role === "view" || sync.role === "comment";
+  const { addBlocks } = editor;
+  const syncBlocks = sync.syncBlocks;
+  const addBlocksSynced = useCallback(
+    (blocks: VisualBlockRecord[]) => {
+      addBlocks(blocks);
+      syncBlocks(blocks);
+    },
+    [addBlocks, syncBlocks],
+  );
   useEffect(() => {
     readOnlyRef.current = readOnly;
   }, [readOnly]);
   const { design, blocks, selection, setSelection, dispatch } = editor;
   const [zoom, setZoom] = useState("fit");
-  const inspectorRef = useRef<HTMLElement>(null);
+  const [asideTab, setAsideTab] = useState<"design" | "agent">("design");
+  const inspectorRef = useRef<HTMLDivElement>(null);
   const artboard = design && selection ? (findArtboard(design, selection.artboardId)?.artboard ?? null) : null;
   const playback = usePlayback(artboard?.scene.durationMs || 3000);
 
@@ -414,7 +426,25 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
             })}
           </div>
         </main>
-        <aside ref={inspectorRef} data-canvas-inspector className="w-80 shrink-0 overflow-y-auto border-l border-overlay-border bg-surface-primary">
+        <aside className="flex w-80 shrink-0 flex-col border-l border-overlay-border bg-surface-primary">
+          {readOnly ? null : (
+            <div className="border-b border-overlay-border px-4 py-2">
+              <InspectorTextSegment
+                aria-label="Panel"
+                size="sm"
+                value={asideTab}
+                options={[
+                  { id: "design", label: "Design" },
+                  { id: "agent", label: "Agent" },
+                ]}
+                onChange={(next) => setAsideTab(next as "design" | "agent")}
+              />
+            </div>
+          )}
+          <div className={`min-h-0 flex-1 ${asideTab === "agent" && !readOnly ? "" : "hidden"}`}>
+            <CanvasAgentPanel design={design} selection={selection} dispatch={dispatch} addBlocks={addBlocksSynced} />
+          </div>
+          <div ref={inspectorRef} data-canvas-inspector className={`min-h-0 flex-1 overflow-y-auto ${asideTab === "agent" && !readOnly ? "hidden" : ""}`}>
           {readOnly ? (
             <p className="px-4 py-6 text-sm text-text-tertiary" data-canvas-readonly>
               {sync.role === "comment" ? "You can comment on this design but not edit it." : "You can view this design but not edit it."}
@@ -432,6 +462,7 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
           ) : (
             <p className="px-4 py-6 text-sm text-text-tertiary">Select an artboard or a layer to edit it.</p>
           )}
+          </div>
         </aside>
       </div>
     </div>

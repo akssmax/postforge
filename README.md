@@ -34,6 +34,24 @@ OPENROUTER_MODEL=openai/gpt-4o-mini
 OpenRouter is preferred when configured. Existing `MISTRAL_API_KEY` and
 `MISTRAL_MODEL` settings remain supported as a fallback.
 
+## Design agent (Claude)
+
+The canvas editor's Agent tab edits designs through the same ops as the editor,
+streamed live, one undo step per change. It runs on the Anthropic API:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+# Optional overrides
+DESIGN_AGENT_MODEL=claude-opus-5-5
+DESIGN_AGENT_EFFORT=medium   # low | medium | high | xhigh | max
+```
+
+Requests use adaptive thinking, a cached system prompt and server-side refusal
+fallbacks (`fallbacks: "default"`). When sign-in is configured only signed-in
+users can call the agent. `npm run eval:agent` runs a graded set of requests
+against the live API (it costs tokens) and writes `agent-eval-results.json`.
+Quick drafts in `/tool` and `/scene` still use the OpenRouter models above.
+
 ## Cloud sync (optional)
 
 Canvas designs (`/canvas`) always save on the device. With a database and

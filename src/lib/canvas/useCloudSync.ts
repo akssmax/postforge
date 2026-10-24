@@ -6,6 +6,7 @@ import { applyOp, type CanvasOp } from "@/lib/canvas/ops";
 import { cloud, CloudError, CLIENT_ID, fetchCloudStatus, type CloudRole, type CloudStatus } from "@/lib/canvas/cloud";
 import { loadSyncState, saveCanvasRecord, saveSyncState, type CanvasRecord, type CanvasSyncState } from "@/lib/canvas/localStore";
 import type { CanvasEditor } from "@/lib/canvas/useCanvasEditor";
+import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 
 export type SyncStatus = "local" | "syncing" | "synced" | "offline" | "conflict" | "error";
 
@@ -211,7 +212,16 @@ export function useCloudSync({
     return result.id;
   }, [persist]);
 
-  return { cloudStatus, sync, status, role: sync?.role ?? null, linked, upload, shareToken: sync?.shareToken ?? shareToken };
+  /** Library visuals the scenes reference travel with the design. */
+  const syncBlocks = useCallback(
+    (blocks: VisualBlockRecord[]) => {
+      const current = syncRef.current;
+      if (current && blocks.length && (current.role === "owner" || current.role === "edit")) void cloud.addBlocks(designId, blocks, current.shareToken).catch(() => undefined);
+    },
+    [designId],
+  );
+
+  return { cloudStatus, sync, status, role: sync?.role ?? null, linked, upload, syncBlocks, shareToken: sync?.shareToken ?? shareToken };
 }
 
 /** Load a design that isn't on this device from the server (share links, other devices). */

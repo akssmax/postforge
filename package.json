@@ -21,12 +21,14 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "db:migrate": "npx --yes tsx --import ./scripts/register-test-runtime.mjs scripts/db-migrate.ts",
+    "eval:agent": "npx --yes tsx --import ./scripts/register-test-runtime.mjs scripts/agent-eval.ts",
     "test:db": "npx --yes tsx --import ./scripts/register-test-runtime.mjs --test src/lib/server/designStore.test.ts",
-    "test:pipeline": "npx --yes tsx --import ./scripts/register-test-runtime.mjs --test src/lib/llm/stages/pipeline.test.ts src/lib/llm/stages/pipelineStreaming.test.ts src/lib/llm/stages/generationImprovements.test.ts src/lib/social-tool/visualBlocks/library/visualPicking.test.ts src/lib/scene/scene.test.ts src/lib/scene/compose/compose.test.ts src/lib/scene/motion.test.ts src/lib/scene/deck/deck.test.ts src/lib/canvas/canvas.test.ts src/lib/canvas/editor.test.ts"
+    "test:pipeline": "npx --yes tsx --import ./scripts/register-test-runtime.mjs --test src/lib/llm/stages/pipeline.test.ts src/lib/llm/stages/pipelineStreaming.test.ts src/lib/llm/stages/generationImprovements.test.ts src/lib/social-tool/visualBlocks/library/visualPicking.test.ts src/lib/scene/scene.test.ts src/lib/scene/compose/compose.test.ts src/lib/scene/motion.test.ts src/lib/scene/deck/deck.test.ts src/lib/canvas/canvas.test.ts src/lib/canvas/editor.test.ts src/lib/agent/agent.test.ts"
   },
   "dependencies": {
     "@ai-sdk/mistral": "^4.0.14",
     "@ai-sdk/react": "^4.0.38",
+    "@anthropic-ai/sdk": "0.133.0",
     "@base-ui/react": "^1.6.0",
     "@figit/dom-to-figma": "^0.2.1",
     "@heroui/react": "^3.2.2",
