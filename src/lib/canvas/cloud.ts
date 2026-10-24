@@ -15,6 +15,24 @@ export type ServerDesign = { design: CanvasDesign; blocks: VisualBlockRecord[]; 
 export type OpsEntry = { revision: number; ops: CanvasOp[]; clientId: string | null };
 export type PushResponse = { ok: true; revision: number } | { ok: false; revision: number; missing: OpsEntry[] };
 
+export type CloudComment = {
+  id: string;
+  parentId: string | null;
+  artboardId: string;
+  nodeId: string | null;
+  x: number | null;
+  y: number | null;
+  body: string;
+  authorId: string | null;
+  authorName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+  deleted: boolean;
+};
+export type PresencePeer = { clientId: string; userId: string | null; name: string; artboardId: string | null; nodeId: string | null };
+export type NewComment = { artboardId: string; nodeId?: string | null; x?: number | null; y?: number | null; body: string; parentId?: string | null };
+
 export class CloudError extends Error {
   constructor(
     public status: number,
@@ -55,5 +73,12 @@ export const cloud = {
   version: (id: string, versionId: string, shareToken?: string | null) => call<{ design: CanvasDesign; label: string }>(`/api/designs/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`, { shareToken }),
   shareLinks: (id: string) => call<Array<{ token: string; role: Exclude<CloudRole, "owner">; createdAt: string }>>(`/api/designs/${encodeURIComponent(id)}/share`),
   createShareLink: (id: string, role: Exclude<CloudRole, "owner">) => call<{ token: string; role: string }>(`/api/designs/${encodeURIComponent(id)}/share`, { method: "POST", body: JSON.stringify({ role }) }),
+  comments: (id: string, shareToken?: string | null) => call<CloudComment[]>(`/api/designs/${encodeURIComponent(id)}/comments`, { shareToken }),
+  addComment: (id: string, comment: NewComment, shareToken?: string | null) => call<CloudComment>(`/api/designs/${encodeURIComponent(id)}/comments`, { method: "POST", body: JSON.stringify(comment), shareToken }),
+  resolveComment: (id: string, commentId: string, resolved: boolean, shareToken?: string | null) =>
+    call<{ ok: true }>(`/api/designs/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, { method: "PATCH", body: JSON.stringify({ resolved }), shareToken }),
+  deleteComment: (id: string, commentId: string, shareToken?: string | null) => call<{ ok: true }>(`/api/designs/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, { method: "DELETE", shareToken }),
+  presence: (id: string, body: { clientId: string; artboardId: string | null; nodeId: string | null }, shareToken?: string | null) =>
+    call<{ peers: PresencePeer[] }>(`/api/designs/${encodeURIComponent(id)}/presence`, { method: "POST", body: JSON.stringify(body), shareToken }),
   revokeShareLink: (id: string, token: string) => call<{ ok: true }>(`/api/designs/${encodeURIComponent(id)}/share`, { method: "DELETE", body: JSON.stringify({ token }) }),
 };

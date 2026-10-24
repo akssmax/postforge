@@ -6,11 +6,15 @@ import { StoreError, type Actor } from "@/lib/server/designStore";
 
 export const SHARE_HEADER = "x-postforge-share";
 
-/** Signed-in user (if any) plus the share token the client sent (if any). */
-export async function actorFor(request: Request): Promise<Actor> {
+/**
+ * Signed-in user (if any) plus the share token the client sent (if any).
+ * EventSource can't set headers, so the token may also come as `?share=`.
+ */
+export async function actorFor(request: Request): Promise<Actor & { name: string | null }> {
   const session = authConfigured ? await auth() : null;
   const userId = session?.user?.id ?? null;
-  return { userId, shareToken: request.headers.get(SHARE_HEADER) };
+  const name = session?.user?.name ?? session?.user?.email?.split("@")[0] ?? null;
+  return { userId, name, shareToken: request.headers.get(SHARE_HEADER) ?? new URL(request.url).searchParams.get("share") };
 }
 
 /** Run a store call, mapping missing config and store errors to JSON responses. */

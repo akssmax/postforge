@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button, Input, Popover, Spinner } from "@heroui/react";
-import { ArrowDown, ArrowLeft, ArrowUp, CopyPlus, Download, Pause, Play, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, CopyPlus, Download, MessageSquarePlus, Pause, Play, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import { CanvasIconButton } from "@/components/canvas/CanvasIconButton";
 import { CanvasInspector } from "@/components/canvas/CanvasInspector";
 import { CanvasAgentPanel } from "@/components/canvas/CanvasAgentPanel";
+import { CanvasComments, type CommentDraft } from "@/components/canvas/CanvasComments";
+import { useComments } from "@/lib/canvas/useComments";
+import type { AgentComment } from "@/lib/agent/prompt";
 import { InspectorTextSegment } from "@/components/social-tool/InspectorControls";
 import { CanvasLayers } from "@/components/canvas/CanvasLayers";
 import { SceneRenderer } from "@/components/scene/SceneRenderer";
@@ -32,6 +35,13 @@ const ZOOMS = [
   { id: "0.75", label: "75%" },
   { id: "1", label: "100%" },
 ];
+
+/** A stable colour per collaborator. */
+function peerColor(clientId: string) {
+  let hash = 0;
+  for (const char of clientId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return `hsl(${hash % 360} 70% 45%)`;
+}
 
 /** Artboards are laid out at a common on-screen height when zoom is "fit". */
 const FIT_HEIGHT = 520;
@@ -171,6 +181,11 @@ function ArtboardView({
   time,
   onSelect,
   onEditText,
+  commentMode,
+  onComment,
+  pins,
+  focusedPin,
+  onPin,
 }: {
   design: CanvasDesign;
   artboard: Artboard;
@@ -180,8 +195,25 @@ function ArtboardView({
   time?: number;
   onSelect: Editor["setSelection"];
   onEditText: () => void;
+  commentMode: boolean;
+  onComment: (draft: CommentDraft) => void;
+  pins: Array<{ id: string; number: number; x: number; y: number }>;
+  focusedPin: string | null;
+  onPin: (id: string) => void;
 }) {
   const active = selection?.artboardId === artboard.id;
+  const placeComment = (event: React.MouseEvent) => {
+    const root = (event.currentTarget as HTMLElement).querySelector<HTMLElement>("[data-scene-root]");
+    const rect = root?.getBoundingClientRect();
+    const target = (event.target as HTMLElement).closest<HTMLElement>("[data-scene-node]");
+    const nodeId = target?.getAttribute("data-scene-node") ?? null;
+    onComment({
+      artboardId: artboard.id,
+      nodeId: nodeId && nodeId !== artboard.scene.root.id ? nodeId : null,
+      x: rect ? Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) : null,
+      y: rect ? Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)) : null,
+    });
+  };
   const pick = (event: React.MouseEvent) => {
     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-scene-node]");
     const nodeId = target?.getAttribute("data-scene-node") ?? null;
@@ -193,15 +225,35 @@ function ArtboardView({
       <figcaption className={`text-xs ${active ? "font-medium text-text-primary" : "text-text-tertiary"}`}>{artboard.name}</figcaption>
       <div
         role="presentation"
-        className={`cursor-default rounded-sm shadow-sm ring-offset-2 ${active && !selection?.nodeId ? "ring-2 ring-[var(--accent-sky)]" : ""}`}
-        onClick={pick}
+        className={`relative rounded-sm shadow-sm ring-offset-2 ${commentMode ? "cursor-crosshair" : "cursor-default"} ${active && !selection?.nodeId ? "ring-2 ring-[var(--accent-sky)]" : ""}`}
+        onClick={(event) => {
+          if (commentMode) placeComment(event);
+          else pick(event);
+        }}
         onDoubleClick={(event) => {
+          if (commentMode) return;
           const nodeId = pick(event);
           const node = nodeId ? locateNode(artboard.scene, nodeId)?.node : null;
           if (node?.type === "text" || node?.type === "button") onEditText();
         }}
       >
         <SceneRenderer {...rendererProps(design, artboard, blocks)} scale={scale} time={active ? time : undefined} />
+        {pins.map((pin) => (
+          <button
+            key={pin.id}
+            type="button"
+            data-comment-pin={pin.id}
+            aria-label={`Comment ${pin.number}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onPin(pin.id);
+            }}
+            className={`absolute flex size-6 -translate-x-1/2 -translate-y-full items-center justify-center rounded-full rounded-bl-none text-xs font-semibold text-white shadow ${focusedPin === pin.id ? "bg-[var(--accent-sky)] ring-2 ring-white" : "bg-surface-invert"}`}
+            style={{ left: `${pin.x * 100}%`, top: `${pin.y * 100}%` }}
+          >
+            {pin.number}
+          </button>
+        ))}
       </div>
     </figure>
   );
@@ -230,7 +282,19 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
   }, [readOnly]);
   const { design, blocks, selection, setSelection, dispatch } = editor;
   const [zoom, setZoom] = useState("fit");
-  const [asideTab, setAsideTab] = useState<"design" | "agent">("design");
+  const [asideTabState, setAsideTab] = useState<"design" | "agent" | "comments">("design");
+  const asideTab = readOnly ? "comments" : asideTabState;
+  const commentsApi = useComments(designId, sync);
+  const canComment = !sync.role || sync.role !== "view";
+  const canResolve = !readOnly;
+  const [commentMode, setCommentMode] = useState(false);
+  const [commentDraft, setCommentDraft] = useState<CommentDraft | null>(null);
+  const [focusedComment, setFocusedComment] = useState<string | null>(null);
+  const [queuedComments, setQueuedComments] = useState<AgentComment[]>([]);
+  const { setPresence } = sync;
+  useEffect(() => {
+    setPresence({ artboardId: editor.selection?.artboardId ?? null, nodeId: editor.selection?.nodeId ?? null });
+  }, [editor.selection, setPresence]);
   const [systems, setSystems] = useState<DesignSystem[]>([]);
   useEffect(() => {
     let cancelled = false;
@@ -337,6 +401,10 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
       } else if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
         removeSelected();
+      } else if (event.key.toLowerCase() === "c" && !mod && !event.altKey) {
+        setCommentMode((on) => !on);
+      } else if (event.key === "Escape" && commentMode) {
+        setCommentMode(false);
       } else if (event.key === "Escape") {
         setSelection(selection?.nodeId && artboard ? { artboardId: artboard.id, nodeId: null } : selection);
       } else if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
@@ -346,13 +414,15 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editor, duplicateSelected, removeSelected, moveSelected, setSelection, selection, artboard]);
+  }, [editor, duplicateSelected, removeSelected, moveSelected, setSelection, selection, artboard, commentMode]);
 
   const selectionStyle = useMemo(() => {
-    if (!selection?.nodeId) return "";
-    const id = CSS.escape(selection.nodeId);
-    return `[data-canvas-artboard="${CSS.escape(selection.artboardId)}"] [data-scene-node="${id}"] { outline: 3px solid var(--accent-sky); outline-offset: -1px; }`;
-  }, [selection]);
+    const rules = sync.peers
+      .filter((peer) => peer.artboardId && peer.nodeId)
+      .map((peer) => `[data-canvas-artboard="${CSS.escape(peer.artboardId!)}"] [data-scene-node="${CSS.escape(peer.nodeId!)}"] { outline: 3px dashed ${peerColor(peer.clientId)}; outline-offset: -1px; }`);
+    if (selection?.nodeId) rules.push(`[data-canvas-artboard="${CSS.escape(selection.artboardId)}"] [data-scene-node="${CSS.escape(selection.nodeId)}"] { outline: 3px solid var(--accent-sky); outline-offset: -1px; }`);
+    return rules.join("\n");
+  }, [selection, sync.peers]);
 
   if (editor.status === "loading") {
     return (
@@ -373,6 +443,7 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
   }
 
   const boards = allArtboards(design);
+  const openThreads = commentsApi.threads.filter((thread) => !thread.resolvedAt);
 
   return (
     <div className="flex h-dvh flex-col bg-surface-secondary text-text-primary" data-canvas-editor={design.id}>
@@ -397,7 +468,28 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
               {editor.lastError}
             </p>
           ) : null}
+          {sync.peers.length ? (
+            <div className="flex -space-x-1.5" data-peers aria-label={`Also here: ${sync.peers.map((peer) => peer.name).join(", ")}`}>
+              {sync.peers.slice(0, 5).map((peer) => (
+                <span key={peer.clientId} title={peer.name} className="flex size-7 items-center justify-center rounded-full border-2 border-surface-primary text-xs font-semibold text-white" style={{ background: peerColor(peer.clientId) }}>
+                  {peer.name.slice(0, 1).toUpperCase()}
+                </span>
+              ))}
+            </div>
+          ) : null}
           <CanvasCloudControls designId={design.id} sync={sync} dispatch={dispatch} />
+          {canComment ? (
+            <CanvasIconButton
+              label={commentMode ? "Stop commenting" : "Comment"}
+              shortcut="C"
+              icon={MessageSquarePlus}
+              isActive={commentMode}
+              onPress={() => {
+                setCommentMode((on) => !on);
+                setAsideTab("comments");
+              }}
+            />
+          ) : null}
           <CanvasIconButton label={playback.playing ? "Stop preview" : "Play motion"} icon={playback.playing ? Pause : Play} isDisabled={!artboard} onPress={playback.toggle} />
           <div className="w-24">
             <InspectorSelect label="Zoom" hideLabel value={zoom} options={ZOOMS} onChange={setZoom} />
@@ -446,13 +538,29 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
                   time={playback.time}
                   onSelect={setSelection}
                   onEditText={focusTextField}
+                  commentMode={commentMode}
+                  onComment={(draft) => {
+                    setCommentDraft(draft);
+                    setCommentMode(false);
+                    setAsideTab("comments");
+                  }}
+                  pins={openThreads.flatMap((thread, index) => (thread.artboardId === board.id && thread.x !== null && thread.y !== null ? [{ id: thread.id, number: index + 1, x: thread.x, y: thread.y }] : []))}
+                  focusedPin={focusedComment}
+                  onPin={(id) => {
+                    setFocusedComment(id);
+                    setAsideTab("comments");
+                  }}
                 />
               );
             })}
           </div>
         </main>
         <aside className="flex w-80 shrink-0 flex-col border-l border-overlay-border bg-surface-primary">
-          {readOnly ? null : (
+          {readOnly ? (
+            <p className="border-b border-overlay-border px-4 py-3 text-sm text-text-tertiary" data-canvas-readonly>
+              {sync.role === "comment" ? "You can comment on this design but not edit it." : "You can view this design but not edit it."}
+            </p>
+          ) : (
             <div className="border-b border-overlay-border px-4 py-2">
               <InspectorTextSegment
                 aria-label="Panel"
@@ -461,20 +569,48 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
                 options={[
                   { id: "design", label: "Design" },
                   { id: "agent", label: "Agent" },
+                  { id: "comments", label: openThreads.length ? `Comments ${openThreads.length}` : "Comments" },
                 ]}
-                onChange={(next) => setAsideTab(next as "design" | "agent")}
+                onChange={(next) => setAsideTab(next as "design" | "agent" | "comments")}
               />
             </div>
           )}
-          <div className={`min-h-0 flex-1 ${asideTab === "agent" && !readOnly ? "" : "hidden"}`}>
-            <CanvasAgentPanel design={design} system={activeSystem} selection={selection} dispatch={dispatch} addBlocks={addBlocksSynced} />
+          <div className={`min-h-0 flex-1 ${asideTab === "agent" ? "" : "hidden"}`}>
+            <CanvasAgentPanel
+              design={design}
+              system={activeSystem}
+              selection={selection}
+              dispatch={dispatch}
+              addBlocks={addBlocksSynced}
+              pendingComments={queuedComments}
+              onCommentsSent={() => setQueuedComments([])}
+            />
           </div>
-          <div ref={inspectorRef} data-canvas-inspector className={`min-h-0 flex-1 overflow-y-auto ${asideTab === "agent" && !readOnly ? "hidden" : ""}`}>
-          {readOnly ? (
-            <p className="px-4 py-6 text-sm text-text-tertiary" data-canvas-readonly>
-              {sync.role === "comment" ? "You can comment on this design but not edit it." : "You can view this design but not edit it."}
-            </p>
-          ) : artboard ? (
+          <div className={`min-h-0 flex-1 ${asideTab === "comments" ? "" : "hidden"}`}>
+            <CanvasComments
+              design={design}
+              threads={commentsApi.threads}
+              draft={commentDraft}
+              canComment={canComment}
+              canResolve={canResolve}
+              error={commentsApi.error}
+              focusedId={focusedComment}
+              onAdd={commentsApi.add}
+              onResolve={(id, resolved) => void commentsApi.resolve(id, resolved)}
+              onDelete={(id) => void commentsApi.remove(id)}
+              onCancelDraft={() => setCommentDraft(null)}
+              onFocus={(thread) => {
+                setFocusedComment(thread.id);
+                if (findArtboard(design, thread.artboardId)) setSelection({ artboardId: thread.artboardId, nodeId: thread.nodeId && findArtboard(design, thread.artboardId) && locateNode(findArtboard(design, thread.artboardId)!.artboard.scene, thread.nodeId) ? thread.nodeId : null });
+              }}
+              onSendToAgent={(list) => {
+                setQueuedComments(list);
+                setAsideTab("agent");
+              }}
+            />
+          </div>
+          <div ref={inspectorRef} data-canvas-inspector className={`min-h-0 flex-1 overflow-y-auto ${asideTab === "design" ? "" : "hidden"}`}>
+          {artboard ? (
             <CanvasInspector
               design={design}
               systems={systems}

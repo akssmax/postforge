@@ -2,6 +2,7 @@
 
 import { canvasDesignSchema, type CanvasDesign } from "@/lib/canvas/document";
 import type { CanvasOp } from "@/lib/canvas/ops";
+import type { CloudComment } from "@/lib/canvas/cloud";
 import { designSystemSchema, type DesignSystem } from "@/lib/design-systems/schema";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 
@@ -14,6 +15,7 @@ const DB_NAME = "postforge-canvas";
 const STORE = "designs";
 const SYNC_STORE = "sync";
 const SYSTEM_STORE = "systems";
+const COMMENT_STORE = "comments";
 
 /** Cloud link for a design on this device: the server revision it matches and unsent ops. */
 export type CanvasSyncState = { revision: number; pending: CanvasOp[]; role: "owner" | "edit" | "comment" | "view"; shareToken?: string | null };
@@ -22,11 +24,12 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 
 function openDb(): Promise<IDBDatabase> {
   dbPromise ??= new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 3);
+    const request = indexedDB.open(DB_NAME, 4);
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(STORE)) request.result.createObjectStore(STORE);
       if (!request.result.objectStoreNames.contains(SYNC_STORE)) request.result.createObjectStore(SYNC_STORE);
       if (!request.result.objectStoreNames.contains(SYSTEM_STORE)) request.result.createObjectStore(SYSTEM_STORE);
+      if (!request.result.objectStoreNames.contains(COMMENT_STORE)) request.result.createObjectStore(COMMENT_STORE);
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -126,4 +129,14 @@ export function setDefaultSystemId(id: string | null) {
   } catch {
     // storage unavailable (private mode): the default just isn't remembered
   }
+}
+
+// ---------- comments on local-only designs ----------
+
+export async function loadLocalComments(designId: string): Promise<CloudComment[]> {
+  return ((await run<unknown>("readonly", (store) => store.get(designId), COMMENT_STORE)) as CloudComment[] | undefined) ?? [];
+}
+
+export async function saveLocalComments(designId: string, comments: CloudComment[]): Promise<void> {
+  await run("readwrite", (store) => store.put(comments, designId), COMMENT_STORE);
 }

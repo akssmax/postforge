@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { CanvasDesign } from "@/lib/canvas/document";
 import { applyOp, type CanvasOp } from "@/lib/canvas/ops";
-import { cloud, CloudError, CLIENT_ID, fetchCloudStatus, type CloudRole, type CloudStatus } from "@/lib/canvas/cloud";
+import { cloud, CloudError, CLIENT_ID, fetchCloudStatus, type CloudComment, type CloudRole, type CloudStatus, type OpsEntry, type PresencePeer } from "@/lib/canvas/cloud";
 import { loadSyncState, saveCanvasRecord, saveSyncState, type CanvasRecord, type CanvasSyncState } from "@/lib/canvas/localStore";
 import type { CanvasEditor } from "@/lib/canvas/useCanvasEditor";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
@@ -12,6 +12,7 @@ export type SyncStatus = "local" | "syncing" | "synced" | "offline" | "conflict"
 
 const FLUSH_DELAY_MS = 300;
 const POLL_MS = 4000;
+const PRESENCE_MS = 5000;
 const RETRY_MS = 5000;
 
 /** Apply ops one by one, skipping any that no longer fit (rebasing onto newer server state). */
@@ -167,29 +168,120 @@ export function useCloudSync({
     };
   }, [ready, designId, shareToken, reloadFromServer, flush]);
 
-  // Pull other people's ops.
+  /** Apply pulled op batches: others' ops go in outside undo; ours just advance the revision. */
+  const receive = useCallback(
+    async (entries: OpsEntry[]) => {
+      const current = syncRef.current;
+      if (!current) return;
+      const fresh = entries.filter((entry) => entry.revision > current.revision);
+      if (!fresh.length) return;
+      let ok = true;
+      for (const entry of fresh) {
+        if (entry.clientId !== CLIENT_ID && !editorRef.current.applyExternal(entry.ops)) ok = false;
+      }
+      if (!ok) await reloadFromServer();
+      else persist({ ...(syncRef.current ?? current), revision: fresh.at(-1)!.revision });
+      setStatus((status) => (status === "offline" ? "synced" : status));
+    },
+    [persist, reloadFromServer],
+  );
+
+  const [peers, setPeers] = useState<PresencePeer[]>([]);
+  const commentListener = useRef<((comments: CloudComment[]) => void) | null>(null);
+  /** Receive comment changes from the live stream; returns an unsubscribe. */
+  const subscribeComments = useCallback((listener: (comments: CloudComment[]) => void) => {
+    commentListener.current = listener;
+    return () => {
+      if (commentListener.current === listener) commentListener.current = null;
+    };
+  }, []);
+
+  // Live updates: server-sent events, falling back to polling.
   const linked = !!sync;
   useEffect(() => {
     if (!linked) return;
-    const interval = setInterval(async () => {
+    let source: EventSource | null = null;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let closed = false;
+    let failures = 0;
+    const connect = () => {
       const current = syncRef.current;
-      if (!current || inFlight.current || current.pending.length || document.hidden) return;
-      try {
-        const { entries } = await cloud.pull(designId, current.revision, current.shareToken);
-        if (!entries.length) return;
-        let ok = true;
-        for (const entry of entries) {
-          if (entry.clientId !== CLIENT_ID && !editorRef.current.applyExternal(entry.ops)) ok = false;
+      if (closed || !current) return;
+      const params = new URLSearchParams({ since: String(Math.max(0, current.revision)), clientId: CLIENT_ID });
+      if (current.shareToken) params.set("share", current.shareToken);
+      source = new EventSource(`/api/designs/${encodeURIComponent(designId)}/events?${params}`);
+      source.addEventListener("ops", (event) => {
+        failures = 0;
+        void receive(JSON.parse((event as MessageEvent).data) as OpsEntry[]);
+      });
+      source.addEventListener("comments", (event) => commentListener.current?.(JSON.parse((event as MessageEvent).data) as CloudComment[]));
+      source.addEventListener("presence", (event) => setPeers(JSON.parse((event as MessageEvent).data) as PresencePeer[]));
+      const reconnect = (delay: number) => {
+        source?.close();
+        source = null;
+        if (!closed) retry = setTimeout(connect, delay);
+      };
+      source.addEventListener("reconnect", () => reconnect(100));
+      source.onerror = () => {
+        failures += 1;
+        if (failures >= 3) setStatus("offline");
+        reconnect(Math.min(15_000, 500 * 2 ** failures));
+      };
+    };
+    if (typeof EventSource !== "undefined") connect();
+    else {
+      interval = setInterval(async () => {
+        const current = syncRef.current;
+        if (!current || inFlight.current || current.pending.length || document.hidden) return;
+        try {
+          await receive((await cloud.pull(designId, current.revision, current.shareToken)).entries);
+        } catch {
+          setStatus("offline");
         }
-        if (!ok) await reloadFromServer();
-        else persist({ ...(syncRef.current ?? current), revision: entries.at(-1)!.revision });
-        setStatus("synced");
-      } catch {
-        setStatus("offline");
-      }
-    }, POLL_MS);
-    return () => clearInterval(interval);
-  }, [linked, designId, persist, reloadFromServer]);
+      }, POLL_MS);
+    }
+    return () => {
+      closed = true;
+      source?.close();
+      if (retry) clearTimeout(retry);
+      if (interval) clearInterval(interval);
+    };
+  }, [linked, designId, receive]);
+
+  // Presence: say what this tab has selected, every few seconds and on change.
+  const presenceRef = useRef<{ artboardId: string | null; nodeId: string | null }>({ artboardId: null, nodeId: null });
+  const beat = useCallback(() => {
+    const current = syncRef.current;
+    if (!current || document.hidden) return;
+    void cloud.presence(designId, { clientId: CLIENT_ID, ...presenceRef.current }, current.shareToken).then((result) => setPeers(result.peers)).catch(() => undefined);
+  }, [designId]);
+  useEffect(() => {
+    if (!linked) return;
+    beat();
+    const interval = setInterval(beat, PRESENCE_MS);
+    const leave = () => {
+      const current = syncRef.current;
+      const query = current?.shareToken ? `?share=${encodeURIComponent(current.shareToken)}` : "";
+      navigator.sendBeacon?.(`/api/designs/${encodeURIComponent(designId)}/presence${query}`, JSON.stringify({ clientId: CLIENT_ID, leave: true }));
+    };
+    window.addEventListener("pagehide", leave);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("pagehide", leave);
+      leave();
+    };
+  }, [linked, designId, beat]);
+  const presenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setPresence = useCallback(
+    (selection: { artboardId: string | null; nodeId: string | null }) => {
+      if (presenceRef.current.artboardId === selection.artboardId && presenceRef.current.nodeId === selection.nodeId) return;
+      presenceRef.current = selection;
+      if (presenceTimer.current) clearTimeout(presenceTimer.current);
+      presenceTimer.current = setTimeout(beat, 300);
+    },
+    [beat],
+  );
 
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
@@ -221,7 +313,7 @@ export function useCloudSync({
     [designId],
   );
 
-  return { cloudStatus, sync, status, role: sync?.role ?? null, linked, upload, syncBlocks, shareToken: sync?.shareToken ?? shareToken };
+  return { cloudStatus, sync, status, role: sync?.role ?? null, linked, upload, syncBlocks, shareToken: sync?.shareToken ?? shareToken, peers, setPresence, subscribeComments };
 }
 
 /** Load a design that isn't on this device from the server (share links, other devices). */

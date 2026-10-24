@@ -32,8 +32,8 @@ const skip = !db && "TEST_DATABASE_URL not set";
 
 before(async () => {
   if (!db) return;
-  await db.query(`DROP TABLE IF EXISTS design_systems, share_links, design_versions, design_ops, designs, users, schema_migrations CASCADE`);
-  assert.deepEqual(await runMigrations(db), ["001_init.sql", "002_design_systems.sql"]);
+  await db.query(`DROP TABLE IF EXISTS presence, comments, design_systems, share_links, design_versions, design_ops, designs, users, schema_migrations CASCADE`);
+  assert.deepEqual(await runMigrations(db), ["001_init.sql", "002_design_systems.sql", "003_comments_presence.sql"]);
   assert.deepEqual(await runMigrations(db), [], "migrations are applied once");
   await ensureUser(db, { id: "alice", email: "alice@example.com", name: "Alice" });
   await ensureUser(db, { id: "bob", email: "bob@example.com" });
@@ -160,4 +160,38 @@ test("design systems are per owner with one default", { skip }, async () => {
   await assert.rejects(saveSystem(db!, "alice", { ...one, colors: { primary: "red" } }), (error: unknown) => error instanceof StoreError && error.status === 400);
   await deleteSystem(db!, "alice", one.id);
   assert.equal((await listSystems(db!, "alice")).length, 1);
+});
+
+test("comments: pins, replies, resolve, delete and role rules", { skip }, async () => {
+  const { createComment, deleteComment, listComments, setResolved, heartbeat, listPresence } = await import("@/lib/server/commentStore");
+  const local = blankCanvasDesign();
+  await createDesign(db!, "alice", { design: local });
+  const artboardId = local.pages[0]!.artboards[0]!.id;
+  const view = await createShareLink(db!, local.id, alice, "view");
+  const comment = await createShareLink(db!, local.id, alice, "comment");
+  const started = new Date(Date.now() - 1000).toISOString();
+
+  const thread = await createComment(db!, local.id, { ...alice, name: "Alice" }, { artboardId, nodeId: "headline", x: 1.4, y: 0.2, body: "Shorter headline?" });
+  assert.equal(thread.x, 1, "pin positions are clamped to the artboard");
+  await rejects(createComment(db!, local.id, { userId: null, shareToken: view.token }, { artboardId, body: "hi" }), 403);
+  const reply = await createComment(db!, local.id, { userId: null, shareToken: comment.token }, { artboardId: "ignored", parentId: thread.id, body: "Agreed" });
+  assert.equal(reply.artboardId, artboardId);
+  assert.equal(reply.authorName, "Guest");
+  await rejects(createComment(db!, local.id, alice, { artboardId, body: "   " }), 400);
+
+  await rejects(setResolved(db!, local.id, { userId: null, shareToken: comment.token }, thread.id, true), 403);
+  await setResolved(db!, local.id, alice, thread.id, true);
+  const changed = await listComments(db!, local.id, alice, started);
+  assert.ok(changed.find((entry) => entry.id === thread.id)?.resolvedAt);
+
+  await rejects(deleteComment(db!, local.id, { userId: "bob", shareToken: comment.token }, thread.id), 403);
+  await deleteComment(db!, local.id, alice, thread.id);
+  assert.equal((await listComments(db!, local.id, alice)).length, 0, "the thread and its replies are gone");
+  assert.ok((await listComments(db!, local.id, alice, started)).every((entry) => entry.deleted), "live clients see the deletion");
+
+  await heartbeat(db!, local.id, { ...alice, name: "Alice" }, { clientId: "tab-1", artboardId, nodeId: "cta" });
+  await heartbeat(db!, local.id, { userId: null, shareToken: view.token }, { clientId: "tab-2" });
+  const peers = await listPresence(db!, local.id);
+  assert.deepEqual(peers.map((peer) => peer.name).sort(), ["Alice", "Guest"]);
+  await rejects(heartbeat(db!, local.id, bob, { clientId: "tab-3" }), 403);
 });
