@@ -1,5 +1,5 @@
 import type { BrandColors, BrandKitPersisted } from "@/lib/brand/types";
-import type { CanvasSpec, DesignDocument } from "@/lib/design/types";
+import type { CanvasSpec, DesignDocument, VisualSemanticContext } from "@/lib/design/types";
 import type { ArtifactCategoryId, RendererId } from "@/lib/design-config/schemas";
 import type { StockPhotoResult } from "@/lib/llm/stages/stockPhotoResolver";
 import type { PlatformId } from "@/lib/social-tool/presets";
@@ -42,6 +42,10 @@ export type DesignPlanApplyOptions = {
   /** Applied when the session has no uploaded brand kit. */
   assumedBrandColors?: BrandColors;
   decorationLevel?: "minimal" | "offer" | "mesh" | "brand";
+  /** Featured visual kind chosen by the campaign plan. */
+  featuredVisualKind?: "ui" | "illustration" | "3d";
+  /** Campaign-plan context for featured visual picks. */
+  visualSemantic?: VisualSemanticContext;
   designId?: string;
   brandColors?: BrandColors;
   brief?: string;

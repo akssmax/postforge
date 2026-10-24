@@ -24,6 +24,10 @@ export type PipelineTrace = {
   stockPhotoId?: string;
   scoreTotal: number;
   repairSteps: string[];
+  /** Wall-clock ms per stage (planner, ranker, slots, stockPhoto, total). */
+  timings?: Record<string, number>;
+  /** Stages that silently fell back to offline heuristics or template copy. */
+  fallbacks?: string[];
 };
 
 export type PipelineResult = {

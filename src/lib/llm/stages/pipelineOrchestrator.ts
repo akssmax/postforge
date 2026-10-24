@@ -6,7 +6,7 @@ import {
   extractThemesFromBrief,
   resolveDesignRulesForPlan,
 } from "@/lib/llm/rules";
-import { planCampaign } from "@/lib/llm/stages/creativePlanner";
+import { planCampaignWithMeta } from "@/lib/llm/stages/creativePlanner";
 import { rankLayout } from "@/lib/llm/stages/layoutRanker";
 import { writeSlotsWithRetries } from "@/lib/llm/stages/slotWriter";
 import { writeSlotsOffline } from "@/lib/llm/stages/slotWriterOffline";
@@ -71,6 +71,8 @@ export type PipelineInput = {
   themeAngle?: string;
   artifactId?: string | null;
   artifactCategory?: ArtifactCategoryId | null;
+  /** Pre-planned campaign (variants plan once and fan out); skips the planner stage. */
+  plannedCampaign?: { plan: CampaignPlan; offline: boolean; ms: number };
 };
 
 export type { PipelineResult, PipelineVariantsResult, DesignVariant } from "@/lib/llm/stages/pipelineTypes";
@@ -117,6 +119,15 @@ function pickVisualFallbackLayout(candidates: LayoutCandidate[]): PostLayoutId {
   return visual?.layout.id ?? candidates[0]?.layout.id ?? "balanced-split";
 }
 
+async function timed<T>(timings: Record<string, number>, stage: string, run: () => Promise<T>): Promise<T> {
+  const started = Date.now();
+  try {
+    return await run();
+  } finally {
+    timings[stage] = (timings[stage] ?? 0) + Date.now() - started;
+  }
+}
+
 async function runPipelineAttempt(input: {
   modelId?: OpenRouterChatModelId;
   variantIndex?: number;
@@ -134,8 +145,12 @@ async function runPipelineAttempt(input: {
   rulesProfile: ReturnType<typeof resolveDesignRulesForPlan>;
   layoutRetry?: boolean;
   repairSteps?: string[];
+  timings?: Record<string, number>;
+  fallbacks?: string[];
 }): Promise<PipelineResult> {
   const repairSteps = [...(input.repairSteps ?? [])];
+  const timings: Record<string, number> = { ...(input.timings ?? {}) };
+  const fallbacks = [...(input.fallbacks ?? [])];
   const artifact = loadArtifactPlugin(input.artifactId);
   const effectiveRules = mergeArtifactIntoRulesProfile(
     input.rulesProfile,
@@ -172,27 +187,29 @@ async function runPipelineAttempt(input: {
     candidates = [distinct[input.variantIndex % distinct.length]];
   }
 
-  let ranked = input.offline
-    ? {
-        layoutId: candidates[0]?.layout.id ?? ("classic-hero" as PostLayoutId),
-        rationale: `${candidates[0]?.layout.name ?? "Classic Hero"} matched ${recipe.name} / ${input.plan.communication.pattern}.`,
-      }
-    : await rankLayout(
-        input.plan,
-        candidates,
-        input.userMessage,
-        effectiveRules,
-        recipe,
-        { id: artifact.id, label: artifact.label, category: artifact.category },
-        input.modelId,
-      );
-
+  let ranked: { layoutId: PostLayoutId; rationale: string };
   if (input.layoutRetry) {
+    // The retry always swaps to a visual-first layout; ranking first would be discarded.
     ranked = {
       layoutId: pickVisualFallbackLayout(candidates),
       rationale: "Switched to a visual-first layout for better balance.",
     };
     repairSteps.push("layout_swap_visual_first");
+  } else if (input.offline) {
+    ranked = {
+      layoutId: candidates[0]?.layout.id ?? ("classic-hero" as PostLayoutId),
+      rationale: `${candidates[0]?.layout.name ?? "Classic Hero"} matched ${recipe.name} / ${input.plan.communication.pattern}.`,
+    };
+  } else {
+    ranked = await timed(timings, "ranker", () => rankLayout(
+      input.plan,
+      candidates,
+      input.userMessage,
+      effectiveRules,
+      recipe,
+      { id: artifact.id, label: artifact.label, category: artifact.category },
+      input.modelId,
+    ));
   }
 
   const adapted = applyRecipeAdaptation(
@@ -221,6 +238,7 @@ async function runPipelineAttempt(input: {
 
   const bundle = pickBundleForArtifact(artifact, recipe.bundles?.[0]);
 
+  const stockStarted = Date.now();
   const stockPhotoPromise = resolveStockPhotoForArtifact({
     artifact,
     brief: input.userMessage,
@@ -230,8 +248,11 @@ async function runPipelineAttempt(input: {
       layoutFeaturedZoneMode(layout) === "corner" ||
       layoutFeaturedZoneMode(layout) === "portrait-strip",
     offline: input.offline,
-  }).catch(() => null);
+  }).catch(() => null).finally(() => {
+    timings.stockPhoto = Date.now() - stockStarted;
+  });
 
+  const slotsStarted = Date.now();
   const slotResult = input.offline
     ? {
         draft: writeSlotsOffline({
@@ -243,6 +264,7 @@ async function runPipelineAttempt(input: {
         }),
         retries: 0,
         validationReasons: [] as string[],
+        offline: true,
       }
     : await writeSlotsWithRetries({
         modelId: input.modelId,
@@ -257,6 +279,8 @@ async function runPipelineAttempt(input: {
         recipe,
         artifact,
       });
+  timings.slots = (timings.slots ?? 0) + Date.now() - slotsStarted;
+  if (!input.offline && slotResult.offline) fallbacks.push("slots_offline");
 
   const primaryCopy = primaryCopyFromTextSlots(slotResult.draft.textSlots);
   // Deliver primary copy first; the chat service fills the optional pool later.
@@ -286,6 +310,7 @@ async function runPipelineAttempt(input: {
 
   let validated = validateDesignPlan(planInput, input.platformId, effectiveRules);
   if (!validated.ok) {
+    fallbacks.push("copy_validation_fallback");
     const offlineDraft = writeSlotsOffline({
       userMessage: input.userMessage,
       platformId: input.platformId,
@@ -331,6 +356,8 @@ async function runPipelineAttempt(input: {
     stockPhotoId: stockPhoto?.id,
     scoreTotal: score.total,
     repairSteps,
+    timings,
+    fallbacks,
   };
 
   const canvasSpec = canvasSpecFromArtifact(artifact);
@@ -372,12 +399,26 @@ async function runPipelineAttempt(input: {
   };
 }
 
-export async function runDesignPipeline(input: PipelineInput): Promise<PipelineResult> {
-  const userMessage = resolveBriefContext(input.userMessage || getLatestUserMessage(input.messages), input.messages);
+async function planForInput(input: PipelineInput, userMessage: string) {
+  if (input.plannedCampaign) return input.plannedCampaign;
+  const started = Date.now();
+  if (input.offline) {
+    return { plan: campaignPlanFromBrief(userMessage, input.platformId, input.themeAngle), offline: false, ms: Date.now() - started };
+  }
+  const planned = await planCampaignWithMeta({ ...input, userMessage });
+  return { ...planned, ms: Date.now() - started };
+}
 
-  let plan = input.offline
-    ? campaignPlanFromBrief(userMessage, input.platformId, input.themeAngle)
-    : await planCampaign({ ...input, userMessage });
+export async function runDesignPipeline(input: PipelineInput): Promise<PipelineResult> {
+  const startedAt = Date.now();
+  const userMessage = input.plannedCampaign
+    ? input.userMessage
+    : resolveBriefContext(input.userMessage || getLatestUserMessage(input.messages), input.messages);
+
+  const planned = await planForInput(input, userMessage);
+  let plan = planned.plan;
+  const timings: Record<string, number> = { planner: input.plannedCampaign ? 0 : planned.ms };
+  const fallbacks = planned.offline ? ["planner_offline"] : [];
   const resolvedBrief = plan.resolvedBrief ?? userMessage;
   const artifactId = resolveArtifactId({
     brief: resolvedBrief,
@@ -401,6 +442,8 @@ export async function runDesignPipeline(input: PipelineInput): Promise<PipelineR
     plan,
     artifactId,
     rulesProfile,
+    timings,
+    fallbacks,
   });
 
   result = finalizePipelineResult(result);
@@ -411,6 +454,7 @@ export async function runDesignPipeline(input: PipelineInput): Promise<PipelineR
         ...input, variantIndex: undefined, userMessage: resolvedBrief, platformId,
         platformReason: platformResolution.reason, plan, artifactId, rulesProfile,
         layoutRetry: true, repairSteps: ["layout_retry"],
+        timings: result.pipelineTrace?.timings, fallbacks,
       }));
       if (retry.score.hardFailures.length < result.score.hardFailures.length ||
           (retry.score.hardFailures.length === result.score.hardFailures.length && retry.score.total > result.score.total)) result = retry;
@@ -418,6 +462,9 @@ export async function runDesignPipeline(input: PipelineInput): Promise<PipelineR
       // A failed optional repair must not discard a usable draft.
       result.pipelineTrace?.repairSteps.push("layout_retry_failed");
     }
+  }
+  if (result.pipelineTrace) {
+    result.pipelineTrace.timings = { ...result.pipelineTrace.timings, total: Date.now() - startedAt };
   }
   return result;
 }
@@ -429,13 +476,17 @@ export async function runDesignPipelineVariants(
   const themes = extractThemesFromBrief(userMessage).slice(0, 3);
 
   const angles = themes.length ? themes : ["Message first", "Visual first", "Balanced"];
+  // One campaign plan for every variant: variants differ in angle, layout and copy,
+  // not in campaign type, artifact or platform.
+  const plannedCampaign = await planForInput({ ...input, plannedCampaign: undefined }, userMessage);
   const settled = await Promise.allSettled(angles.map(async (theme, variantIndex): Promise<DesignVariant> => {
     const result = await runDesignPipeline({
       ...input,
-      userMessage,
+      userMessage: plannedCampaign.plan.resolvedBrief ?? userMessage,
       messages: [], // context was resolved above
       themeAngle: theme,
       variantIndex,
+      plannedCampaign,
     });
     return { ...result, theme };
   }));
@@ -465,7 +516,9 @@ export function finalizePipelineResult(result: PipelineResult): PipelineResult {
   const primary = primaryCopyFromTextSlots(validatedPlan.textSlots);
   validatedPlan.copyVariants = [primary];
   validatedPlan.copyVariantIndex = 0;
-  const summary = `${result.rationale} Structural checks: ${score.total}/100.${score.visualBalancePassed ? "" : " This draft needs review: " + score.checks.filter(check => !check.passed).map(check => check.label).join(", ") + "."}`;
+  const fallbacks = result.pipelineTrace?.fallbacks ?? [];
+  const templateCopy = fallbacks.includes("slots_offline") || fallbacks.includes("copy_validation_fallback");
+  const summary = `${result.rationale} Structural checks: ${score.total}/100.${score.visualBalancePassed ? "" : " This draft needs review: " + score.checks.filter(check => !check.passed).map(check => check.label).join(", ") + "."}${templateCopy ? " The AI copy step failed, so this uses template copy — ask me to rewrite the copy." : ""}`;
   return {
     ...result,
     planInput: designPlanSchema.parse(validatedPlan),

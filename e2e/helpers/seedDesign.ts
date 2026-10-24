@@ -62,6 +62,7 @@ export async function seedReadyDesign(page: Page, options: SeedOptions) {
             featuredSlotGap: 2,
             footerPad: 8,
             footerBlockGap: 2,
+            splitColumnGap: 8,
           },
           copy: {
             heading: sessionHeading,
@@ -147,7 +148,35 @@ export async function seedReadyDesign(page: Page, options: SeedOptions) {
   );
 }
 
+/** Sessions load from IndexedDB; copy the seeded sessions there before opening the editor. */
+export async function copySeededSessionsToIndexedDb(page: Page) {
+  await page.goto("/designs");
+  await page.evaluate(async () => {
+    const prefix = "postforge:design:";
+    const keys = Object.keys(localStorage).filter((key) => key.startsWith(prefix));
+    const db: IDBDatabase = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("postforge-designs", 1);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains("sessions")) request.result.createObjectStore("sessions");
+        if (!request.result.objectStoreNames.contains("chat")) request.result.createObjectStore("chat");
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const tx = db.transaction("sessions", "readwrite");
+    for (const key of keys) {
+      tx.objectStore("sessions").put(JSON.parse(localStorage.getItem(key)!), key.slice(prefix.length));
+    }
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  });
+}
+
 export async function openSeededDesign(page: Page, designId: string) {
+  await copySeededSessionsToIndexedDb(page);
   await page.goto(`/design/${designId}`);
   await page.waitForSelector(".social-tool-canvas-stage", { timeout: 20_000 });
   await page.getByRole("toolbar", { name: "Canvas tools" }).waitFor({

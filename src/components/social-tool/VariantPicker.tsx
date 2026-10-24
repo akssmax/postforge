@@ -14,7 +14,7 @@ export function VariantPicker({ variants, activeTheme, onApply }: Props) {
 
   return (
     <div className="variant-picker" role="group" aria-label="Design variants">
-      <span className="variant-picker__label">Pick a theme</span>
+      <span className="variant-picker__label">Variants</span>
       <div className="variant-picker__chips">
         {variants.map((variant) => {
           const active = activeTheme === variant.theme;

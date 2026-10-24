@@ -27,6 +27,9 @@ type ToolOutput = {
   platformReason?: string;
   bundleId?: string;
   assumedBrandColors?: DesignPlanApplyOptions["assumedBrandColors"];
+  decorationLevel?: DesignPlanApplyOptions["decorationLevel"];
+  featuredVisualKind?: DesignPlanApplyOptions["featuredVisualKind"];
+  visualSemantic?: DesignPlanApplyOptions["visualSemantic"];
 };
 
 export function extractDesignPlanFromMessage(
@@ -70,7 +73,9 @@ export function extractDesignPlanApplyOptionsFromMessage(
         !output.stockPhoto &&
         !output.platformId &&
         !output.bundleId &&
-        !output.assumedBrandColors
+        !output.assumedBrandColors &&
+        !output.featuredVisualKind &&
+        !output.visualSemantic
       ) {
         return undefined;
       }
@@ -84,6 +89,9 @@ export function extractDesignPlanApplyOptionsFromMessage(
         platformReason: output.platformReason,
         bundleId: output.bundleId,
         assumedBrandColors: output.assumedBrandColors,
+        decorationLevel: output.decorationLevel,
+        featuredVisualKind: output.featuredVisualKind,
+        visualSemantic: output.visualSemantic,
       };
     }
   }

@@ -1,5 +1,6 @@
 import { writeCopyVariants, buildCopyVariantPool, primaryCopyFromTextSlots } from "@/lib/llm/stages/copyVariantWriter";
 import { resolveBriefContext } from "@/lib/llm/stages/briefContext";
+import { visualContextFromPipeline } from "@/lib/llm/stages/visualContext";
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
@@ -128,6 +129,7 @@ export async function handleBriefChatRequest(body: BriefChatRequestBody) {
         platformReason: result.platformReason,
         bundleId: result.bundleId,
         assumedBrandColors: hasLogo ? undefined : brandContext.brandColors,
+        ...visualContextFromPipeline(result),
       });
       if (useVariants) {
         let variantsResult;

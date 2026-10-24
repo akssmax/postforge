@@ -37,16 +37,25 @@ function latestUserText(messages: UIMessage[]): string {
  * Converts an unstructured brief into a CampaignPlan (marketing strategy only).
  * Never emits layout ids, coordinates, spacing, or geometry.
  */
-export async function planCampaign(input: {
+type PlanCampaignInput = {
   modelId?: OpenRouterChatModelId;
   userMessage: string;
   messages: UIMessage[];
   platformId: PlatformId;
   themeAngle?: string;
-}): Promise<CampaignPlan> {
+};
+
+export async function planCampaign(input: PlanCampaignInput): Promise<CampaignPlan> {
+  return (await planCampaignWithMeta(input)).plan;
+}
+
+/** Same as planCampaign, but reports whether the offline heuristic planner was used. */
+export async function planCampaignWithMeta(
+  input: PlanCampaignInput,
+): Promise<{ plan: CampaignPlan; offline: boolean }> {
   const userMessage = input.userMessage || latestUserText(input.messages);
   if (!userMessage.trim()) {
-    return campaignPlanFromBrief("", input.platformId, input.themeAngle);
+    return { plan: campaignPlanFromBrief("", input.platformId, input.themeAngle), offline: true };
   }
 
   const fallback = campaignPlanFromBrief(userMessage, input.platformId, input.themeAngle);
@@ -108,15 +117,15 @@ export async function planCampaign(input: {
 
     if (plan.communication.recipeId && !recipes.includes(plan.communication.recipeId)) {
       return {
-        ...plan,
-        communication: { ...plan.communication, recipeId: undefined },
+        plan: { ...plan, communication: { ...plan.communication, recipeId: undefined } },
+        offline: false,
       };
     }
 
-    return plan;
+    return { plan, offline: false };
   } catch (error) {
     console.warn("[pipeline:planner] Using offline fallback", error instanceof Error ? error.name : "unknown");
-    return fallback;
+    return { plan: fallback, offline: true };
   }
 }
 

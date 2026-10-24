@@ -50,6 +50,12 @@ export {
   type ThreeDSource,
 } from "./threeD/manifest";
 
+/** Accent markup is for headline rendering; visual content shows plain words. */
+function plainVisualInput(input: VisualBlockGenerateInput): VisualBlockGenerateInput {
+  const plain = (text: string | undefined) => text?.replace(/\[\[|\]\]/g, "");
+  return { ...input, headline: plain(input.headline), subheading: plain(input.subheading), theme: plain(input.theme), brief: plain(input.brief) };
+}
+
 function buildTemplateContext(input: VisualBlockGenerateInput): VisualTemplateContext {
   return {
     primary: input.brandColors?.primary ?? "#1E293B",
@@ -173,34 +179,43 @@ async function trySemanticFeaturedPick(
   return block;
 }
 
-export async function pickFeaturedVisualFromLibrary(
+/** Picks one id from a ranked shortlist (e.g. an LLM reading labels and tags), or null to keep the ranking. */
+export type ShortlistChooser = (
+  shortlist: VisualLibraryPattern[],
   input: VisualBlockGenerateInput,
-  options?: { excludeLibraryIds?: string[] },
+) => Promise<string | null>;
+
+const SHORTLIST_SIZE = 8;
+
+export async function pickFeaturedVisualFromLibrary(
+  rawInput: VisualBlockGenerateInput,
+  options?: { excludeLibraryIds?: string[]; choose?: ShortlistChooser },
 ): Promise<VisualBlockRecord | null> {
-  return pickShuffleFeaturedVisual(input, options?.excludeLibraryIds ?? [], {
-    randomize: false,
-  });
+  const input = plainVisualInput(rawInput);
+  const excludeLibraryIds = options?.excludeLibraryIds ?? [];
+  const preferredKind = resolvePreferredVisualKind(input);
+  // Keyword ranking is weakest for illustrations and 3D; let the chooser read the shortlist.
+  if (options?.choose && (preferredKind === "illustration" || preferredKind === "3d")) {
+    const shortlist = rankVisualPatterns(featuredCandidates(input, excludeLibraryIds), input)
+      .filter(isDeployableVisualPattern)
+      .slice(0, SHORTLIST_SIZE);
+    if (shortlist.length > 1) {
+      const chosenId = await options.choose(shortlist, input).catch(() => null);
+      const chosen = shortlist.find((pattern) => pattern.id === chosenId);
+      if (chosen) {
+        const block = await instantiateLibraryPattern(chosen, input);
+        if (block) return block;
+      }
+    }
+  }
+  return pickShuffleFeaturedVisual(input, excludeLibraryIds, { randomize: false });
 }
 
-export async function pickShuffleFeaturedVisual(
+function featuredCandidates(
   input: VisualBlockGenerateInput,
-  excludeLibraryIds: string[] = [],
-  options?: { randomize?: boolean },
-): Promise<VisualBlockRecord | null> {
+  excludeLibraryIds: string[],
+): VisualLibraryPattern[] {
   const preferredKind = resolvePreferredVisualKind(input);
-  const semanticHit = await trySemanticFeaturedPick(input, excludeLibraryIds);
-  const semanticMatchesKind =
-    !preferredKind ||
-    (preferredKind === "illustration"
-      ? semanticHit?.kind === "illustration"
-      : preferredKind === "3d"
-        ? semanticHit?.kind === "3d"
-        : semanticHit?.kind === "ui" || semanticHit?.kind === "diagram");
-
-  if (semanticHit && semanticMatchesKind && options?.randomize === false) {
-    return semanticHit;
-  }
-
   const excluded = new Set(excludeLibraryIds.filter(Boolean));
   const deployableLibrary = getDeployableVisualLibrary();
 
@@ -224,6 +239,30 @@ export async function pickShuffleFeaturedVisual(
       FEATURED_SLOT_KINDS.includes(pattern.kind),
     );
   }
+  return candidates;
+}
+
+export async function pickShuffleFeaturedVisual(
+  rawInput: VisualBlockGenerateInput,
+  excludeLibraryIds: string[] = [],
+  options?: { randomize?: boolean },
+): Promise<VisualBlockRecord | null> {
+  const input = plainVisualInput(rawInput);
+  const preferredKind = resolvePreferredVisualKind(input);
+  const semanticHit = await trySemanticFeaturedPick(input, excludeLibraryIds);
+  const semanticMatchesKind =
+    !preferredKind ||
+    (preferredKind === "illustration"
+      ? semanticHit?.kind === "illustration"
+      : preferredKind === "3d"
+        ? semanticHit?.kind === "3d"
+        : semanticHit?.kind === "ui" || semanticHit?.kind === "diagram");
+
+  if (semanticHit && semanticMatchesKind && options?.randomize === false) {
+    return semanticHit;
+  }
+
+  const candidates = featuredCandidates(input, excludeLibraryIds);
   if (candidates.length === 0) return null;
 
   const ranked = rankVisualPatterns(candidates, input);
@@ -323,9 +362,10 @@ export async function instantiateLibraryPattern(
 }
 
 export async function composeVisualBlocksFromLibrary(
-  input: VisualBlockGenerateInput,
+  rawInput: VisualBlockGenerateInput,
   options?: { libraryIds?: string[] },
 ): Promise<VisualBlockRecord[]> {
+  const input = plainVisualInput(rawInput);
   const count = Math.min(3, Math.max(1, input.count ?? 3));
   const patterns = options?.libraryIds?.length
     ? options.libraryIds

@@ -5,9 +5,9 @@ import type {
   VisualBlockRecord,
 } from "@/lib/social-tool/visualBlocks/types";
 import {
-  VISUAL_LIBRARY_BY_ID,
+  PARAMETRIC_VISUAL_LIBRARY_BY_ID,
   type VisualLibraryPattern,
-} from "@/lib/social-tool/visualBlocks/library/catalog";
+} from "@/lib/social-tool/visualBlocks/library/parametricCatalog";
 import type { TextSlotContent, LayoutRef } from "@/lib/social-tool/dynamicLayout";
 import type { PostLayout, PostLayoutId } from "@/lib/social-tool/postLayouts";
 import { getPostLayout, layoutUsesCtaButton } from "@/lib/social-tool/postLayouts";
@@ -30,7 +30,7 @@ export function layoutFromRef(ref: LayoutRef): PostLayout {
 }
 
 function getCtaLibraryPattern(id: string): VisualLibraryPattern | undefined {
-  return VISUAL_LIBRARY_BY_ID.get(id);
+  return PARAMETRIC_VISUAL_LIBRARY_BY_ID.get(id);
 }
 
 function instantiateCtaPattern(

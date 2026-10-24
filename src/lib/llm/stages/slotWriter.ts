@@ -217,7 +217,7 @@ export function validateSlotDraft(
   return { ok: true, draft };
 }
 
-export async function writeSlots(input: {
+type WriteSlotsInput = {
   intent: CampaignIntent | CampaignPlan;
   layout: PostLayout;
   dynamicLayout: DynamicLayout;
@@ -235,7 +235,13 @@ export async function writeSlots(input: {
   themeAngle?: string;
   recipe?: RecipeConfig;
   artifact?: ArtifactDefinition;
-}): Promise<SlotDraft> {
+};
+
+export async function writeSlots(input: WriteSlotsInput): Promise<SlotDraft> {
+  return (await writeSlotsWithMeta(input)).draft;
+}
+
+async function writeSlotsWithMeta(input: WriteSlotsInput): Promise<{ draft: SlotDraft; offline: boolean }> {
   const intent = asIntent(input.intent);
   const plan = asPlan(input.intent);
   const slotPrompt = buildSlotPrompt(input.dynamicLayout, input.rulesProfile);
@@ -300,10 +306,10 @@ export async function writeSlots(input: {
         .join("\n"),
     });
 
-    return sanitizeDraft(result.object, input.rulesProfile, input.dynamicLayout);
+    return { draft: sanitizeDraft(result.object, input.rulesProfile, input.dynamicLayout), offline: false };
   } catch (error) {
     console.warn("[pipeline:slots] Using offline fallback", error instanceof Error ? error.name : "unknown");
-    return sanitizeDraft(
+    const draft = sanitizeDraft(
       writeSlotsOffline({
         userMessage: input.userMessage,
         platformId: input.platformId,
@@ -314,6 +320,7 @@ export async function writeSlots(input: {
       input.rulesProfile,
       input.dynamicLayout,
     );
+    return { draft, offline: true };
   }
 }
 
@@ -333,23 +340,23 @@ export async function writeSlotsWithRetries(input: {
   themeAngle?: string;
   recipe?: RecipeConfig;
   artifact?: ArtifactDefinition;
-}): Promise<{ draft: SlotDraft; retries: number; validationReasons: string[] }> {
+}): Promise<{ draft: SlotDraft; retries: number; validationReasons: string[]; offline: boolean }> {
   let retryReasons: string[] | undefined;
   let retries = 0;
   let previousDraft: SlotDraft | undefined;
   const maxRetries = input.rulesProfile.maxCopyRetries;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const draft = await writeSlots({ ...input, retryReasons, previousDraft });
+    const { draft, offline } = await writeSlotsWithMeta({ ...input, retryReasons, previousDraft });
     const validation = validateSlotDraft(draft, input.rulesProfile);
     if (validation.ok) {
-      return { draft: validation.draft, retries, validationReasons: [] };
+      return { draft: validation.draft, retries, validationReasons: [], offline };
     }
     previousDraft = draft;
     retryReasons = validation.reasons;
     retries = Math.min(attempt + 1, maxRetries);
     if (attempt >= maxRetries) {
-      return { draft, retries, validationReasons: validation.reasons };
+      return { draft, retries, validationReasons: validation.reasons, offline };
     }
   }
 
@@ -364,5 +371,5 @@ export async function writeSlotsWithRetries(input: {
     input.rulesProfile,
     input.dynamicLayout,
   );
-  return { draft: fallback, retries, validationReasons: retryReasons ?? [] };
+  return { draft: fallback, retries, validationReasons: retryReasons ?? [], offline: true };
 }

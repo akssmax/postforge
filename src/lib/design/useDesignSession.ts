@@ -71,7 +71,6 @@ import {
   defaultBackgroundPresetIdForColors,
   pickStarterPalette,
 } from "@/lib/brand/starterPalettes";
-import { artifactWantsLogoPlaceholderById } from "@/lib/design-engine/artifactRules";
 import {
   createFeaturedImageRecord,
   defaultFeaturedBlock,
@@ -88,18 +87,20 @@ import type { BriefGenerationResult } from "@/lib/social-tool/briefGeneration";
 import type { FeaturedBlockMode } from "@/lib/social-tool/featuredBlock";
 import { validatedPlanFromBriefResult } from "@/lib/llm/briefResultAdapter";
 import { buildCopyVariantsForBrief } from "@/lib/llm/stages/copyVariantWriter";
-import { applyDesignPlanToSession, type DesignPlanApplyOptions } from "@/lib/llm/services/applyDesignPlan";
+import type { DesignPlanApplyOptions } from "@/lib/llm/services/applyDesignPlan";
 import { applyCanvasPatchToSession, repairDesignDocument } from "@/lib/llm/services/applyCanvasPatch";
 import type { CanvasPatchResult } from "@/lib/llm/schemas/canvasTools";
 import { useDesignHistory } from "@/lib/design/useDesignHistory";
 import type { ValidatedDesignPlan } from "@/lib/llm/services/layoutValidator";
-import type { VisualBlockRecord, VisualBlockGenerateInput } from "@/lib/social-tool/visualBlocks/types";
-import { buildVisualPickIntentFromText } from "@/lib/social-tool/visualBlocks/library/scoring";
+import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 import { inferFeaturedVisualKind, isFeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
 import type { FeaturedVisualKind } from "@/lib/social-tool/featuredVisualKind";
-import { campaignPlanFromBrief } from "@/lib/social-tool/engine/campaignPlanFromBrief";
-import { retrieveDesignSystem } from "@/lib/social-tool/engine/designSystemRetriever";
-import { resolveRecipe } from "@/lib/social-tool/engine/recipeResolver";
+import { visualBlockPickPayload, withLogoAwareShowBrand } from "@/lib/design/visualPickPayload";
+import {
+  applyPlanToBoardSession,
+  planFeaturedVisualKind,
+  planNeedsFeaturedLibrary,
+} from "@/lib/design/applyPlanToBoard";
 import {
   FEATURED_PRIMARY_SLOT_ID,
   addFeaturedSlot,
@@ -123,7 +124,7 @@ import { getIconCatalogEntry } from "@/lib/social-tool/icons/catalog";
 import { createCanvasIconRecord } from "@/lib/social-tool/icons/instantiate";
 import { MAX_CANVAS_ICONS } from "@/lib/social-tool/icons/types";
 import { buildFeaturedVisualPickInput } from "@/lib/social-tool/generateDesignVariants";
-import { pickShuffleFeaturedVisualBrowser } from "@/lib/social-tool/shuffleFeaturedVisualBrowser";
+import { requestFeaturedVisualPick } from "@/lib/social-tool/pickFeaturedVisualClient";
 import {
   activeVisualBlock,
   appendVisualBlocks,
@@ -144,87 +145,6 @@ function sessionMediaKey(snapshot: DesignSessionPersisted): string {
       ]),
     ),
   });
-}
-
-function visualBlockPickPayload(
-  session: DesignSessionPersisted,
-  input?: {
-    headline?: string;
-    subheading?: string;
-    theme?: string;
-    brief?: string;
-    preferredKind?: "ui" | "illustration" | "3d";
-  },
-) {
-  const headline = input?.headline ?? session.document.copy.heading;
-  const subheading = input?.subheading ?? session.document.copy.subheading;
-  const theme = input?.theme ?? headline;
-  const brief = input?.brief ?? [headline, subheading, theme].filter(Boolean).join(" ");
-  const featuredVisualKind =
-    input?.preferredKind ??
-    session.document.featuredVisualKind ??
-    inferFeaturedVisualKind(brief, {
-      artifactCategory: session.document.artifactCategory,
-    });
-
-  // Derive semantic pick context from brief (campaign-first block retrieval)
-  let semantic: VisualBlockGenerateInput["semantic"];
-  try {
-    const plan = campaignPlanFromBrief(brief, session.document.platformId);
-    const system = retrieveDesignSystem(plan);
-    const { recipe, pattern } = resolveRecipe(plan, system);
-    semantic = {
-      campaignType: plan.campaign.type,
-      recipeId: recipe.id,
-      patternId: pattern.id,
-      designSystemId: system.id,
-      contentDensity: plan.communication.contentDensity,
-      readingPattern: plan.communication.readingPattern,
-      colorMood: plan.visual.colorMood,
-      brandTone: plan.brand.tone,
-      featuredKind: featuredVisualKind,
-      proof: plan.visual.proof,
-      platformId: session.document.platformId,
-      artifactId: session.document.artifactId,
-      artifactCategory: session.document.artifactCategory,
-      bundleId: session.document.bundleId,
-    };
-  } catch {
-    semantic = {
-      featuredKind: featuredVisualKind,
-      platformId: session.document.platformId,
-      artifactId: session.document.artifactId,
-      artifactCategory: session.document.artifactCategory,
-      bundleId: session.document.bundleId,
-    };
-  }
-
-  return {
-    headline,
-    subheading,
-    theme,
-    brief,
-    brandColors: {
-      primary: session.brand.colors.primary,
-      accent: session.brand.colors.accent,
-    },
-    preferredKind: featuredVisualKind,
-    intent: {
-      ...buildVisualPickIntentFromText(headline, subheading, theme, brief),
-      featuredVisualKind,
-    },
-    semantic,
-  };
-}
-
-function withLogoAwareShowBrand(
-  document: DesignDocument,
-  brand: BrandKitPersisted,
-): DesignDocument {
-  if (kitHasAnyLogo(brand)) return document;
-  if (artifactWantsLogoPlaceholderById(document.artifactId)) return document;
-  if (!document.showBrand) return document;
-  return { ...document, showBrand: false };
 }
 
 export type UseDesignSessionResult = {
@@ -1009,55 +929,22 @@ export function useDesignSession(
 
   const applyDesignPlan = useCallback(
     (plan: ValidatedDesignPlan, options?: DesignPlanApplyOptions) => {
-      const needsFeaturedLibrary =
-        !options?.stockPhoto &&
-        plan.featuredSlots.some(
-          (slot) => slot.visible && slot.mode === "composed",
-        );
-      const featuredVisualKind = inferFeaturedVisualKind(
-        [plan.copy.heading, plan.copy.subheading, plan.rationale].filter(Boolean).join(" "),
-        {
-          artifactCategory:
-            options?.artifactCategory ?? sessionRef.current?.document.artifactCategory,
-        },
+      const needsFeaturedLibrary = planNeedsFeaturedLibrary(plan, options);
+      const featuredVisualKind = planFeaturedVisualKind(
+        plan,
+        options,
+        sessionRef.current?.document.artifactCategory,
       );
+      const visualSemantic = options?.visualSemantic;
 
       updateSession((prev) => {
-        const applied = applyDesignPlanToSession(plan, prev.document, {
-          ...options,
-          currentBackgroundPresetId: prev.brand.activeBackgroundPresetId,
-          designId: options?.designId ?? prev.designId,
-          brandColors: options?.brandColors ?? prev.brand.colors,
-          existingVisualBlocks: prev.featured.visualBlocks ?? [],
-          brief: [plan.copy.heading, plan.copy.subheading, plan.rationale]
-            .filter(Boolean)
-            .join(" "),
-        });
-        const document = withLogoAwareShowBrand(
-          { ...prev.document, ...applied.document, featuredVisualKind },
-          prev.brand,
-        );
+        const applied = applyPlanToBoardSession(prev, plan, options);
         if (applied.featuredImageSrc) {
           revokeFeaturedBlob();
           featuredBlobUrlRef.current = applied.featuredImageSrc;
           setFeaturedImageSrc(applied.featuredImageSrc);
         }
-        return {
-          ...prev,
-          brand: applied.brand
-            ? { ...prev.brand, ...applied.brand }
-            : prev.brand,
-          featured: {
-            ...prev.featured,
-            ...applied.featured,
-            image: applied.featuredImageSrc ? null : prev.featured.image,
-            visualBlocks:
-              applied.visualBlocks ??
-              (needsFeaturedLibrary ? [] : prev.featured.visualBlocks),
-          },
-          document,
-          updatedAt: Date.now(),
-        };
+        return applied.session;
       });
 
       if (!needsFeaturedLibrary) return;
@@ -1080,6 +967,7 @@ export function useDesignSession(
                   .filter(Boolean)
                   .join(" "),
                 preferredKind: featuredVisualKind,
+                visualSemantic,
               }),
               pickFeatured: true,
               source: "library",
@@ -1750,7 +1638,7 @@ export function useDesignSession(
         const doc = session.document;
         const headline = copyOverride?.headline ?? doc.copy.heading;
         const subheading = copyOverride?.subheading ?? doc.copy.subheading;
-        const newBlock = await pickShuffleFeaturedVisualBrowser(
+        const newBlock = await requestFeaturedVisualPick(
           buildFeaturedVisualPickInput(session, activeKind, {
             headline,
             subheading,
