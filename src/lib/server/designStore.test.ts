@@ -23,6 +23,8 @@ import {
 } from "@/lib/server/designStore";
 import { runMigrations, splitStatements } from "@/lib/server/migrate";
 import { pgDb } from "@/lib/server/pgDb";
+import { deleteSystem, listSystems, saveSystem } from "@/lib/server/systemStore";
+import { buildSystem } from "@/lib/design-systems/schema";
 
 const url = process.env.TEST_DATABASE_URL;
 const db = url ? pgDb(url) : null;
@@ -30,8 +32,8 @@ const skip = !db && "TEST_DATABASE_URL not set";
 
 before(async () => {
   if (!db) return;
-  await db.query(`DROP TABLE IF EXISTS share_links, design_versions, design_ops, designs, users, schema_migrations CASCADE`);
-  assert.deepEqual(await runMigrations(db), ["001_init.sql"]);
+  await db.query(`DROP TABLE IF EXISTS design_systems, share_links, design_versions, design_ops, designs, users, schema_migrations CASCADE`);
+  assert.deepEqual(await runMigrations(db), ["001_init.sql", "002_design_systems.sql"]);
   assert.deepEqual(await runMigrations(db), [], "migrations are applied once");
   await ensureUser(db, { id: "alice", email: "alice@example.com", name: "Alice" });
   await ensureUser(db, { id: "bob", email: "bob@example.com" });
@@ -144,4 +146,18 @@ test("library visuals merge by id", { skip }, async () => {
   await addBlocks(db!, local.id, alice, [block]);
   const merged = await addBlocks(db!, local.id, alice, [block, { ...block, id: "b2" }]);
   assert.deepEqual(merged.map((entry) => entry.id), ["b1", "b2"]);
+});
+
+test("design systems are per owner with one default", { skip }, async () => {
+  const one = buildSystem({ name: "One" });
+  const two = buildSystem({ name: "Two" });
+  await saveSystem(db!, "alice", one, true);
+  await saveSystem(db!, "alice", two, true);
+  await saveSystem(db!, "bob", { ...one, name: "Bob's copy" });
+  const mine = await listSystems(db!, "alice");
+  assert.deepEqual(mine.map((system) => [system.name, system.isDefault]).sort(), [["One", false], ["Two", true]]);
+  assert.equal((await listSystems(db!, "bob"))[0]!.name, "Bob's copy", "same id, separate owner");
+  await assert.rejects(saveSystem(db!, "alice", { ...one, colors: { primary: "red" } }), (error: unknown) => error instanceof StoreError && error.status === 400);
+  await deleteSystem(db!, "alice", one.id);
+  assert.equal((await listSystems(db!, "alice")).length, 1);
 });

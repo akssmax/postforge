@@ -12,7 +12,10 @@ import { CanvasLayers } from "@/components/canvas/CanvasLayers";
 import { SceneRenderer } from "@/components/scene/SceneRenderer";
 import { InspectorSelect } from "@/components/social-tool/InspectorControls";
 import { allArtboards, createId, findArtboard, type Artboard, type CanvasDesign } from "@/lib/canvas/document";
-import { cloneWithNewIds } from "@/lib/canvas/nodes";
+import { cloneWithNewIds, nodeLabel } from "@/lib/canvas/nodes";
+import { listSystems, saveSystem } from "@/lib/design-systems/repository";
+import type { DesignSystem } from "@/lib/design-systems/schema";
+import type { SceneNode } from "@/lib/scene/schema";
 import { locateNode, type CanvasOp } from "@/lib/canvas/ops";
 import { useCanvasEditor, type CanvasEditor as Editor } from "@/lib/canvas/useCanvasEditor";
 import { loadFromCloud, useCloudSync } from "@/lib/canvas/useCloudSync";
@@ -228,6 +231,28 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
   const { design, blocks, selection, setSelection, dispatch } = editor;
   const [zoom, setZoom] = useState("fit");
   const [asideTab, setAsideTab] = useState<"design" | "agent">("design");
+  const [systems, setSystems] = useState<DesignSystem[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void listSystems().then((list) => {
+      if (!cancelled) setSystems(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const activeSystem = systems.find((system) => system.id === design?.systemId) ?? null;
+  const saveComponent = useCallback(
+    async (node: SceneNode) => {
+      if (!activeSystem) return;
+      const name = window.prompt("Component name", node.type === "frame" ? "Card" : nodeLabel(node))?.trim();
+      if (!name) return;
+      const next = { ...activeSystem, components: [...activeSystem.components, { id: createId("cmp"), name: name.slice(0, 60), description: "", node }].slice(-60) };
+      const saved = await saveSystem(next);
+      setSystems((list) => list.map((system) => (system.id === saved.id ? saved : system)));
+    },
+    [activeSystem],
+  );
   const inspectorRef = useRef<HTMLDivElement>(null);
   const artboard = design && selection ? (findArtboard(design, selection.artboardId)?.artboard ?? null) : null;
   const playback = usePlayback(artboard?.scene.durationMs || 3000);
@@ -442,7 +467,7 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
             </div>
           )}
           <div className={`min-h-0 flex-1 ${asideTab === "agent" && !readOnly ? "" : "hidden"}`}>
-            <CanvasAgentPanel design={design} selection={selection} dispatch={dispatch} addBlocks={addBlocksSynced} />
+            <CanvasAgentPanel design={design} system={activeSystem} selection={selection} dispatch={dispatch} addBlocks={addBlocksSynced} />
           </div>
           <div ref={inspectorRef} data-canvas-inspector className={`min-h-0 flex-1 overflow-y-auto ${asideTab === "agent" && !readOnly ? "hidden" : ""}`}>
           {readOnly ? (
@@ -451,6 +476,9 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
             </p>
           ) : artboard ? (
             <CanvasInspector
+              design={design}
+              systems={systems}
+              onSaveComponent={saveComponent}
               artboard={artboard}
               nodeId={selection?.nodeId ?? null}
               blocks={blocks}

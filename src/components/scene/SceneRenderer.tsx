@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, createElement, useContext, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createContext, createElement, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { VisualBlockRenderer } from "@/components/social-tool/visualBlocks/VisualBlockRenderer";
 import { SceneShader } from "@/components/scene/SceneShader";
 import { motionStyle } from "@/lib/scene/motion";
+import { ensureWebFont } from "@/lib/design-systems/fonts";
 import { PostPattern } from "@/components/social-tool/PostPattern";
 import { resolveLucideIcon } from "@/lib/social-tool/icons/lucideRegistry";
 import type { PatternId } from "@/lib/social-tool/presets";
@@ -404,6 +405,10 @@ export function SceneRenderer(props: SceneRendererProps) {
   const { scene, colors, scale = 1, autoFit = true, time, fit: fixedFit } = props;
   const { width, height } = scene.size;
   const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ensureWebFont(scene.font.heading);
+    ensureWebFont(scene.font.body);
+  }, [scene.font.heading, scene.font.body]);
   // Fit is tied to the scene it was measured for, so a new scene starts at full size.
   const [fitState, setFitState] = useState<{ scene: SceneDocument; fit: number }>({ scene, fit: 1 });
   const measuredFit = fitState.scene === scene ? fitState.fit : 1;

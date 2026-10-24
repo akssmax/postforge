@@ -7,6 +7,9 @@ import { Spinner } from "@heroui/react";
 import { blankCanvasDesign } from "@/lib/canvas/blank";
 import { importV2Design } from "@/lib/canvas/importLocal";
 import { saveCanvasRecord } from "@/lib/canvas/localStore";
+import { applyOps } from "@/lib/canvas/ops";
+import { getDefaultSystem } from "@/lib/design-systems/repository";
+import { applySystemOps } from "@/lib/design-systems/schema";
 
 /** Creates a canvas design (blank, or converted from a v2 design) and opens it. */
 export function CanvasCreate({ fromDesignId }: { fromDesignId: string | null }) {
@@ -19,7 +22,12 @@ export function CanvasCreate({ fromDesignId }: { fromDesignId: string | null }) 
     started.current = true;
     void (async () => {
       try {
-        const record = fromDesignId ? await importV2Design(fromDesignId) : { design: blankCanvasDesign(), blocks: [] };
+        let record = fromDesignId ? await importV2Design(fromDesignId) : { design: blankCanvasDesign(), blocks: [] };
+        if (!fromDesignId) {
+          // New designs start on the default design system, if one is set.
+          const system = await getDefaultSystem().catch(() => null);
+          if (system) record = { ...record, design: applyOps(record.design, applySystemOps(record.design, system)).design };
+        }
         await saveCanvasRecord(record);
         router.replace(`/canvas/${record.design.id}`);
       } catch (cause) {

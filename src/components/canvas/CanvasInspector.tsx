@@ -1,11 +1,14 @@
 "use client";
 
 import { Button, Input, Label, TextField } from "@heroui/react";
-import { Copy, Trash2 } from "lucide-react";
+import { BookmarkPlus, Copy, Trash2 } from "lucide-react";
 import { CanvasFieldControl } from "@/components/canvas/CanvasFieldControl";
 import { CanvasIconButton } from "@/components/canvas/CanvasIconButton";
 import { InspectorSelect, InspectorSlider, InspectorTextSegment } from "@/components/social-tool/InspectorControls";
-import type { Artboard } from "@/lib/canvas/document";
+import type { Artboard, CanvasDesign } from "@/lib/canvas/document";
+import { applySystemOps, instantiateComponent, type DesignSystem } from "@/lib/design-systems/schema";
+import Link from "next/link";
+import { buildBackgroundPresets } from "@/lib/brand/backgroundPresets";
 import { COLOR_OPTIONS, fieldsFor, MOTION_PRESETS, readPath, type NodeField } from "@/lib/canvas/fields";
 import { defaultNode, nodeTypeLabel, sceneDiffOps, type InsertableType } from "@/lib/canvas/nodes";
 import { locateNode, type CanvasOp } from "@/lib/canvas/ops";
@@ -16,6 +19,10 @@ import { resizeScene, SCENE_SIZES } from "@/lib/scene/sizes";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 
 type Props = {
+  design: CanvasDesign;
+  /** Systems the user can apply; the design's own is `design.systemId`. */
+  systems: DesignSystem[];
+  onSaveComponent: (node: SceneNode) => void;
   artboard: Artboard;
   nodeId: string | null;
   blocks: VisualBlockRecord[];
@@ -159,7 +166,32 @@ export function TweaksPanel({ artboard, dispatch }: { artboard: Artboard; dispat
   );
 }
 
-function ArtboardControls({ artboard, dispatch }: { artboard: Artboard; dispatch: Props["dispatch"] }) {
+function SystemControls({ design, systems, dispatch }: { design: CanvasDesign; systems: DesignSystem[]; dispatch: Props["dispatch"] }) {
+  const current = systems.find((system) => system.id === design.systemId);
+  return (
+    <Section title="Design system">
+      <InspectorSelect
+        label="System"
+        value={current?.id ?? "none"}
+        options={[...(current ? [] : [{ id: "none", label: design.systemId ? "Not on this device" : "None" }]), ...systems.map((system) => ({ id: system.id, label: system.name }))]}
+        onChange={(id) => {
+          const system = systems.find((entry) => entry.id === id);
+          if (system) dispatch(applySystemOps(design, system), { label: `Apply ${system.name}` });
+        }}
+      />
+      {current ? (
+        <Button size="sm" variant="ghost" onPress={() => dispatch(applySystemOps(design, current), { label: `Reapply ${current.name}` })}>
+          Reapply colours and fonts
+        </Button>
+      ) : null}
+      <Link href="/canvas/systems" className="block text-xs text-text-secondary underline">
+        Manage design systems
+      </Link>
+    </Section>
+  );
+}
+
+function ArtboardControls({ artboard, design, dispatch }: { artboard: Artboard; design: CanvasDesign; dispatch: Props["dispatch"] }) {
   const { scene } = artboard;
   const sizes = [...SCENE_SIZES, DECK_SIZE];
   const currentSize = sizes.find((size) => size.width === scene.size.width && size.height === scene.size.height);
@@ -207,13 +239,21 @@ function ArtboardControls({ artboard, dispatch }: { artboard: Artboard; dispatch
                   op: "setScene",
                   artboardId: artboard.id,
                   path: "background",
-                  value: kind === "color" ? { kind: "color", color: "surface" } : kind === "css" ? { kind: "css", value: "linear-gradient(135deg, #1f3a5f, #0b1726)" } : { kind: "brand-preset", presetId: null },
+                  value: kind === "color" ? { kind: "color", color: "surface" } : kind === "css" ? { kind: "css", value: "linear-gradient(135deg, #1f3a5f, #0b1726)" } : { kind: "brand-preset", presetId: "brand-hero" },
                 },
               ],
               { label: "Background" },
             )
           }
         />
+        {background.kind === "brand-preset" ? (
+          <InspectorSelect
+            label="Preset"
+            value={background.presetId ?? "default"}
+            options={buildBackgroundPresets(design.brand.colors).map((preset) => ({ id: preset.id, label: preset.label }))}
+            onChange={(presetId) => dispatch([{ op: "setScene", artboardId: artboard.id, path: "background", value: { kind: "brand-preset", presetId: presetId === "default" ? null : presetId } }], { label: "Background preset" })}
+          />
+        ) : null}
         {background.kind === "color" ? (
           <InspectorSelect label="Colour" value={background.color} options={COLOR_OPTIONS} onChange={(color) => dispatch([{ op: "setScene", artboardId: artboard.id, path: "background", value: { kind: "color", color } }], { label: "Background colour" })} />
         ) : null}
@@ -248,9 +288,17 @@ function ArtboardControls({ artboard, dispatch }: { artboard: Artboard; dispatch
   );
 }
 
-export function CanvasInspector({ artboard, nodeId, blocks, dispatch, onSelectNode, onDuplicate, onDelete }: Props) {
+export function CanvasInspector({ design, systems, onSaveComponent, artboard, nodeId, blocks, dispatch, onSelectNode, onDuplicate, onDelete }: Props) {
   const located = nodeId ? locateNode(artboard.scene, nodeId) : null;
-  if (!located) return <ArtboardControls artboard={artboard} dispatch={dispatch} />;
+  const system = systems.find((entry) => entry.id === design.systemId) ?? null;
+  if (!located) {
+    return (
+      <>
+        <SystemControls design={design} systems={systems} dispatch={dispatch} />
+        <ArtboardControls artboard={artboard} design={design} dispatch={dispatch} />
+      </>
+    );
+  }
   const { node } = located;
   const isRoot = node.id === artboard.scene.root.id;
   const set = (path: string, value: unknown, coalesce?: string) =>
@@ -268,6 +316,7 @@ export function CanvasInspector({ artboard, nodeId, blocks, dispatch, onSelectNo
         <span className="text-sm font-semibold text-text-primary">{isRoot ? "Root frame" : nodeTypeLabel(node.type)}</span>
         {isRoot ? null : (
           <div className="flex items-center gap-1">
+            {system ? <CanvasIconButton label={`Save as component in ${system.name}`} icon={BookmarkPlus} onPress={() => onSaveComponent(node)} /> : null}
             <CanvasIconButton label="Duplicate" shortcut="⌘D" icon={Copy} onPress={onDuplicate} />
             <CanvasIconButton label="Delete" shortcut="⌫" icon={Trash2} onPress={onDelete} />
           </div>
@@ -288,6 +337,26 @@ export function CanvasInspector({ artboard, nodeId, blocks, dispatch, onSelectNo
               </Button>
             ))}
           </div>
+          {system?.components.length ? (
+            <div className="space-y-1.5" data-system-components>
+              <span className="social-tool-label">From {system.name}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {system.components.map((component) => (
+                  <Button
+                    key={component.id}
+                    size="sm"
+                    variant="secondary"
+                    onPress={() => {
+                      const copy = instantiateComponent(component.node);
+                      if (dispatch([{ op: "insert", artboardId: artboard.id, parentId: node.id, index: node.children.length, node: copy }], { label: `Add ${component.name}` })) onSelectNode(copy.id);
+                    }}
+                  >
+                    {component.name}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </Section>
       ) : null}
       <MotionControls node={node} set={set} />

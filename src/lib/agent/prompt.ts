@@ -1,5 +1,6 @@
 import { allArtboards, findArtboard, type CanvasDesign } from "@/lib/canvas/document";
 import type { AgentScope } from "@/lib/agent/workspace";
+import { systemBrief, type DesignSystem } from "@/lib/design-systems/schema";
 
 /**
  * Stable system prompt (cached): what the document is and how to edit it.
@@ -57,7 +58,7 @@ export function scopeLabel(design: CanvasDesign, scope: AgentScope): string {
 export type AgentComment = { id: string; artboardId: string; nodeId?: string | null; text: string; author?: string | null };
 
 /** The per-request user turn: design outline, the scene in focus, open comments and the ask. */
-export function agentContext(design: CanvasDesign, scope: AgentScope, request: string, comments: AgentComment[] = []): string {
+export function agentContext(design: CanvasDesign, scope: AgentScope, request: string, comments: AgentComment[] = [], system?: DesignSystem): string {
   const outline = design.pages.map((page) => ({
     pageId: page.id,
     name: page.name,
@@ -71,6 +72,7 @@ export function agentContext(design: CanvasDesign, scope: AgentScope, request: s
     `Pages and artboards: ${JSON.stringify(outline)}`,
     focus ? `Scene of artboard ${focus.id} ("${focus.name}"):\n${JSON.stringify(focus.scene)}` : "",
     "</design>",
+    system ? `<design_system>\n${systemBrief(system)}\n</design_system>\nFollow the design system: its colours are the brand tokens, use its spacing tokens and components where they fit, and write in its voice.` : "",
     `Scope: ${scopeLabel(design, scope)}.`,
   ];
   if (comments.length) {

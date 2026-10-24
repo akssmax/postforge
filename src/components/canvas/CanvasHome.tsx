@@ -64,6 +64,9 @@ export function CanvasHome() {
             <p className="text-sm text-text-secondary">Multi-artboard designs: posts, sizes, carousels and slides in one place.</p>
           </div>
           <div className="flex items-center gap-3">
+          <Link href="/canvas/systems" className="text-sm text-text-secondary hover:underline">
+            Design systems
+          </Link>
           {account?.enabled ? (
             account.user ? (
               <Link prefetch={false} href="/api/auth/signout" className="text-sm text-text-secondary hover:underline">

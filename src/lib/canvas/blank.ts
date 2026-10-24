@@ -14,7 +14,8 @@ export function blankScene(size: { width: number; height: number } = { width: 10
     kind: size.height >= size.width * 1.5 ? "story" : size.width > size.height * 1.4 ? "deck" : "social",
     size,
     origin: { source: "composition", id: "blank" },
-    background: { kind: "brand-preset", presetId: null },
+    // Built from the design's brand colours (presetId null is the app's own gradient).
+    background: { kind: "brand-preset", presetId: "brand-hero" },
     font: { heading: "Inter", body: "Inter" },
     typeScale: 1,
     durationMs: 0,

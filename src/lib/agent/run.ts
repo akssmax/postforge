@@ -4,6 +4,7 @@ import type { DesignIssue } from "@/lib/agent/checks";
 import { AGENT_SYSTEM, agentContext, type AgentComment } from "@/lib/agent/prompt";
 import { AgentWorkspace, applyOpsInput, checkDesignInput, findVisualInput, readArtboardInput, type AgentScope, type ToolOutcome, type VisualFinder } from "@/lib/agent/workspace";
 import type { CanvasDesign } from "@/lib/canvas/document";
+import type { DesignSystem } from "@/lib/design-systems/schema";
 import type { CanvasOp } from "@/lib/canvas/ops";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 
@@ -24,7 +25,7 @@ export type AgentEvent =
   | { type: "done"; stopReason: string; turns: number; issues: DesignIssue[]; usage: { input: number; output: number; cacheRead: number }; model: string }
   | { type: "error"; message: string };
 
-export type AgentRequest = { design: CanvasDesign; scope: AgentScope; prompt: string; comments?: AgentComment[] };
+export type AgentRequest = { design: CanvasDesign; scope: AgentScope; prompt: string; comments?: AgentComment[]; system?: DesignSystem };
 
 const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
@@ -110,7 +111,7 @@ export async function runDesignAgent(
     onBlocks: (blocks) => emit({ type: "blocks", blocks }),
     findVisual: options.findVisual,
   });
-  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: agentContext(request.design, request.scope, request.prompt, request.comments) }];
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: agentContext(request.design, request.scope, request.prompt, request.comments, request.system) }];
   const usage = { input: 0, output: 0, cacheRead: 0 };
   let nudged = false;
   let jsonRetries = 0;

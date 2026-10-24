@@ -3,6 +3,7 @@ import { runDesignAgent, type AgentEvent } from "@/lib/agent/run";
 import { findLibraryVisual } from "@/lib/agent/visuals";
 import type { AgentScope } from "@/lib/agent/workspace";
 import { canvasDesignSchema } from "@/lib/canvas/document";
+import { designSystemSchema } from "@/lib/design-systems/schema";
 import { z } from "zod";
 
 export const maxDuration = 300;
@@ -15,6 +16,7 @@ const bodySchema = z.object({
     z.object({ kind: z.literal("artboard"), artboardId: z.string() }),
     z.object({ kind: z.literal("node"), artboardId: z.string(), nodeId: z.string() }),
   ]),
+  system: designSystemSchema.optional(),
   comments: z.array(z.object({ id: z.string(), artboardId: z.string(), nodeId: z.string().nullish(), text: z.string().max(2000), author: z.string().nullish() })).max(50).optional(),
 });
 

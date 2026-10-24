@@ -7,6 +7,7 @@ import { InspectorTextSegment } from "@/components/social-tool/InspectorControls
 import type { AgentEvent } from "@/lib/agent/run";
 import type { AgentComment } from "@/lib/agent/prompt";
 import type { CanvasDesign } from "@/lib/canvas/document";
+import type { DesignSystem } from "@/lib/design-systems/schema";
 import type { CanvasOp } from "@/lib/canvas/ops";
 import type { CanvasSelection, DispatchOptions } from "@/lib/canvas/useCanvasEditor";
 import { streamNdjson } from "@/lib/scene/compose/client";
@@ -25,6 +26,8 @@ type Turn = {
 
 type Props = {
   design: CanvasDesign;
+  /** The design's system; its voice, spacing and components guide the agent. */
+  system?: DesignSystem | null;
   selection: CanvasSelection;
   dispatch: (ops: CanvasOp[], options?: DispatchOptions) => boolean;
   addBlocks: (blocks: VisualBlockRecord[]) => void;
@@ -37,7 +40,7 @@ type Props = {
  * Chat with the design agent. Accepted op batches arrive while it works and
  * are applied as ordinary undoable steps, so the user can undo any of them.
  */
-export function CanvasAgentPanel({ design, selection, dispatch, addBlocks, pendingComments = [], onCommentsSent }: Props) {
+export function CanvasAgentPanel({ design, system = null, selection, dispatch, addBlocks, pendingComments = [], onCommentsSent }: Props) {
   const [prompt, setPrompt] = useState("");
   const [scope, setScope] = useState<ScopeKind>("artboard");
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -65,6 +68,7 @@ export function CanvasAgentPanel({ design, selection, dispatch, addBlocks, pendi
             ? { kind: "artboard", artboardId: selection.artboardId }
             : { kind: "design" },
       comments: pendingComments,
+      ...(system ? { system } : {}),
     };
     if (pendingComments.length) onCommentsSent?.();
     try {
