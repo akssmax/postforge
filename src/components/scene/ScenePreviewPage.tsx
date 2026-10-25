@@ -12,6 +12,7 @@ import type { BrandColors } from "@/lib/brand/types";
 import { resizeScene, SCENE_SIZES } from "@/lib/scene/sizes";
 import { captureScenePng, copyScenePng, sceneFileName, withOffscreenScenes, zipFiles } from "@/lib/scene/export";
 import { downloadBlob } from "@/lib/social-tool/exportPost";
+import { saveScenesToCanvas } from "@/lib/canvas/openInCanvas";
 import { withMotion, withShaderBackground, type MotionStyle, type ShaderPreset } from "@/lib/scene/motion";
 import { exportSceneVideo, pickVideoCodec, type VideoFormat } from "@/lib/scene/video";
 import type { SceneDocument } from "@/lib/scene/schema";
@@ -237,6 +238,14 @@ function ComposePanel({ size }: { size: (typeof SIZES)[number] }) {
     }
   }
 
+  const openInCanvas = () =>
+    runExport("Opening in canvas", async () => {
+      if (!scene || !state.colors) throw new Error("nothing to open yet");
+      const id = await saveScenesToCanvas({ title: "Composed design", colors: state.colors, scenes: [scene], names: ["Artboard 1"], blocks: state.blocks });
+      window.location.assign(`/canvas/${id}`);
+      return "Opening the canvas editor…";
+    });
+
   const exportPng = () =>
     runExport("Exporting PNG", async () => {
       const root = previewRoot();
@@ -361,6 +370,7 @@ function ComposePanel({ size }: { size: (typeof SIZES)[number] }) {
               { label: "All sizes (.zip)", run: exportAllSizes },
               { label: "Video (WebM)", run: () => exportVideo("webm") },
               ...(mp4Supported ? [{ label: "Video (MP4)", run: () => exportVideo("mp4") }] : []),
+              { label: "Open in canvas", run: openInCanvas },
             ].map((action) => (
               <button
                 key={action.label}

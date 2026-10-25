@@ -91,3 +91,27 @@ Architecture reference (diagrams): https://claude.ai/artifact/EhbAeP1hNg2dTcntqV
 - `npm run test:pipeline`, plus new unit tests for theme extraction, plan-once variants, ranker skip on retry, fallback flags, and whole-word tag scoring.
 - `npm run test:golden-briefs`, `npx tsc --noEmit`, `npm run lint` on changed files.
 - Manual: a brief with "LinkedIn or Instagram" → single design; "themes: speed, trust" → 2 variants with one planner call; check trace timings in the returned plan.
+
+---
+
+# Canvas architecture (Claude Design–style) — phases A–G
+
+Plan: https://claude.ai/artifact/9BvLg2aWUp7F8jgT68d9Y6. All seven phases are in this branch.
+
+| Phase | What shipped | Where |
+|---|---|---|
+| A · Document + ops | `CanvasDesign` v2 (pages → artboards → scenes); every change is an op with an exact inverse; transactions, undo/redo, conversions from v2 sessions, `/slides` decks and generated decks | `src/lib/canvas/{document,ops,history,convert}.ts` |
+| B · Editor | `/canvas`, `/canvas/new?from=`, `/canvas/[id]`: layers, click-to-select, declarative inspector, artboard settings, tweaks, slider coalescing, IndexedDB, PNG/ZIP/PDF/video export | `src/components/canvas/*` |
+| C · Backend | Postgres (Neon over HTTP, any Postgres over TCP), Auth.js (GitHub, Google, dev email login), op log with revision-keyed concurrency, server-side op validation, versions (restore = undoable op), share links (view/comment/edit), local → cloud upload | `src/lib/server/*`, `src/app/api/designs/*`, `db/migrations` |
+| D · Agent | Claude tool loop (adaptive thinking, cached system prompt, server-side refusal fallbacks): `apply_ops`, `read_artboard`, `find_visual`, `check_design`; ops stream to the editor as undo steps; scope (design / artboard / layer) enforced server-side; declared tweaks; `npm run eval:agent` | `src/lib/agent/*`, `/api/canvas/agent` |
+| E · Design systems | Colours, fonts, scale, spacing, logo, components, voice; import from tokens JSON, Tailwind v3/v4, websites, brand kit; default system for new designs; apply as one undo step; components in the insert menu; agent follows the system | `src/lib/design-systems/*`, `/canvas/systems` |
+| F · Collaboration | Comments pinned to layers (replies, resolve, soft delete), send to agent, SSE live updates (~1 s), presence with selection outlines | `src/lib/server/commentStore.ts`, `/api/designs/[id]/events` |
+| G · Handoff | HTML + React (one component per artboard, compiles) zip, PPTX with editable text over a picture of the visuals, Copy to Figma from scenes; Canvas in the app nav; "Open in canvas" from `/design/[id]`, `/scene` and `/slides` | `src/lib/handoff/*` |
+
+## Not done / limits
+- The v2 editor (`/design/[id]`, brief chat, variant boards, contrast fixes) is **not** replaced: the canvas doesn't yet have the brief-chat generation flow, variant generation or the v2 inspector's brand-kit tools. Designs convert one way (v2 → canvas).
+- The agent and its eval were tested with a scripted client and a mocked stream; the live API wasn't called from this environment (no key). Run `npm run eval:agent` with `ANTHROPIC_API_KEY` to baseline it.
+- Website import is unit-tested on fixtures; live fetches weren't possible here (no outbound DNS). The address check runs before each hop, but `fetch` resolves again (DNS rebinding remains possible in theory).
+- Live sync is op-level last-writer-wins with rebase (unsent ops that no longer apply are dropped), not CRDT merging of concurrent text edits in the same field.
+- SSE streams poll Postgres once a second per open design; for many concurrent editors move to Postgres LISTEN/NOTIFY or a realtime service.
+- PPTX text boxes use the browser's measured positions; PowerPoint's font metrics differ slightly, and the visual layer is a picture, not editable shapes.

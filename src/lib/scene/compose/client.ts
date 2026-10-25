@@ -15,10 +15,11 @@ export async function streamNdjson<E extends { type: string }>(
   body: unknown,
   onEvent: (event: E | { type: "error"; message: string }) => void,
   signal?: AbortSignal,
+  headers: Record<string, string> = {},
 ): Promise<void> {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
     signal,
   });

@@ -9,6 +9,7 @@ import type { DeckKind } from "@/lib/scene/deck/outline";
 import { captureScenePng, exportScenesPdf, sceneFileName, withOffscreenScenes, zipFiles } from "@/lib/scene/export";
 import { downloadBlob } from "@/lib/social-tool/exportPost";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
+import { saveScenesToCanvas } from "@/lib/canvas/openInCanvas";
 
 type DeckEvent =
   | { type: "draft"; deck: SceneDeck; colors: BrandColors; ms: number }
@@ -82,6 +83,14 @@ export function DeckPanel({ logoSvg }: { logoSvg: string }) {
     }
   }
 
+  async function openInCanvas() {
+    if (!deck || !colors) return;
+    setMessage("Opening in canvas…");
+    const label = deck.kind === "deck" ? "Slide" : "Page";
+    const id = await saveScenesToCanvas({ title: deck.title, colors, logoSvg, scenes: pages, names: pages.map((_, index) => `${label} ${index + 1}`), blocks });
+    window.location.assign(`/canvas/${id}`);
+  }
+
   const thumbHeight = 220;
   return (
     <section aria-labelledby="deck-heading" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -120,6 +129,7 @@ export function DeckPanel({ logoSvg }: { logoSvg: string }) {
             <>
               <button type="button" disabled={status === "working"} onClick={() => void exportPages("pdf")} style={buttonStyle}>PDF</button>
               <button type="button" disabled={status === "working"} onClick={() => void exportPages("zip")} style={buttonStyle}>PNGs (.zip)</button>
+              <button type="button" disabled={status === "working" || !colors} onClick={() => void openInCanvas()} style={buttonStyle}>Open in canvas</button>
             </>
           ) : null}
           <span role="status" aria-live="polite" data-deck-status={status} style={{ fontSize: 13, opacity: 0.8 }}>{message}</span>

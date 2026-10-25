@@ -170,6 +170,7 @@ export function specToScene(
     version: 1,
     ...context,
     durationMs: context.durationMs ?? 0,
+    tweaks: [],
     origin,
     overlays,
     root: {

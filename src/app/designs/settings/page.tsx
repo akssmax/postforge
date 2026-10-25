@@ -12,6 +12,104 @@ import {
   saveStoredLlmModel,
   type OpenRouterChatModelId,
 } from "@/lib/llm/models";
+import { DEFAULT_AI_SETTINGS, keyLooksValid, loadAiSettings, saveAiSettings, type AiProvider, type AiSettings } from "@/lib/llm/aiSettings";
+
+const PROVIDERS: Array<{ id: AiProvider; label: string; hint: string }> = [
+  { id: "default", label: "Postforge default", hint: "Free OpenRouter models, no key needed." },
+  { id: "openrouter", label: "My OpenRouter key", hint: "Starts with sk-or-. Use any OpenRouter model, including paid ones." },
+  { id: "anthropic", label: "My Anthropic key", hint: "Starts with sk-ant-. The design agent runs on Claude." },
+];
+
+function AiProviderSection() {
+  const [settings, setSettings] = useState<AiSettings>(DEFAULT_AI_SETTINGS);
+  const [savedAt, setSavedAt] = useState(0);
+  useEffect(() => {
+    // Read browser storage after mount (not available during server render).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSettings(loadAiSettings());
+  }, []);
+  const update = (patch: Partial<AiSettings>) => setSettings((current) => ({ ...current, ...patch }));
+  const needsKey = settings.provider !== "default";
+  const keyProblem = needsKey && settings.apiKey.trim() !== "" && !keyLooksValid(settings.provider, settings.apiKey);
+  return (
+    <div className="settings-section" data-ai-provider-settings>
+      <h2 className="mb-2 text-sm font-semibold text-text-primary">AI provider</h2>
+      <p className="mb-4 max-w-xl text-sm text-text-secondary">
+        Postforge uses free OpenRouter models by default. To use your own account, add an API key. Keys stay in this
+        browser and are sent only with your AI requests; the server uses them for that request and never stores them.
+      </p>
+      <div role="radiogroup" aria-label="AI provider" className="space-y-2">
+        {PROVIDERS.map((provider) => (
+          <label key={provider.id} className="flex cursor-pointer items-start gap-2 text-sm">
+            <input type="radio" name="ai-provider" className="mt-1" checked={settings.provider === provider.id} onChange={() => update({ provider: provider.id })} />
+            <span>
+              <span className="font-medium text-text-primary">{provider.label}</span>
+              <span className="block text-xs text-text-tertiary">{provider.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {needsKey ? (
+        <div className="mt-4 max-w-md space-y-3">
+          <div>
+            <label htmlFor="ai-key" className="settings-label">
+              API key
+            </label>
+            <Input id="ai-key" type="password" autoComplete="off" value={settings.apiKey} onChange={(event) => update({ apiKey: event.target.value })} placeholder={settings.provider === "openrouter" ? "sk-or-…" : "sk-ant-…"} className="mt-1" />
+            {keyProblem ? <p className="settings-hint text-color-error">That doesn&apos;t look like an {settings.provider === "openrouter" ? "OpenRouter" : "Anthropic"} key.</p> : null}
+          </div>
+          <div>
+            <label htmlFor="ai-model-id" className="settings-label">
+              Model (optional)
+            </label>
+            <Input
+              id="ai-model-id"
+              value={settings.model}
+              onChange={(event) => update({ model: event.target.value })}
+              placeholder={settings.provider === "openrouter" ? DEFAULT_OPENROUTER_MODEL : "claude-opus-5-5"}
+              className="mt-1"
+            />
+            <p className="settings-hint">
+              {settings.provider === "openrouter" ? "Pick a model that reads images and supports tool calling for the design agent." : "Leave empty for Claude Opus 5.5."}
+            </p>
+          </div>
+        </div>
+      ) : null}
+      <div className="mt-4 flex items-center gap-3">
+        <Button
+          variant="secondary"
+          size="sm"
+          isDisabled={keyProblem || (needsKey && !settings.apiKey.trim())}
+          onPress={() => {
+            saveAiSettings(settings.provider === "default" ? DEFAULT_AI_SETTINGS : settings);
+            setSavedAt(Date.now());
+          }}
+        >
+          Save AI provider
+        </Button>
+        {needsKey && settings.apiKey ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={() => {
+              setSettings(DEFAULT_AI_SETTINGS);
+              saveAiSettings(DEFAULT_AI_SETTINGS);
+              setSavedAt(Date.now());
+            }}
+          >
+            Remove key
+          </Button>
+        ) : null}
+        {savedAt ? (
+          <span role="status" className="text-sm text-brand-500">
+            Saved
+          </span>
+        ) : null}
+      </div>
+      <p className="settings-hint mt-2">Your key is used by the canvas design agent. Other AI features still use the Postforge default for now.</p>
+    </div>
+  );
+}
 
 const STORAGE_KEY_NAME = "postforge:user:name";
 const STORAGE_KEY_AVATAR = "postforge:user:avatar";
@@ -184,8 +282,8 @@ export default function SettingsPage() {
       <div className="settings-section">
         <h2 className="mb-2 text-sm font-semibold text-text-primary">AI model</h2>
         <p className="mb-4 max-w-xl text-sm text-text-secondary">
-          Choose the model used for new design and chat requests. If it is unavailable,
-          OpenRouter automatically tries the Gemma and Nex free-model fallbacks.
+          Choose the free model used for new design and chat requests. If it is unavailable,
+          OpenRouter tries Gemma 4 31B, then any free model with the features the request needs.
         </p>
         <label htmlFor="ai-model" className="settings-label">Active model</label>
         <select
@@ -206,6 +304,8 @@ export default function SettingsPage() {
         </select>
         <p className="settings-hint">This preference is stored locally in this browser.</p>
       </div>
+
+      <AiProviderSection />
 
       {/* Storage */}
       <div className="settings-section">
