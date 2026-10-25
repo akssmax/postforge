@@ -198,3 +198,32 @@ export async function copyDesignToFigma(design: CanvasDesign, blocks: VisualBloc
     }
   });
 }
+
+const blobToDataUrl = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+
+/** A small PNG of one artboard as it looks now, so a vision model can see the design. */
+export async function artboardSnapshot(design: CanvasDesign, artboardId: string, blocks: VisualBlockRecord[], maxSide = 1024): Promise<string | null> {
+  const item = rendererItems(design, blocks).find((entry) => entry.artboard.id === artboardId);
+  if (!item) return null;
+  const { width, height } = item.artboard.scene.size;
+  const ratio = Math.min(1, maxSide / Math.max(width, height));
+  return withOffscreenScenes([item.props], async ([root]) => blobToDataUrl(await captureScenePng(root!, item.artboard.scene, ratio)));
+}
+
+/** Shrink an attached image to fit `maxSide` and re-encode it as JPEG. */
+export async function imageFileToDataUrl(file: File, maxSide = 1280): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const ratio = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * ratio);
+  canvas.height = Math.round(bitmap.height * ratio);
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas.toDataURL("image/jpeg", 0.85);
+}

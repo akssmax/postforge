@@ -1,10 +1,12 @@
 // Runs the design agent on a fixed set of requests and grades the results.
-// Spends real API tokens: needs ANTHROPIC_API_KEY. Usage:
+// Uses OPENROUTER_API_KEY (free default models), or ANTHROPIC_API_KEY to test
+// Claude instead. Usage:
 //   npm run eval:agent            # all cases
 //   npm run eval:agent -- headline  # cases whose id contains "headline"
 import { writeFileSync } from "node:fs";
 import { checkArtboard } from "../src/lib/agent/checks";
-import { runDesignAgent, type AgentEvent } from "../src/lib/agent/run";
+import { agentProviderFor, runAgent } from "../src/lib/agent/dispatch";
+import type { AgentEvent, AgentProvider } from "../src/lib/agent/run";
 import { findLibraryVisual } from "../src/lib/agent/visuals";
 import type { AgentScope } from "../src/lib/agent/workspace";
 import { blankCanvasDesign } from "../src/lib/canvas/blank";
@@ -103,10 +105,13 @@ const CASES: Case[] = [
 ];
 
 async function main() {
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
-    console.error("Set ANTHROPIC_API_KEY to run the agent eval (it calls the API and costs tokens).");
+  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
+  const provider: AgentProvider | null = anthropicKey ? { kind: "anthropic", apiKey: anthropicKey, model: process.env.DESIGN_AGENT_MODEL ?? "" } : agentProviderFor(new Headers());
+  if (!provider) {
+    console.error("Set OPENROUTER_API_KEY (or ANTHROPIC_API_KEY) to run the agent eval.");
     process.exit(1);
   }
+  console.log(`Provider: ${provider.kind} ${provider.model || "(default model)"}`);
   const filter = process.argv[2];
   const cases = CASES.filter((entry) => !filter || entry.id.includes(filter));
   const rows = [];
@@ -117,10 +122,12 @@ async function main() {
     const started = Date.now();
     let crash: string | null = null;
     try {
-      await runDesignAgent({ design: before, scope: entry.scope(before), prompt: entry.prompt }, (event) => {
+      await runAgent({ design: before, scope: entry.scope(before), prompt: entry.prompt }, provider, (event) => {
         events.push(event);
         if (event.type === "ops") after = applyOps(after, event.ops).design;
       }, { findVisual: findLibraryVisual });
+      // Free models are rate-limited: space the cases out a little.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
     } catch (error) {
       crash = error instanceof Error ? error.message : String(error);
     }

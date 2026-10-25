@@ -34,23 +34,25 @@ OPENROUTER_MODEL=openai/gpt-4o-mini
 OpenRouter is preferred when configured. Existing `MISTRAL_API_KEY` and
 `MISTRAL_MODEL` settings remain supported as a fallback.
 
-## Design agent (Claude)
+## Design agent
 
 The canvas editor's Agent tab edits designs through the same ops as the editor,
-streamed live, one undo step per change. It runs on the Anthropic API:
+streamed live, one undo step per change. It sees a render of the artboard in
+focus and any reference images you attach.
 
-```bash
-ANTHROPIC_API_KEY=sk-ant-...
-# Optional overrides
-DESIGN_AGENT_MODEL=claude-opus-5-5
-DESIGN_AGENT_EFFORT=medium   # low | medium | high | xhigh | max
-```
+By default it runs on free OpenRouter models that read images and call tools
+(`nvidia/nemotron-3.5-super-vl:free`, falling back to `google/gemma-4-31b-it:free`
+and `openrouter/free`) with the server's `OPENROUTER_API_KEY`. Override the model
+with `DESIGN_AGENT_OPENROUTER_MODEL`. When sign-in is configured, only signed-in
+people use the server key.
 
-Requests use adaptive thinking, a cached system prompt and server-side refusal
-fallbacks (`fallbacks: "default"`). When sign-in is configured only signed-in
-users can call the agent. `npm run eval:agent` runs a graded set of requests
-against the live API (it costs tokens) and writes `agent-eval-results.json`.
-Quick drafts in `/tool` and `/scene` still use the OpenRouter models above.
+People can bring their own key in **Settings → AI provider**: an OpenRouter key
+(any model) or an Anthropic key (the agent then runs on Claude Opus 5.5 with
+adaptive thinking and server-side refusal fallbacks). Keys stay in the browser
+and are sent only with agent requests; the server never stores them.
+
+`npm run eval:agent` grades six requests against the live API (OpenRouter by
+default, Claude if `ANTHROPIC_API_KEY` is set) and writes `agent-eval-results.json`.
 
 ## Cloud sync (optional)
 

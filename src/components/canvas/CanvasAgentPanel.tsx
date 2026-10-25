@@ -2,7 +2,10 @@
 
 import { useRef, useState } from "react";
 import { Button, Label, Spinner, TextArea, TextField } from "@heroui/react";
-import { Sparkles, Square } from "lucide-react";
+import { ImagePlus, Sparkles, Square } from "lucide-react";
+import { CanvasIconButton } from "@/components/canvas/CanvasIconButton";
+import { artboardSnapshot, imageFileToDataUrl } from "@/lib/handoff/exporters";
+import { aiRequestHeaders } from "@/lib/llm/aiSettings";
 import { InspectorTextSegment } from "@/components/social-tool/InspectorControls";
 import type { AgentEvent } from "@/lib/agent/run";
 import type { AgentComment } from "@/lib/agent/prompt";
@@ -26,6 +29,7 @@ type Turn = {
 
 type Props = {
   design: CanvasDesign;
+  blocks: VisualBlockRecord[];
   /** The design's system; its voice, spacing and components guide the agent. */
   system?: DesignSystem | null;
   selection: CanvasSelection;
@@ -40,11 +44,14 @@ type Props = {
  * Chat with the design agent. Accepted op batches arrive while it works and
  * are applied as ordinary undoable steps, so the user can undo any of them.
  */
-export function CanvasAgentPanel({ design, system = null, selection, dispatch, addBlocks, pendingComments = [], onCommentsSent }: Props) {
+export function CanvasAgentPanel({ design, blocks, system = null, selection, dispatch, addBlocks, pendingComments = [], onCommentsSent }: Props) {
   const [prompt, setPrompt] = useState("");
   const [scope, setScope] = useState<ScopeKind>("artboard");
   const [turns, setTurns] = useState<Turn[]>([]);
   const abort = useRef<AbortController | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const [showRender, setShowRender] = useState(true);
   const running = turns.at(-1)?.status === "running";
 
   const effectiveScope: ScopeKind = scope === "node" && !selection?.nodeId ? "artboard" : scope === "artboard" && !selection ? "design" : scope;
@@ -58,7 +65,13 @@ export function CanvasAgentPanel({ design, system = null, selection, dispatch, a
     setPrompt("");
     const controller = new AbortController();
     abort.current = controller;
+    // Vision models see the artboard in focus, then any attached references.
+    const focus = selection?.artboardId ?? design.pages[0]?.artboards[0]?.id;
+    const render = showRender && focus ? await artboardSnapshot(design, focus, blocks).catch(() => null) : null;
+    const images = [...(render ? [render] : []), ...attachments].slice(0, 3);
+    setAttachments([]);
     const body = {
+      ...(images.length ? { images } : {}),
       design,
       prompt: ask,
       scope:
@@ -87,6 +100,7 @@ export function CanvasAgentPanel({ design, system = null, selection, dispatch, a
           } else if (event.type === "error") update(id, (turn) => ({ ...turn, status: "error", note: event.message }));
         },
         controller.signal,
+        aiRequestHeaders(),
       );
     } catch (error) {
       update(id, (turn) => ({ ...turn, status: controller.signal.aborted ? "stopped" : "error", note: controller.signal.aborted ? "Stopped." : (error as Error).message }));
@@ -145,6 +159,44 @@ export function CanvasAgentPanel({ design, system = null, selection, dispatch, a
           ]}
           onChange={(next) => setScope(next as ScopeKind)}
         />
+        {attachments.length ? (
+          <div className="flex flex-wrap gap-2" data-agent-attachments>
+            {attachments.map((src, index) => (
+              <button
+                key={index}
+                type="button"
+                aria-label={`Remove attached image ${index + 1}`}
+                onClick={() => setAttachments((all) => all.filter((_, i) => i !== index))}
+                className="size-12 overflow-hidden rounded-md border border-overlay-border"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt="" className="size-full object-cover" />
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="flex items-center justify-between gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+            <input type="checkbox" checked={showRender} onChange={(event) => setShowRender(event.target.checked)} />
+            Show the agent the artboard
+          </label>
+          <CanvasIconButton label="Attach a reference image" icon={ImagePlus} isDisabled={attachments.length >= 2} onPress={() => fileInput.current?.click()} />
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            data-agent-file
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) {
+                const url = await imageFileToDataUrl(file).catch(() => null);
+                if (url) setAttachments((all) => (all.length >= 2 ? all : [...all, url]));
+              }
+            }}
+          />
+        </div>
         {pendingComments.length ? <p className="text-xs text-text-secondary">{pendingComments.length} comment{pendingComments.length === 1 ? "" : "s"} will be sent with this request.</p> : null}
         <TextField fullWidth value={prompt} onChange={setPrompt}>
           <Label className="sr-only">Ask the design agent</Label>

@@ -608,6 +608,7 @@ export function CanvasEditor({ designId, shareToken = null }: { designId: string
           <div className={`min-h-0 flex-1 ${asideTab === "agent" ? "" : "hidden"}`}>
             <CanvasAgentPanel
               design={design}
+              blocks={blocks}
               system={activeSystem}
               selection={selection}
               dispatch={dispatch}

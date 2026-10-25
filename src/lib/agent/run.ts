@@ -8,7 +8,8 @@ import type { DesignSystem } from "@/lib/design-systems/schema";
 import type { CanvasOp } from "@/lib/canvas/ops";
 import type { VisualBlockRecord } from "@/lib/social-tool/visualBlocks/types";
 
-export const AGENT_MODEL = process.env.DESIGN_AGENT_MODEL || "claude-opus-5-5";
+/** Claude model when someone brings their own Anthropic key. */
+export const ANTHROPIC_AGENT_MODEL = process.env.DESIGN_AGENT_MODEL || "claude-opus-5-5";
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 type Effort = (typeof EFFORTS)[number];
 const AGENT_EFFORT: Effort = (EFFORTS as readonly string[]).includes(process.env.DESIGN_AGENT_EFFORT ?? "") ? (process.env.DESIGN_AGENT_EFFORT as Effort) : "medium";
@@ -25,7 +26,23 @@ export type AgentEvent =
   | { type: "done"; stopReason: string; turns: number; issues: DesignIssue[]; usage: { input: number; output: number; cacheRead: number }; model: string }
   | { type: "error"; message: string };
 
-export type AgentRequest = { design: CanvasDesign; scope: AgentScope; prompt: string; comments?: AgentComment[]; system?: DesignSystem };
+export type AgentRequest = {
+  design: CanvasDesign;
+  scope: AgentScope;
+  prompt: string;
+  comments?: AgentComment[];
+  system?: DesignSystem;
+  /** Data URLs: a render of the artboard in focus and any reference images. */
+  images?: string[];
+};
+
+/** Which model service runs the loop and whose key pays for it. */
+export type AgentProvider = { kind: "openrouter"; apiKey: string; model: string; fallbacks: string[] } | { kind: "anthropic"; apiKey: string; model: string };
+
+export function parseDataUrl(url: string): { mediaType: "image/png" | "image/jpeg" | "image/webp" | "image/gif"; data: string } | null {
+  const match = url.match(/^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/);
+  return match ? { mediaType: match[1] as "image/png", data: match[2]! } : null;
+}
 
 const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
@@ -67,10 +84,12 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   },
 ];
 
+export const TOOL_DESCRIPTIONS = Object.fromEntries(TOOLS.map((tool) => [tool.name, tool.description ?? ""])) as Record<"apply_ops" | "read_artboard" | "find_visual" | "check_design", string>;
+
 /** The slice of the SDK client the loop uses (tests pass a fake). */
 export type AgentClient = { beta: { messages: { stream: Anthropic["beta"]["messages"]["stream"] } } };
 
-async function runTool(workspace: AgentWorkspace, block: Anthropic.Beta.BetaToolUseBlock): Promise<ToolOutcome> {
+export async function runTool(workspace: AgentWorkspace, block: Anthropic.Beta.BetaToolUseBlock): Promise<ToolOutcome> {
   // Inputs stream eagerly, so the API doesn't validate them: check the shape here.
   const invalid = (): ToolOutcome => ({ content: JSON.stringify({ INVALID_JSON: JSON.stringify(block.input) }), isError: true });
   switch (block.name) {
@@ -95,23 +114,41 @@ async function runTool(workspace: AgentWorkspace, block: Anthropic.Beta.BetaTool
   }
 }
 
+/** The opening user turn: the design context, then any images. */
+export function openingContent(request: AgentRequest) {
+  const text = agentContext(request.design, request.scope, request.prompt, request.comments, request.system);
+  const images = (request.images ?? []).map(parseDataUrl).filter((image): image is NonNullable<ReturnType<typeof parseDataUrl>> => !!image).slice(0, 3);
+  const note = images.length ? "\nThe first image is a render of the artboard in focus as it looks now; any others are references the user attached." : "";
+  return { text: text + note, images };
+}
+
 /**
- * The design agent: a manual tool loop on Claude. Ops are validated against a
+ * The design agent: a manual tool loop on Claude (used with a person's own
+ * Anthropic key; the default provider is OpenRouter, see run-openrouter.ts). Ops are validated against a
  * working copy and streamed to the editor as they're accepted, so the user
  * watches the design change. The loop asks for a check before finishing.
  */
 export async function runDesignAgent(
   request: AgentRequest,
   emit: (event: AgentEvent) => void,
-  options: { client?: AgentClient; findVisual?: VisualFinder; signal?: AbortSignal } = {},
+  options: { client?: AgentClient; apiKey?: string; model?: string; findVisual?: VisualFinder; signal?: AbortSignal } = {},
 ): Promise<void> {
-  const client = options.client ?? new Anthropic();
+  const client = options.client ?? new Anthropic({ apiKey: options.apiKey });
+  const model = options.model || ANTHROPIC_AGENT_MODEL;
   const workspace = new AgentWorkspace(request.design, request.scope, {
     onOps: (ops, label) => emit({ type: "ops", ops, label }),
     onBlocks: (blocks) => emit({ type: "blocks", blocks }),
     findVisual: options.findVisual,
   });
-  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: agentContext(request.design, request.scope, request.prompt, request.comments, request.system) }];
+  const opening = openingContent(request);
+  const messages: Anthropic.Beta.BetaMessageParam[] = [
+    {
+      role: "user",
+      content: opening.images.length
+        ? [...opening.images.map((image) => ({ type: "image" as const, source: { type: "base64" as const, media_type: image.mediaType, data: image.data } })), { type: "text" as const, text: opening.text }]
+        : opening.text,
+    },
+  ];
   const usage = { input: 0, output: 0, cacheRead: 0 };
   let nudged = false;
   let jsonRetries = 0;
@@ -125,7 +162,7 @@ export async function runDesignAgent(
     }
     const stream = client.beta.messages.stream(
       {
-        model: AGENT_MODEL,
+        model,
         max_tokens: 32000,
         // Refusals are retried server-side on a fallback model chosen by category.
         betas: ["server-side-fallback-2026-07-01"],
@@ -188,5 +225,5 @@ export async function runDesignAgent(
     messages.push({ role: "user", content: results });
   }
 
-  emit({ type: "done", stopReason, turns, issues: workspace.lastIssues, usage, model: AGENT_MODEL });
+  emit({ type: "done", stopReason, turns, issues: workspace.lastIssues, usage, model });
 }
