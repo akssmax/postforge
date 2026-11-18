@@ -3,6 +3,7 @@ import {
   generateVisualBlocksBodySchema,
   handleGenerateVisualBlocks,
 } from "@/lib/llm/services/visualBlockService";
+import { dailyRateLimit } from "@/lib/server/rateLimit";
 
 /** Library picks are instant; source=generate waits on the configured LLM. */
 export const maxDuration = 120;
@@ -18,6 +19,10 @@ export async function POST(req: Request) {
     const source = parsed.data.source ?? "library";
     if (source === "generate" && !getLlmApiKey()) {
       return Response.json({ error: getLlmConfigurationError() }, { status: 503 });
+    }
+    if (source === "generate") {
+      const limited = await dailyRateLimit(req, "ai");
+      if (limited) return limited;
     }
 
     const result = await handleGenerateVisualBlocks(parsed.data);

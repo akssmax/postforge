@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dailyRateLimit } from "@/lib/server/rateLimit";
 
 const ALLOWED_HOSTS = new Set([
   "images.unsplash.com",
@@ -16,6 +17,8 @@ function isAllowedUrl(raw: string): boolean {
 }
 
 export async function GET(request: Request) {
+  const limited = await dailyRateLimit(request, "image");
+  if (limited) return limited;
   const { searchParams } = new URL(request.url);
   const target = searchParams.get("url");
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isOpenRouterChatModelId, type OpenRouterChatModelId } from "@/lib/llm/models";
 import { composeSceneEvents } from "@/lib/scene/compose/composer";
+import { dailyRateLimit } from "@/lib/server/rateLimit";
 
 /** One AI call after an instant draft; well under the brief chat's multi-stage budget. */
 export const maxDuration = 60;
@@ -16,6 +17,8 @@ const bodySchema = z.object({
 
 /** Streams newline-delimited JSON events: draft, blocks, partial…, final. */
 export async function POST(req: Request) {
+  const limited = await dailyRateLimit(req, "ai");
+  if (limited) return limited;
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return Response.json({ error: "Send a brief (3–2000 characters) and a canvas size." }, { status: 400 });

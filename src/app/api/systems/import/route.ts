@@ -1,6 +1,7 @@
 import { auth, authConfigured } from "@/auth";
 import { fetchPublicText } from "@/lib/design-systems/fetchSite";
 import { importWebsite, stylesheetLinks } from "@/lib/design-systems/importers";
+import { dailyRateLimit } from "@/lib/server/rateLimit";
 
 const MAX_HTML = 1_500_000;
 const MAX_CSS = 600_000;
@@ -8,6 +9,8 @@ const MAX_STYLESHEETS = 4;
 
 /** Read a brand from a public website (the browser can't fetch other origins). */
 export async function POST(request: Request) {
+  const limited = await dailyRateLimit(request, "import");
+  if (limited) return limited;
   if (authConfigured && !(await auth())?.user?.id) return Response.json({ error: "Sign in to import from a website." }, { status: 401 });
   const body = (await request.json().catch(() => null)) as { url?: string } | null;
   const raw = String(body?.url ?? "").trim();
