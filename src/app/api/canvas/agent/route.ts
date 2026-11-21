@@ -6,6 +6,7 @@ import type { AgentScope } from "@/lib/agent/workspace";
 import { canvasDesignSchema } from "@/lib/canvas/document";
 import { designSystemSchema } from "@/lib/design-systems/schema";
 import { z } from "zod";
+import { dailyRateLimit } from "@/lib/server/rateLimit";
 
 export const maxDuration = 300;
 
@@ -34,6 +35,11 @@ export async function POST(request: Request) {
   // The server's key is shared: with sign-in configured, only signed-in people use it.
   if (!usesOwnKey(request.headers) && authConfigured && !(await auth())?.user?.id) {
     return Response.json({ error: "Sign in, or add your own API key in Settings, to use the design agent." }, { status: 401 });
+  }
+  // People on their own key pay for it themselves; the server's key is capped per day.
+  if (!usesOwnKey(request.headers)) {
+    const limited = await dailyRateLimit(request, "ai");
+    if (limited) return limited;
   }
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid request" }, { status: 400 });

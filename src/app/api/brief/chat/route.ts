@@ -5,6 +5,7 @@ import {
 } from "@/lib/llm/services/briefChatService";
 import { toBriefChatClientError } from "@/lib/llm/streamErrors";
 import { normalizePlatformId } from "@/lib/social-tool/presets";
+import { dailyRateLimit } from "@/lib/server/rateLimit";
 
 /**
  * Brief chat awaits a multi-stage Mistral pipeline (plan → rank → slots → copy,
@@ -15,6 +16,8 @@ import { normalizePlatformId } from "@/lib/social-tool/presets";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
+  const limited = await dailyRateLimit(req, "ai");
+  if (limited) return limited;
   try {
     const json = await req.json();
     const parsed = briefChatBodySchema.safeParse(json);

@@ -1,7 +1,10 @@
 import { searchStockPhotos } from "@/lib/llm/stages/stockPhotoResolver";
 import { NextResponse } from "next/server";
+import { dailyRateLimit } from "@/lib/server/rateLimit";
 
 export async function GET(request: Request) {
+  const limited = await dailyRateLimit(request, "stock");
+  if (limited) return limited;
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q")?.trim();
   const limit = Number(searchParams.get("limit") ?? "12");

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isOpenRouterChatModelId, type OpenRouterChatModelId } from "@/lib/llm/models";
 import { composeDeckEvents } from "@/lib/scene/deck/composer";
 import { deckKindSchema } from "@/lib/scene/deck/outline";
+import { dailyRateLimit } from "@/lib/server/rateLimit";
 
 export const maxDuration = 60;
 
@@ -14,6 +15,8 @@ const bodySchema = z.object({
 
 /** Streams newline-delimited JSON events: draft, blocks, final. */
 export async function POST(req: Request) {
+  const limited = await dailyRateLimit(req, "ai");
+  if (limited) return limited;
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Send a brief (3–4000 characters) and a kind (deck or carousel)." }, { status: 400 });
   const { modelId, ...request } = parsed.data;

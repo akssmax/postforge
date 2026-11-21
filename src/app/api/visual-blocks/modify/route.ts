@@ -3,11 +3,14 @@ import {
   handleModifyVisualBlock,
   modifyVisualBlockBodySchema,
 } from "@/lib/llm/services/visualBlockService";
+import { dailyRateLimit } from "@/lib/server/rateLimit";
 
 /** SVG modification can exceed the old 60s cap under cold starts / region latency. */
 export const maxDuration = 120;
 
 export async function POST(req: Request) {
+  const limited = await dailyRateLimit(req, "ai");
+  if (limited) return limited;
   if (!getLlmApiKey()) {
     return Response.json({ error: getLlmConfigurationError() }, { status: 503 });
   }
